@@ -49,6 +49,24 @@ implementation of the same general idea, plus:
   partial-dependence-style curve of a single feature's learned response,
   and `model.feature_contributions(X)` for native per-sample,
   per-feature attribution (not a post-hoc method like SHAP)
+- **Hard monotonic constraints** — `monotone_constraints={"feature": 1|-1}`
+  (requires `gam=True`), enforced by projecting each edge's B-spline
+  control points onto the monotone cone every step — a real guarantee,
+  not a penalty
+- **GAM mode** (`gam=True`) — fixes each learner's output edge to
+  identity, making the ensemble an exact additive model
+  `F(x) = c + sum_j g_j(x_j)`; combine with `model.symbolic_report(X)`
+  to fit closed-form functions (`sin`, `x^2`, `tanh`, ...) to each
+  feature's learned shape function
+- **`model.predict_derivative(X, feature)`** — analytic, exact derivative
+  curves (trees have none; MLPs only give pointwise autograd gradients)
+- **`model.refine(X, new_grid)`** / **`model.prune(X, threshold)`** —
+  near-losslessly re-express a fitted ensemble on a finer spline grid, or
+  zero out dead edges post-hoc, without retraining from scratch
+- **`model.feature_interaction(X)`** — native structural interaction
+  scores read off the trained weights (`kan_hidden > 1`)
+- **`lamb`/`lamb_l1`/`lamb_coefdiff`** — tunable smoothness/sparsity
+  regularization on the learned splines (pykan's own regularizers)
 - Automatic categorical encoding and missing-value handling, no manual
   preprocessing required
 
@@ -112,10 +130,33 @@ current training-speed limits):
 | Plain KAN (no boosting) | 0.65 | single model, same features |
 | Plain MLP | 0.59–0.62 | same features |
 
-**Read this table honestly**: KANBoost does not yet beat CatBoost on
-this dataset. The goal of this repo, at this stage, is to establish a
-working, extensible implementation and an honest baseline — not to claim
-state-of-the-art results.
+Standard UCI-style datasets, KANBoost vs. sklearn's
+`HistGradientBoosting*` (untuned defaults) as a sanity floor — see
+[`examples/benchmark_uci.py`](./examples/benchmark_uci.py), reproducible
+in one run (`kan_hidden=1`, `n_estimators=60`, `kan_steps=15`,
+`batch_size=2048`):
+
+| Dataset | Metric | KANBoost | HistGradientBoosting | KANBoost train time |
+|---|---|---|---|---|
+| Adult Income (10K-row train sample, 48K total) | AUC | 0.884 | 0.919 | ~17s |
+| California Housing (full, 20.6K rows) | R² | 0.639 | 0.836 | ~13s |
+| Breast Cancer Wisconsin (full, 569 rows) | AUC | **0.9954** | 0.9931 | ~11s |
+
+On the small-data end (Breast Cancer, 569 rows), KANBoost's smaller
+per-round learner capacity stops being a handicap and it edges out the
+tree baseline — the two larger datasets show the more typical pattern of
+tree boosting ahead on both accuracy and speed.
+
+Also in that script: a `monotone_constraints={"MedInc": 1}` model on
+California Housing, verified via `predict_derivative` to have a
+non-negative derivative (min ≈ +0.50) on the *held-out test set* — a
+hard structural guarantee tree-boosting libraries can't offer.
+
+**Read these tables honestly**: KANBoost does not consistently beat tuned
+tree boosting on accuracy or speed. The value proposition is
+interpretability and structural guarantees (monotonicity, exact additive
+decomposition, analytic derivatives) that trees and MLPs
+can't provide even in principle — not raw predictive performance.
 
 ## Honest limitations
 
@@ -128,9 +169,13 @@ state-of-the-art results.
 - **Categorical encoding** is a simple smoothed target-mean encoder, not
   CatBoost's ordered boosting scheme — it can leak on small folds if not
   used carefully.
-- **No monotonic constraints or custom loss functions** yet, and
-  multiclass classification is one-vs-rest (independent binary chains
-  combined via softmax), not a single joint softmax objective.
+- **Monotonic constraints require `gam=True` and `kan_hidden=1`** — the
+  guarantee only holds for a pure additive ensemble; it can't be made
+  sound through a hidden layer that mixes features.
+- Multiclass classification is one-vs-rest (independent binary chains
+  combined via softmax), not a single joint softmax objective, and no
+  user-pluggable custom loss functions yet (only squared-error/quantile
+  for regression, logloss for classification).
 
 ## Roadmap
 

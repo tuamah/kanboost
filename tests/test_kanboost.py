@@ -382,6 +382,137 @@ def test_feature_contributions():
         assert arr.shape == (200, 5)
 
 
+def test_monotone_constraints():
+    rng = np.random.RandomState(0)
+    X, _ = make_regression(n_samples=150, n_features=4, noise=0.1, random_state=0)
+    X_df = pd.DataFrame(X, columns=["a", "b", "c", "d"])
+    y = X[:, 0] * 2 + rng.normal(scale=0.1, size=150)
+
+    model = KANBoostRegressor(
+        n_estimators=5, kan_steps=8, early_stopping_rounds=None,
+        gam=True, kan_hidden=1, monotone_constraints={"a": 1}, random_state=0,
+    )
+    model.fit(X_df, y)
+
+    grid = np.linspace(-1, 1, 100)
+    n_features = len(model.preprocessor_.transformed_feature_names())
+    X_probe = np.zeros((100, n_features))
+    X_probe[:, 0] = grid
+    import torch
+    X_t = torch.tensor(X_probe, dtype=torch.float32, device=model.device_)
+    curve = model._raw_score_chain(X_t, model.learners_, model.init_pred_, model.best_iteration_)
+    assert np.all(np.diff(curve) >= -1e-6)
+
+    # requires gam=True
+    try:
+        KANBoostRegressor(monotone_constraints={"a": 1}, gam=False).fit(X_df, y)
+        raise AssertionError("monotone_constraints without gam=True was not rejected")
+    except ValueError:
+        pass
+
+
+def test_gam_mode_and_symbolic_report():
+    X, y = make_regression(n_samples=150, n_features=3, noise=0.1, random_state=0)
+    X_df = pd.DataFrame(X, columns=["a", "b", "c"])
+
+    model = KANBoostRegressor(
+        n_estimators=5, kan_steps=8, early_stopping_rounds=None,
+        gam=True, kan_hidden=1, random_state=0,
+    )
+    model.fit(X_df, y)
+    preds = model.predict(X_df)
+    assert preds.shape == (150,)
+
+    report = model.symbolic_report(X_df, top_k=2)
+    assert set(report.keys()) == set(model.preprocessor_.transformed_feature_names())
+    for candidates in report.values():
+        assert len(candidates) <= 2
+        for name, r2 in candidates:
+            assert isinstance(name, str) and isinstance(r2, float)
+
+    non_gam = KANBoostRegressor(n_estimators=3, kan_steps=3, early_stopping_rounds=None, random_state=0)
+    non_gam.fit(X_df, y)
+    try:
+        non_gam.symbolic_report(X_df)
+        raise AssertionError("symbolic_report without gam=True was not rejected")
+    except RuntimeError:
+        pass
+
+
+def test_predict_derivative():
+    X, y = make_regression(n_samples=150, n_features=4, noise=0.1, random_state=0)
+    X_df = pd.DataFrame(X, columns=["a", "b", "c", "d"])
+    y = X[:, 0] * 2 + y * 0  # purely monotone-increasing in "a"
+
+    model = KANBoostRegressor(
+        n_estimators=5, kan_steps=8, early_stopping_rounds=None,
+        gam=True, kan_hidden=1, monotone_constraints={"a": 1}, random_state=0,
+    )
+    model.fit(X_df, y)
+    deriv = model.predict_derivative(X_df, "a")
+    assert deriv.shape == (150,)
+    assert deriv.min() >= -1e-4  # non-negative for a monotone-increasing fit
+
+
+def test_prune_and_refine():
+    X, y = make_regression(n_samples=150, n_features=4, noise=0.1, random_state=0)
+    X_df = pd.DataFrame(X, columns=["a", "b", "c", "d"])
+
+    model = KANBoostRegressor(
+        n_estimators=3, kan_steps=5, kan_hidden=2, kan_grid=2,
+        early_stopping_rounds=None, random_state=0,
+    )
+    model.fit(X_df, y)
+
+    model.prune(X_df, threshold=1e-6)  # must not raise, predictions still usable
+    assert model.predict(X_df).shape == (150,)
+
+    before = model.predict(X_df)
+    model.refine(X_df, 5)
+    after = model.predict(X_df)
+    assert model.kan_grid == 5
+    assert np.allclose(before, after, atol=0.5)  # refine approximates, not identical
+
+
+def test_feature_interaction():
+    # a genuine multiplicative interaction (a*b), not additive noise --
+    # a vacuous {} result (e.g. from querying the wrong pykan layer) must
+    # be caught by this test, not just "isinstance(result, dict)"
+    rng = np.random.RandomState(0)
+    X = rng.uniform(-1, 1, size=(400, 4))
+    y = X[:, 0] * X[:, 1] + rng.normal(scale=0.01, size=400)
+    X_df = pd.DataFrame(X, columns=["a", "b", "c", "d"])
+
+    model = KANBoostRegressor(
+        n_estimators=15, kan_steps=15, kan_hidden=3,
+        early_stopping_rounds=None, random_state=0,
+    )
+    model.fit(X_df, y)
+    result = model.feature_interaction(X_df)
+    assert isinstance(result, dict)
+    assert len(result) > 0, "feature_interaction returned no interactions on data with a known one"
+    assert all(isinstance(k, tuple) and len(k) == 2 for k in result)
+
+    gam_model = KANBoostRegressor(n_estimators=3, kan_steps=5, kan_hidden=1, random_state=0, early_stopping_rounds=None)
+    gam_model.fit(X_df, y)
+    try:
+        gam_model.feature_interaction(X_df)
+        raise AssertionError("feature_interaction with kan_hidden=1 was not rejected")
+    except RuntimeError:
+        pass
+
+
+def test_regularization_lamb_params_accepted():
+    X, y = make_regression(n_samples=100, n_features=4, noise=0.1, random_state=0)
+    X_df = pd.DataFrame(X, columns=["a", "b", "c", "d"])
+    model = KANBoostRegressor(
+        n_estimators=3, kan_steps=5, early_stopping_rounds=None,
+        lamb=0.01, lamb_l1=0.5, lamb_coefdiff=1.0, random_state=0,
+    )
+    model.fit(X_df, y)  # must not raise
+    assert model.predict(X_df).shape == (100,)
+
+
 if __name__ == "__main__":
     import tempfile
 
@@ -405,6 +536,12 @@ if __name__ == "__main__":
     test_batch_size_training()
     test_batch_size_uses_different_batches_per_learner()
     test_feature_contributions()
+    test_monotone_constraints()
+    test_gam_mode_and_symbolic_report()
+    test_predict_derivative()
+    test_prune_and_refine()
+    test_feature_interaction()
+    test_regularization_lamb_params_accepted()
     print("All tests passed.")
 
 

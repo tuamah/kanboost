@@ -71,6 +71,25 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
     batch_size : int or None, default=None
         If set and smaller than the training set, each weak learner is
         fit with mini-batch Adam instead of full-batch.
+    gam : bool, default=False
+        If True, fixes each weak learner's output edge to the identity
+        function, so the whole ensemble reduces to an exact additive model
+        `F(x) = c + sum_j g_j(x_j)`. Required for `monotone_constraints`
+        and for `symbolic_report()`; also makes `feature_contributions()`
+        exact (it otherwise ignores the output layer's own nonlinearity).
+    monotone_constraints : dict or None, default=None
+        `{feature_name: 1 or -1}` to force the ensemble's dependence on
+        that (transformed) feature to be non-decreasing (`1`) or
+        non-increasing (`-1`). Requires `gam=True` and `kan_hidden=1` --
+        enforced via a hard projection onto the first layer's B-spline
+        control points after every optimizer step (the "variation
+        diminishing" property: sorted control points guarantee a monotone
+        curve), not a soft penalty.
+    lamb, lamb_l1, lamb_coefdiff : float, default=0.0, 1.0, 0.0
+        pykan's own regularization strengths (`KAN.fit`'s `lamb`,
+        `lamb_l1`, `lamb_coefdiff`), passed straight through. Only applied
+        on the full-batch path -- have no effect when `batch_size` or
+        `monotone_constraints` forces the custom Adam loop.
     """
 
     def fit(self, X, y, eval_set: tuple | None = None, sample_weight=None):

@@ -41,17 +41,41 @@ inspectable per-feature spline shape functions.
   hidden representation when `kan_hidden=1`; see its docstring for the
   precise guarantee)
 
+**v0.0.5 — KAN-native structural guarantees (monotonicity, GAM/symbolic, derivatives, model surgery)**
+- `gam=True` — fixes each learner's output edge to the identity function
+  (`fix_symbolic`), so the ensemble is an exact additive model
+  `F(x) = c + sum_j g_j(x_j)`. The earlier "deferred" reasoning
+  (monotonicity/symbolic extraction can't work through a hidden layer's
+  own nonlinear output spline) turned out to be a scoping problem, not a
+  fundamental one: constrain the mode, not just the edges.
+- `monotone_constraints={"feature": 1|-1}` (requires `gam=True`,
+  `kan_hidden=1`) — hard monotonicity via projecting the first layer's
+  B-spline control points onto the monotone cone after every optimizer
+  step (the variation-diminishing property of B-splines), with the SiLU
+  base branch and the spline's sign both frozen so nothing can undo it.
+  Verified on California Housing's `MedInc` in
+  `examples/benchmark_uci.py` — derivative stays non-negative on held-out
+  test data, not just training data.
+- `symbolic_report(X)` — in GAM mode, fits a small closed-form function
+  library (`sin`, `cos`, `exp`, `x^2`, `tanh`, ...) to each feature's
+  exact aggregated shape function, one fit per feature (not per learner,
+  avoiding the earlier fragility/explosion concern).
+- `predict_derivative(X, feature)` — analytic derivative curves via
+  autograd through the whole ensemble; exact and globally defined, unlike
+  a tree's zero/undefined derivative or an MLP's pointwise gradient.
+- `refine(X, new_grid)` / `prune(X, threshold)` — post-hoc, in-place
+  resolution upgrade or dead-edge removal on a fitted ensemble, wrapping
+  pykan's `KAN.refine`/`prune_edge`. No retraining from scratch, and no
+  equivalent operation exists for a fitted decision tree.
+- `feature_interaction(X)` — native structural interaction scores
+  (`kan_hidden > 1` only) via pykan's own attribution machinery.
+- `lamb`/`lamb_l1`/`lamb_coefdiff` — pykan's spline smoothness/sparsity
+  regularizers, plumbed through (full-batch path only).
+- `examples/benchmark_uci.py` — Adult Income and California Housing vs.
+  `HistGradientBoosting*` as an honest sanity floor (results in README).
+
 ## Deferred (with reasons)
 
-- **Monotonic constraints** — no sound way to constrain a KAN with a
-  hidden layer (the output layer's own spline can undo any per-feature
-  monotonicity); a penalty-based approximation would be misleading
-  rather than a real guarantee. Revisit only alongside a documented
-  "pure additive" (`kan_hidden=1`, identity output layer) mode.
-- **Symbolic formula extraction** (`pykan.auto_symbolic`) — fragile and
-  slow in practice, and formula count explodes with more than a handful
-  of estimators. Worth a standalone spike against a `kan_hidden=1`,
-  small-`n_estimators` model, not a general-purpose feature.
 - **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`
   modules don't trace or compile cleanly out of the box; would need
   upstream changes or a from-scratch spline layer.

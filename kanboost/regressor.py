@@ -48,6 +48,11 @@ class KANBoostRegressor(RegressorMixin, _BaseKANBoost):
         verbose: bool = False,
         device: str | None = None,
         batch_size: int | None = None,
+        gam: bool = False,
+        monotone_constraints: dict | None = None,
+        lamb: float = 0.0,
+        lamb_l1: float = 1.0,
+        lamb_coefdiff: float = 0.0,
         objective: str = "squared_error",
         alpha: float = 0.5,
     ):
@@ -66,6 +71,11 @@ class KANBoostRegressor(RegressorMixin, _BaseKANBoost):
             verbose=verbose,
             device=device,
             batch_size=batch_size,
+            gam=gam,
+            monotone_constraints=monotone_constraints,
+            lamb=lamb,
+            lamb_l1=lamb_l1,
+            lamb_coefdiff=lamb_coefdiff,
         )
         self.objective = objective
         self.alpha = alpha
