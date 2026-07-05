@@ -32,7 +32,7 @@ class KANBoostRegressor(RegressorMixin, _BaseKANBoost):
         """
         X, y, X_arr = self._prepare_fit(X, y)
 
-        X_t = torch.tensor(X_arr, dtype=torch.float32)
+        X_t = torch.tensor(X_arr, dtype=torch.float32, device=self.device_)
         n_features = X_arr.shape[1]
 
         self.init_pred_ = float(y.mean())
@@ -43,7 +43,7 @@ class KANBoostRegressor(RegressorMixin, _BaseKANBoost):
             X_val_df, y_val = eval_set
             X_val_df, y_val = _validate_Xy(X_val_df, y_val)
             X_val_arr = self.preprocessor_.transform(X_val_df)
-            X_val_t = torch.tensor(X_val_arr, dtype=torch.float32)
+            X_val_t = torch.tensor(X_val_arr, dtype=torch.float32, device=self.device_)
             F_val = np.full(len(y_val), self.init_pred_)
 
         best_val_loss = np.inf
@@ -61,7 +61,7 @@ class KANBoostRegressor(RegressorMixin, _BaseKANBoost):
 
             if X_val_t is not None:
                 with torch.no_grad():
-                    F_val += self.learning_rate * learner(X_val_t).numpy().flatten()
+                    F_val += self.learning_rate * learner(X_val_t).cpu().numpy().flatten()
                 val_loss = float(np.mean((y_val - F_val) ** 2))
 
                 if self.verbose:
@@ -89,7 +89,7 @@ class KANBoostRegressor(RegressorMixin, _BaseKANBoost):
         F = np.full(X_t.shape[0], self.init_pred_)
         for learner in self.learners_[: self.best_iteration_]:
             with torch.no_grad():
-                F += self.learning_rate * learner(X_t).numpy().flatten()
+                F += self.learning_rate * learner(X_t).cpu().numpy().flatten()
         return F
 
     def evaluate(self, X, y, verbose: bool = True) -> dict:

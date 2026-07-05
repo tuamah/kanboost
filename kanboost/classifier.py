@@ -56,6 +56,9 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
         Column names to target-mean encode automatically.
     random_state : int, default=42
     verbose : bool, default=False
+    device : str or None, default=None
+        Torch device to train and predict on, e.g. "cpu", "cuda", "cuda:0".
+        None auto-selects "cuda" when available, else "cpu".
     """
 
 
@@ -80,7 +83,7 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
             )
         self.classes_ = np.array([0, 1])
 
-        X_t = torch.tensor(X_arr, dtype=torch.float32)
+        X_t = torch.tensor(X_arr, dtype=torch.float32, device=self.device_)
         n_features = X_arr.shape[1]
 
         p = float(np.clip(y.mean(), 1e-6, 1 - 1e-6))
@@ -92,7 +95,7 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
             X_val_df, y_val = eval_set
             X_val_df, y_val = _validate_Xy(X_val_df, y_val)
             X_val_arr = self.preprocessor_.transform(X_val_df)
-            X_val_t = torch.tensor(X_val_arr, dtype=torch.float32)
+            X_val_t = torch.tensor(X_val_arr, dtype=torch.float32, device=self.device_)
             F_val = np.full(len(y_val), self.init_pred_)
 
         best_val_loss = np.inf
@@ -110,7 +113,7 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
 
             if X_val_t is not None:
                 with torch.no_grad():
-                    F_val += self.learning_rate * learner(X_val_t).numpy().flatten()
+                    F_val += self.learning_rate * learner(X_val_t).cpu().numpy().flatten()
                 val_prob = np.clip(_sigmoid(F_val), 1e-7, 1 - 1e-7)
                 val_loss = -float(np.mean(
                     y_val * np.log(val_prob) + (1 - y_val) * np.log(1 - val_prob)
@@ -144,7 +147,7 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
         F = np.full(X_t.shape[0], self.init_pred_)
         for learner in self.learners_[: self.best_iteration_]:
             with torch.no_grad():
-                F += self.learning_rate * learner(X_t).numpy().flatten()
+                F += self.learning_rate * learner(X_t).cpu().numpy().flatten()
         return F
 
     def predict_proba(self, X) -> np.ndarray:

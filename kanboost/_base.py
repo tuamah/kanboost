@@ -76,6 +76,7 @@ class _BaseKANBoost(BaseEstimator):
         categorical_cols=None,
         random_state: int = 42,
         verbose: bool = False,
+        device: str | None = None,
     ):
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
@@ -88,6 +89,7 @@ class _BaseKANBoost(BaseEstimator):
         self.categorical_cols = categorical_cols
         self.random_state = random_state
         self.verbose = verbose
+        self.device = device
 
         # fitted state
         self.preprocessor_ = None
@@ -95,6 +97,7 @@ class _BaseKANBoost(BaseEstimator):
         self.init_pred_ = None
         self.best_iteration_ = None
         self.feature_names_in_ = None
+        self.device_ = None
 
     # ------------------------------------------------------------------
     # NOTE: get_params/set_params/__sklearn_tags__ come from BaseEstimator.
@@ -111,11 +114,18 @@ class _BaseKANBoost(BaseEstimator):
         if self.kan_hidden < 1 or self.kan_grid < 1 or self.kan_steps < 1:
             raise ValueError("kan_hidden, kan_grid, kan_steps must be >= 1")
 
+    def _resolve_device(self) -> torch.device:
+        """`device=None` auto-selects cuda when available, else cpu."""
+        if self.device is not None:
+            return torch.device(self.device)
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     def _prepare_fit(self, X, y):
         """Common preamble: seeds, validation, preprocessing."""
         self._validate_hyperparams()
         torch.manual_seed(self.random_state)
         np.random.seed(self.random_state)
+        self.device_ = self._resolve_device()
 
         X, y = _validate_Xy(X, y)
         self.feature_names_in_ = list(X.columns)
@@ -139,10 +149,11 @@ class _BaseKANBoost(BaseEstimator):
                 grid=self.kan_grid,
                 k=self.kan_k,
                 seed=self.random_state + seed_offset,
+                device=str(self.device_),
             )
 
     def _fit_learner(self, learner: KAN, X_t: torch.Tensor, residual: np.ndarray):
-        r_t = torch.tensor(residual, dtype=torch.float32).unsqueeze(1)
+        r_t = torch.tensor(residual, dtype=torch.float32, device=self.device_).unsqueeze(1)
         dataset = {
             "train_input": X_t, "train_label": r_t,
             "test_input": X_t, "test_label": r_t,
@@ -153,7 +164,7 @@ class _BaseKANBoost(BaseEstimator):
                 loss_fn=nn.MSELoss(),
             )
         with torch.no_grad():
-            return learner(X_t).numpy().flatten()
+            return learner(X_t).cpu().numpy().flatten()
 
     def _check_fitted(self):
         if not self.learners_:
@@ -167,7 +178,7 @@ class _BaseKANBoost(BaseEstimator):
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(np.asarray(X), columns=self.feature_names_in_)
         X_arr = self.preprocessor_.transform(X)
-        return torch.tensor(X_arr, dtype=torch.float32)
+        return torch.tensor(X_arr, dtype=torch.float32, device=self.device_)
 
     # ------------------------------------------------------------------
     def feature_importances(self) -> np.ndarray:
@@ -181,7 +192,7 @@ class _BaseKANBoost(BaseEstimator):
         n_features = self.learners_[0].width[0][0]
         importances = np.zeros(n_features)
         for learner in self.learners_[: self.best_iteration_]:
-            coef = learner.act_fun[0].coef.detach().numpy()
+            coef = learner.act_fun[0].coef.detach().cpu().numpy()
             importances += np.linalg.norm(coef, axis=(1, 2))
         total = importances.sum()
         return importances / total if total > 0 else importances
