@@ -1,8 +1,9 @@
 """
-KANBoostClassifier: binary classification via gradient boosting with
-shallow KAN networks as weak learners.
+KANBoostClassifier: classification via gradient boosting with shallow KAN
+networks as weak learners.
 
-Follows the classic Friedman (2001) gradient boosting recipe:
+Binary targets follow the classic Friedman (2001) gradient boosting
+recipe:
 
     F_0(x)      = log-odds of the base rate
     for t = 1..T:
@@ -10,6 +11,10 @@ Follows the classic Friedman (2001) gradient boosting recipe:
         f_t     = a small KAN fit to (X, r_t)
         F_t(x)  = F_{t-1}(x) + learning_rate * f_t(x)
     prediction  = sigmoid(F_T(x))
+
+Targets with more than two classes are handled one-vs-rest: one
+independent binary boosting chain per class, combined via softmax over
+the chains' raw scores at prediction time.
 
 Each weak learner is a small, shallow KAN so it plays the same structural
 role a shallow decision tree plays in XGBoost/CatBoost: a cheap,
@@ -23,7 +28,7 @@ import torch
 
 from sklearn.base import ClassifierMixin
 
-from ._base import _BaseKANBoost, _validate_Xy
+from ._base import _BaseKANBoost, _validate_Xy, _validate_sample_weight
 
 
 def _sigmoid(z: np.ndarray) -> np.ndarray:
@@ -31,12 +36,13 @@ def _sigmoid(z: np.ndarray) -> np.ndarray:
 
 
 class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
-    """Gradient-boosted KAN ensemble for binary classification.
+    """Gradient-boosted KAN ensemble for classification (binary or
+    multiclass, one-vs-rest).
 
     Parameters
     ----------
     n_estimators : int, default=100
-        Maximum number of boosting iterations (weak learners).
+        Maximum number of boosting iterations (weak learners) per chain.
     learning_rate : float, default=0.1
         Shrinkage applied to each learner's contribution.
     kan_hidden : int, default=3
@@ -61,55 +67,85 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
         None auto-selects "cuda" when available, else "cpu".
     """
 
-
-    def fit(self, X, y, eval_set: tuple | None = None):
+    def fit(self, X, y, eval_set: tuple | None = None, sample_weight=None):
         """Fit the boosted ensemble.
 
         Parameters
         ----------
         X : DataFrame or array of shape (n_samples, n_features)
-        y : array of shape (n_samples,) with values in {0, 1}
+        y : array of shape (n_samples,) -- 2 or more distinct classes
         eval_set : (X_val, y_val) tuple, optional
             Validation data for early stopping.
+        sample_weight : array of shape (n_samples,), optional
+            Per-sample weights used when fitting each weak learner and
+            when computing the initial log-odds. Not applied to
+            categorical target-mean encoding or to eval_set's loss.
         """
         X, y, X_arr = self._prepare_fit(X, y)
+        sample_weight = _validate_sample_weight(sample_weight, y)
 
-        classes = np.unique(y)
-        if not np.array_equal(classes, [0, 1]) and not np.array_equal(classes, [0]) \
-                and not np.array_equal(classes, [1]):
+        self.classes_ = np.unique(y)
+        if len(self.classes_) < 2:
             raise ValueError(
-                f"KANBoostClassifier supports binary targets in {{0, 1}}; "
-                f"got classes {classes}. Multiclass is on the roadmap."
+                f"KANBoostClassifier needs at least 2 classes; got {self.classes_}."
             )
-        self.classes_ = np.array([0, 1])
 
         X_t = torch.tensor(X_arr, dtype=torch.float32, device=self.device_)
         n_features = X_arr.shape[1]
 
-        p = float(np.clip(y.mean(), 1e-6, 1 - 1e-6))
-        self.init_pred_ = float(np.log(p / (1 - p)))
-        F = np.full(len(y), self.init_pred_)
-
-        X_val_t = y_val = F_val = None
+        X_val_t = y_val = None
         if eval_set is not None:
             X_val_df, y_val = eval_set
             X_val_df, y_val = _validate_Xy(X_val_df, y_val)
             X_val_arr = self.preprocessor_.transform(X_val_df)
             X_val_t = torch.tensor(X_val_arr, dtype=torch.float32, device=self.device_)
-            F_val = np.full(len(y_val), self.init_pred_)
+
+        if len(self.classes_) == 2:
+            y_bin = (y == self.classes_[1]).astype(float)
+            y_val_bin = (y_val == self.classes_[1]).astype(float) if y_val is not None else None
+            self.learners_, self.init_pred_, self.best_iteration_ = self._fit_binary_chain(
+                X_t, y_bin, n_features, X_val_t, y_val_bin, sample_weight, seed_base=0,
+            )
+        else:
+            self.learners_ = {}
+            self.init_pred_ = {}
+            self.best_iteration_ = {}
+            for i, c in enumerate(self.classes_):
+                y_bin = (y == c).astype(float)
+                y_val_bin = (y_val == c).astype(float) if y_val is not None else None
+                learners, init_pred, best_iteration = self._fit_binary_chain(
+                    X_t, y_bin, n_features, X_val_t, y_val_bin, sample_weight,
+                    seed_base=i * self.n_estimators,
+                )
+                self.learners_[c] = learners
+                self.init_pred_[c] = init_pred
+                self.best_iteration_[c] = best_iteration
+
+        return self
+
+    # ------------------------------------------------------------------
+    def _fit_binary_chain(
+        self, X_t, y, n_features, X_val_t, y_val, sample_weight, seed_base,
+    ):
+        """Train one binary boosting chain; returns (learners, init_pred, best_iteration)."""
+        p = float(np.clip(np.average(y, weights=sample_weight), 1e-6, 1 - 1e-6))
+        init_pred = float(np.log(p / (1 - p)))
+        F = np.full(len(y), init_pred)
+
+        F_val = np.full(len(y_val), init_pred) if X_val_t is not None else None
 
         best_val_loss = np.inf
         rounds_since_best = 0
-        self.learners_ = []
-        self.best_iteration_ = None
+        learners = []
+        best_iteration = None
 
         for t in range(self.n_estimators):
             residual = y - _sigmoid(F)
 
-            learner = self._new_learner(n_features, seed_offset=t)
-            update = self._fit_learner(learner, X_t, residual)
+            learner = self._new_learner(n_features, seed_offset=seed_base + t)
+            update = self._fit_learner(learner, X_t, residual, sample_weight=sample_weight)
             F += self.learning_rate * update
-            self.learners_.append(learner)
+            learners.append(learner)
 
             if X_val_t is not None:
                 with torch.no_grad():
@@ -125,7 +161,7 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
                 if val_loss < best_val_loss - 1e-5:
                     best_val_loss = val_loss
                     rounds_since_best = 0
-                    self.best_iteration_ = t + 1
+                    best_iteration = t + 1
                 else:
                     rounds_since_best += 1
                     if (self.early_stopping_rounds is not None
@@ -137,36 +173,54 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
                 print(f"[{t + 1}/{self.n_estimators}] "
                       f"train residual std={residual.std():.4f}")
 
-        if self.best_iteration_ is None:
-            self.best_iteration_ = len(self.learners_)
-        return self
+        if best_iteration is None:
+            best_iteration = len(learners)
+        return learners, init_pred, best_iteration
 
     # ------------------------------------------------------------------
-    def _raw_score(self, X) -> np.ndarray:
-        X_t = self._transform_X(X)
-        F = np.full(X_t.shape[0], self.init_pred_)
-        for learner in self.learners_[: self.best_iteration_]:
-            with torch.no_grad():
-                F += self.learning_rate * learner(X_t).cpu().numpy().flatten()
-        return F
-
     def predict_proba(self, X) -> np.ndarray:
-        """Return array of shape (n_samples, 2): P(class 0), P(class 1)."""
-        prob_pos = _sigmoid(self._raw_score(X))
-        return np.vstack([1 - prob_pos, prob_pos]).T
+        """Return array of shape (n_samples, n_classes)."""
+        X_t = self._transform_X(X)
+        if len(self.classes_) == 2:
+            prob_pos = _sigmoid(self._raw_score_chain(
+                X_t, self.learners_, self.init_pred_, self.best_iteration_
+            ))
+            return np.vstack([1 - prob_pos, prob_pos]).T
+
+        raw = np.column_stack([
+            self._raw_score_chain(
+                X_t, self.learners_[c], self.init_pred_[c], self.best_iteration_[c]
+            )
+            for c in self.classes_
+        ])
+        raw = raw - raw.max(axis=1, keepdims=True)
+        exp = np.exp(raw)
+        return exp / exp.sum(axis=1, keepdims=True)
 
     def predict(self, X, threshold: float = 0.5) -> np.ndarray:
-        """Return hard 0/1 predictions at the given probability threshold."""
-        return (self.predict_proba(X)[:, 1] >= threshold).astype(int)
+        """Return hard class predictions.
+
+        `threshold` only applies to the binary case (probability of the
+        positive class, `classes_[1]`); multiclass always uses argmax.
+        """
+        proba = self.predict_proba(X)
+        if len(self.classes_) == 2:
+            return np.where(proba[:, 1] >= threshold, self.classes_[1], self.classes_[0])
+        return self.classes_[np.argmax(proba, axis=1)]
 
     def evaluate(self, X, y, threshold: float = 0.5, verbose: bool = True) -> dict:
-        """Predict on X and report confusion matrix, accuracy, precision,
-        recall, F1, and ROC-AUC against y. Returns the metrics dict."""
+        """Predict on X and report classification metrics against y."""
         from .metrics import classification_report_dict, print_classification_report
 
-        y_prob = self.predict_proba(X)[:, 1]
-        y_pred = (y_prob >= threshold).astype(int)
-        report = classification_report_dict(y, y_pred, y_prob)
+        proba = self.predict_proba(X)
+        if len(self.classes_) == 2:
+            y_prob = proba[:, 1]
+            y_pred = np.where(y_prob >= threshold, self.classes_[1], self.classes_[0])
+        else:
+            y_prob = proba
+            y_pred = self.classes_[np.argmax(proba, axis=1)]
+
+        report = classification_report_dict(y, y_pred, y_prob, labels=self.classes_)
         if verbose:
-            print_classification_report(report)
+            print_classification_report(report, class_names=[str(c) for c in self.classes_])
         return report

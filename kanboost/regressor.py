@@ -1,6 +1,7 @@
 """
 KANBoostRegressor: regression via gradient boosting with shallow KAN
-learners, minimizing squared error (residual = y - F(x) directly).
+learners, minimizing (optionally weighted) squared error (residual =
+y - F(x) directly).
 """
 
 from __future__ import annotations
@@ -10,7 +11,7 @@ import torch
 
 from sklearn.base import RegressorMixin
 
-from ._base import _BaseKANBoost, _validate_Xy
+from ._base import _BaseKANBoost, _validate_Xy, _validate_sample_weight
 
 
 class KANBoostRegressor(RegressorMixin, _BaseKANBoost):
@@ -19,8 +20,7 @@ class KANBoostRegressor(RegressorMixin, _BaseKANBoost):
     Parameters are identical to KANBoostClassifier; see its docstring.
     """
 
-
-    def fit(self, X, y, eval_set: tuple | None = None):
+    def fit(self, X, y, eval_set: tuple | None = None, sample_weight=None):
         """Fit the boosted ensemble.
 
         Parameters
@@ -29,13 +29,18 @@ class KANBoostRegressor(RegressorMixin, _BaseKANBoost):
         y : array of shape (n_samples,), continuous target
         eval_set : (X_val, y_val) tuple, optional
             Validation data for early stopping on MSE.
+        sample_weight : array of shape (n_samples,), optional
+            Per-sample weights used when fitting each weak learner and
+            when computing the initial prediction. Not applied to
+            categorical target-mean encoding or to eval_set's loss.
         """
         X, y, X_arr = self._prepare_fit(X, y)
+        sample_weight = _validate_sample_weight(sample_weight, y)
 
         X_t = torch.tensor(X_arr, dtype=torch.float32, device=self.device_)
         n_features = X_arr.shape[1]
 
-        self.init_pred_ = float(y.mean())
+        self.init_pred_ = float(np.average(y, weights=sample_weight))
         F = np.full(len(y), self.init_pred_)
 
         X_val_t = y_val = F_val = None
@@ -55,7 +60,7 @@ class KANBoostRegressor(RegressorMixin, _BaseKANBoost):
             residual = y - F
 
             learner = self._new_learner(n_features, seed_offset=t)
-            update = self._fit_learner(learner, X_t, residual)
+            update = self._fit_learner(learner, X_t, residual, sample_weight=sample_weight)
             F += self.learning_rate * update
             self.learners_.append(learner)
 
@@ -86,11 +91,7 @@ class KANBoostRegressor(RegressorMixin, _BaseKANBoost):
     def predict(self, X) -> np.ndarray:
         """Return continuous predictions of shape (n_samples,)."""
         X_t = self._transform_X(X)
-        F = np.full(X_t.shape[0], self.init_pred_)
-        for learner in self.learners_[: self.best_iteration_]:
-            with torch.no_grad():
-                F += self.learning_rate * learner(X_t).cpu().numpy().flatten()
-        return F
+        return self._raw_score_chain(X_t, self.learners_, self.init_pred_, self.best_iteration_)
 
     def evaluate(self, X, y, verbose: bool = True) -> dict:
         """Predict on X and report MSE, RMSE, MAE, and R^2 against y."""
