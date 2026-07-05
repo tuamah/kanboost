@@ -27,15 +27,36 @@ implementation of the same general idea, plus:
 
 - automatic handling of categorical features (smoothed target-mean
   encoding, done fold-safe), instead of requiring manual one-hot encoding
+- automatic handling of missing values (median imputation + optional
+  missing-indicator columns), instead of requiring you to impute first
 - built-in early stopping on a validation set
 - approximate feature importances derived from learned spline coefficients
+
+## Features
+
+- **Binary and multiclass classification** (`KANBoostClassifier`,
+  one-vs-rest for 3+ classes) and **regression** (`KANBoostRegressor`)
+- **GPU support** — `device="cuda"` (or `device=None` to auto-detect),
+  falls back to CPU
+- **Model persistence** — `model.save(path)` / `KANBoostClassifier.load(path)`
+- **`sample_weight`** support in `fit()`
+- **Interpretability**: `model.feature_importances()` /
+  `feature_importances_dict()`, and `model.plot_feature(name)` for a
+  partial-dependence-style curve of a single feature's learned response
+- Automatic categorical encoding and missing-value handling, no manual
+  preprocessing required
 
 ## Install
 
 ```bash
+pip install kanboost
+```
+
+Or from source:
+
+```bash
 git clone https://github.com/tuamah/kanboost.git
 cd kanboost
-pip install -r requirements.txt
 pip install -e .
 ```
 
@@ -48,7 +69,7 @@ from kanboost import KANBoostClassifier
 
 df = pd.read_csv("your_data.csv")
 X = df.drop(columns=["target"])
-y = df["target"].values
+y = df["target"].values  # binary or multiclass; NaN in X is handled automatically
 
 X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2)
 
@@ -59,11 +80,17 @@ model = KANBoostClassifier(
     kan_grid=3,
     categorical_cols=["region", "plan_type"],  # optional
     early_stopping_rounds=10,
+    device="cuda",  # or None to auto-detect, "cpu" to force CPU
 )
-model.fit(X_train, y_train, eval_set=(X_val, y_val))
+model.fit(X_train, y_train, eval_set=(X_val, y_val))  # sample_weight=... optional
 
-probs = model.predict_proba(X_val)[:, 1]
-importances = model.feature_importances()
+probs = model.predict_proba(X_val)  # shape (n, 2) binary, (n, n_classes) multiclass
+importances = model.feature_importances_dict()
+
+model.save("model.pt")
+loaded = KANBoostClassifier.load("model.pt")  # device=... to override where it loads
+
+model.plot_feature("region")  # matplotlib partial-dependence plot
 ```
 
 ## Benchmarks
@@ -95,7 +122,9 @@ state-of-the-art results.
 - **Categorical encoding** is a simple smoothed target-mean encoder, not
   CatBoost's ordered boosting scheme — it can leak on small folds if not
   used carefully.
-- **Missing values** are not yet handled natively; impute before fitting.
+- **No monotonic constraints or custom loss functions** yet, and
+  multiclass classification is one-vs-rest (independent binary chains
+  combined via softmax), not a single joint softmax objective.
 
 ## Roadmap
 
