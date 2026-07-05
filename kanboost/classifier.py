@@ -29,10 +29,7 @@ import torch
 from sklearn.base import ClassifierMixin
 
 from ._base import _BaseKANBoost, _validate_Xy, _validate_sample_weight
-
-
-def _sigmoid(z: np.ndarray) -> np.ndarray:
-    return 1.0 / (1.0 + np.exp(-np.clip(z, -30, 30)))
+from .losses import LogisticLoss, _sigmoid
 
 
 class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
@@ -57,7 +54,13 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
         Learning rate of each weak learner's inner optimizer.
     early_stopping_rounds : int or None, default=10
         Stop if validation logloss hasn't improved for this many rounds.
-        Requires eval_set in fit(). None disables early stopping.
+        Requires `eval_set` in `fit()`, or `validation_fraction` to carve
+        one out automatically. None disables early stopping.
+    validation_fraction : float or None, default=None
+        If `early_stopping_rounds` is set and `fit()` is called without
+        `eval_set`, this fraction of the (pre-preprocessing) training
+        rows is held out -- stratified by class -- as an internal
+        validation split.
     categorical_cols : list of str, optional
         Column names to target-mean encode automatically.
     random_state : int, default=42
@@ -65,6 +68,9 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
     device : str or None, default=None
         Torch device to train and predict on, e.g. "cpu", "cuda", "cuda:0".
         None auto-selects "cuda" when available, else "cpu".
+    batch_size : int or None, default=None
+        If set and smaller than the training set, each weak learner is
+        fit with mini-batch Adam instead of full-batch.
     """
 
     def fit(self, X, y, eval_set: tuple | None = None, sample_weight=None):
@@ -81,6 +87,13 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
             when computing the initial log-odds. Not applied to
             categorical target-mean encoding or to eval_set's loss.
         """
+        if (eval_set is None and self.validation_fraction is not None
+                and self.early_stopping_rounds is not None):
+            X, X_eval, y, y_eval, sample_weight = self._internal_split(
+                X, y, sample_weight, stratify=True
+            )
+            eval_set = (X_eval, y_eval)
+
         X, y, X_arr = self._prepare_fit(X, y)
         sample_weight = _validate_sample_weight(sample_weight, y)
 
@@ -100,11 +113,12 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
             X_val_arr = self.preprocessor_.transform(X_val_df)
             X_val_t = torch.tensor(X_val_arr, dtype=torch.float32, device=self.device_)
 
+        loss = LogisticLoss()
         if len(self.classes_) == 2:
             y_bin = (y == self.classes_[1]).astype(float)
             y_val_bin = (y_val == self.classes_[1]).astype(float) if y_val is not None else None
-            self.learners_, self.init_pred_, self.best_iteration_ = self._fit_binary_chain(
-                X_t, y_bin, n_features, X_val_t, y_val_bin, sample_weight, seed_base=0,
+            self.learners_, self.init_pred_, self.best_iteration_ = self._boost_chain(
+                X_t, y_bin, loss, n_features, X_val_t, y_val_bin, sample_weight, seed_base=0,
             )
         else:
             self.learners_ = {}
@@ -113,8 +127,8 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
             for i, c in enumerate(self.classes_):
                 y_bin = (y == c).astype(float)
                 y_val_bin = (y_val == c).astype(float) if y_val is not None else None
-                learners, init_pred, best_iteration = self._fit_binary_chain(
-                    X_t, y_bin, n_features, X_val_t, y_val_bin, sample_weight,
+                learners, init_pred, best_iteration = self._boost_chain(
+                    X_t, y_bin, loss, n_features, X_val_t, y_val_bin, sample_weight,
                     seed_base=i * self.n_estimators,
                 )
                 self.learners_[c] = learners
@@ -122,60 +136,6 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
                 self.best_iteration_[c] = best_iteration
 
         return self
-
-    # ------------------------------------------------------------------
-    def _fit_binary_chain(
-        self, X_t, y, n_features, X_val_t, y_val, sample_weight, seed_base,
-    ):
-        """Train one binary boosting chain; returns (learners, init_pred, best_iteration)."""
-        p = float(np.clip(np.average(y, weights=sample_weight), 1e-6, 1 - 1e-6))
-        init_pred = float(np.log(p / (1 - p)))
-        F = np.full(len(y), init_pred)
-
-        F_val = np.full(len(y_val), init_pred) if X_val_t is not None else None
-
-        best_val_loss = np.inf
-        rounds_since_best = 0
-        learners = []
-        best_iteration = None
-
-        for t in range(self.n_estimators):
-            residual = y - _sigmoid(F)
-
-            learner = self._new_learner(n_features, seed_offset=seed_base + t)
-            update = self._fit_learner(learner, X_t, residual, sample_weight=sample_weight)
-            F += self.learning_rate * update
-            learners.append(learner)
-
-            if X_val_t is not None:
-                with torch.no_grad():
-                    F_val += self.learning_rate * learner(X_val_t).cpu().numpy().flatten()
-                val_prob = np.clip(_sigmoid(F_val), 1e-7, 1 - 1e-7)
-                val_loss = -float(np.mean(
-                    y_val * np.log(val_prob) + (1 - y_val) * np.log(1 - val_prob)
-                ))
-
-                if self.verbose:
-                    print(f"[{t + 1}/{self.n_estimators}] val_logloss={val_loss:.5f}")
-
-                if val_loss < best_val_loss - 1e-5:
-                    best_val_loss = val_loss
-                    rounds_since_best = 0
-                    best_iteration = t + 1
-                else:
-                    rounds_since_best += 1
-                    if (self.early_stopping_rounds is not None
-                            and rounds_since_best >= self.early_stopping_rounds):
-                        if self.verbose:
-                            print(f"Early stopping at iteration {t + 1}")
-                        break
-            elif self.verbose and (t + 1) % max(1, self.n_estimators // 10) == 0:
-                print(f"[{t + 1}/{self.n_estimators}] "
-                      f"train residual std={residual.std():.4f}")
-
-        if best_iteration is None:
-            best_iteration = len(learners)
-        return learners, init_pred, best_iteration
 
     # ------------------------------------------------------------------
     def predict_proba(self, X) -> np.ndarray:

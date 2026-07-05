@@ -1,7 +1,11 @@
 """
 KANBoostRegressor: regression via gradient boosting with shallow KAN
-learners, minimizing (optionally weighted) squared error (residual =
-y - F(x) directly).
+learners.
+
+`objective="squared_error"` (default) minimizes (optionally weighted)
+squared error. `objective="quantile"` minimizes pinball loss at the
+given `alpha`, producing a conditional quantile estimate instead of a
+conditional mean.
 """
 
 from __future__ import annotations
@@ -12,13 +16,71 @@ import torch
 from sklearn.base import RegressorMixin
 
 from ._base import _BaseKANBoost, _validate_Xy, _validate_sample_weight
+from .losses import SquaredLoss, QuantileLoss
 
 
 class KANBoostRegressor(RegressorMixin, _BaseKANBoost):
-    """Gradient-boosted KAN ensemble for regression (squared-error loss).
+    """Gradient-boosted KAN ensemble for regression.
 
-    Parameters are identical to KANBoostClassifier; see its docstring.
+    All parameters are identical to KANBoostClassifier (see its
+    docstring) except:
+
+    objective : {"squared_error", "quantile"}, default="squared_error"
+        "squared_error" fits the conditional mean; "quantile" fits the
+        conditional `alpha`-quantile (pinball loss).
+    alpha : float, default=0.5
+        Target quantile when `objective="quantile"`; ignored otherwise.
     """
+
+    def __init__(
+        self,
+        n_estimators: int = 100,
+        learning_rate: float = 0.1,
+        kan_hidden: int = 3,
+        kan_grid: int = 2,
+        kan_k: int = 3,
+        kan_steps: int = 20,
+        kan_lr: float = 0.02,
+        early_stopping_rounds: int | None = 10,
+        validation_fraction: float | None = None,
+        categorical_cols=None,
+        random_state: int = 42,
+        verbose: bool = False,
+        device: str | None = None,
+        batch_size: int | None = None,
+        objective: str = "squared_error",
+        alpha: float = 0.5,
+    ):
+        super().__init__(
+            n_estimators=n_estimators,
+            learning_rate=learning_rate,
+            kan_hidden=kan_hidden,
+            kan_grid=kan_grid,
+            kan_k=kan_k,
+            kan_steps=kan_steps,
+            kan_lr=kan_lr,
+            early_stopping_rounds=early_stopping_rounds,
+            validation_fraction=validation_fraction,
+            categorical_cols=categorical_cols,
+            random_state=random_state,
+            verbose=verbose,
+            device=device,
+            batch_size=batch_size,
+        )
+        self.objective = objective
+        self.alpha = alpha
+
+    def _make_loss(self):
+        if self.objective == "squared_error":
+            return SquaredLoss()
+        if self.objective == "quantile":
+            if not (0 < self.alpha < 1):
+                raise ValueError("alpha must be in (0, 1) for objective='quantile'")
+            return QuantileLoss(self.alpha)
+        raise ValueError(
+            f"Unknown objective {self.objective!r}; expected "
+            f"'squared_error' or 'quantile'"
+        )
 
     def fit(self, X, y, eval_set: tuple | None = None, sample_weight=None):
         """Fit the boosted ensemble.
@@ -28,64 +90,36 @@ class KANBoostRegressor(RegressorMixin, _BaseKANBoost):
         X : DataFrame or array of shape (n_samples, n_features)
         y : array of shape (n_samples,), continuous target
         eval_set : (X_val, y_val) tuple, optional
-            Validation data for early stopping on MSE.
+            Validation data for early stopping.
         sample_weight : array of shape (n_samples,), optional
             Per-sample weights used when fitting each weak learner and
             when computing the initial prediction. Not applied to
             categorical target-mean encoding or to eval_set's loss.
         """
+        if (eval_set is None and self.validation_fraction is not None
+                and self.early_stopping_rounds is not None):
+            X, X_eval, y, y_eval, sample_weight = self._internal_split(
+                X, y, sample_weight, stratify=False
+            )
+            eval_set = (X_eval, y_eval)
+
         X, y, X_arr = self._prepare_fit(X, y)
         sample_weight = _validate_sample_weight(sample_weight, y)
+        loss = self._make_loss()
 
         X_t = torch.tensor(X_arr, dtype=torch.float32, device=self.device_)
         n_features = X_arr.shape[1]
 
-        self.init_pred_ = float(np.average(y, weights=sample_weight))
-        F = np.full(len(y), self.init_pred_)
-
-        X_val_t = y_val = F_val = None
+        X_val_t = y_val = None
         if eval_set is not None:
             X_val_df, y_val = eval_set
             X_val_df, y_val = _validate_Xy(X_val_df, y_val)
             X_val_arr = self.preprocessor_.transform(X_val_df)
             X_val_t = torch.tensor(X_val_arr, dtype=torch.float32, device=self.device_)
-            F_val = np.full(len(y_val), self.init_pred_)
 
-        best_val_loss = np.inf
-        rounds_since_best = 0
-        self.learners_ = []
-        self.best_iteration_ = None
-
-        for t in range(self.n_estimators):
-            residual = y - F
-
-            learner = self._new_learner(n_features, seed_offset=t)
-            update = self._fit_learner(learner, X_t, residual, sample_weight=sample_weight)
-            F += self.learning_rate * update
-            self.learners_.append(learner)
-
-            if X_val_t is not None:
-                with torch.no_grad():
-                    F_val += self.learning_rate * learner(X_val_t).cpu().numpy().flatten()
-                val_loss = float(np.mean((y_val - F_val) ** 2))
-
-                if self.verbose:
-                    print(f"[{t + 1}/{self.n_estimators}] val_mse={val_loss:.5f}")
-
-                if val_loss < best_val_loss - 1e-6:
-                    best_val_loss = val_loss
-                    rounds_since_best = 0
-                    self.best_iteration_ = t + 1
-                else:
-                    rounds_since_best += 1
-                    if (self.early_stopping_rounds is not None
-                            and rounds_since_best >= self.early_stopping_rounds):
-                        if self.verbose:
-                            print(f"Early stopping at iteration {t + 1}")
-                        break
-
-        if self.best_iteration_ is None:
-            self.best_iteration_ = len(self.learners_)
+        self.learners_, self.init_pred_, self.best_iteration_ = self._boost_chain(
+            X_t, y, loss, n_features, X_val_t, y_val, sample_weight, seed_base=0,
+        )
         return self
 
     def predict(self, X) -> np.ndarray:
@@ -94,7 +128,8 @@ class KANBoostRegressor(RegressorMixin, _BaseKANBoost):
         return self._raw_score_chain(X_t, self.learners_, self.init_pred_, self.best_iteration_)
 
     def evaluate(self, X, y, verbose: bool = True) -> dict:
-        """Predict on X and report MSE, RMSE, MAE, and R^2 against y."""
+        """Predict on X and report MSE, RMSE, MAE, and R^2 against y
+        (plus mean pinball loss when `objective="quantile"`)."""
         from sklearn.metrics import (
             mean_squared_error, mean_absolute_error, r2_score,
         )
@@ -108,6 +143,11 @@ class KANBoostRegressor(RegressorMixin, _BaseKANBoost):
             "mae": float(mean_absolute_error(y, y_pred)),
             "r2": float(r2_score(y, y_pred)),
         }
+        if self.objective == "quantile":
+            diff = y - y_pred
+            report["pinball"] = float(np.mean(
+                np.maximum(self.alpha * diff, (self.alpha - 1) * diff)
+            ))
         if verbose:
             for k, v in report.items():
                 print(f"{k.upper():5s}: {v:.5f}")

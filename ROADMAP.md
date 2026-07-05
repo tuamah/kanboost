@@ -1,193 +1,80 @@
-# خارطة طريق مشروع KANBoost (Gradient Boosting with KAN)
+# KANBoost Roadmap
 
-**الهدف:** بناء مكتبة مفتوحة المصدر لتعلّم الآلة تستخدم KAN كـ weak learner بمنطق Gradient Boosting، تنافس CatBoost/XGBoost/LightGBM بالدقة، وتتفوق عليهم بالتفسير الرياضي (interpretability).
+**Goal:** an interpretable gradient boosting library that uses KAN
+(Kolmogorov-Arnold Network) learners instead of decision trees, aiming
+for accuracy competitive with CatBoost/XGBoost/LightGBM while exposing
+inspectable per-feature spline shape functions.
 
-**الترخيص المقترح:** MIT License (أوسع انتشار، يشجع التبني والمساهمة)
+## Shipped
 
----
+**v0.0.1 — initial release**
+- Binary classification (`KANBoostClassifier`) and regression (`KANBoostRegressor`)
+- Automatic categorical encoding (smoothed target-mean, fold-safe)
+- Early stopping on an explicit `eval_set`
+- Approximate feature importances from learned spline coefficients
 
-## المرحلة 0: الأساس البحثي (2-3 أسابيع)
+**v0.0.2 — GPU support**
+- `device` parameter (`"cpu"`, `"cuda"`, `"cuda:0"`, or `None` to auto-detect)
 
-- [ ] قراءة كاملة لورقة **GB-KAN** (ICAART 2026) — هي أقرب عمل موجود لفكرتك، لازم تفهمها بعمق قبل أي كود
-- [ ] قراءة **KAN or MLP: A Fairer Comparison** (نقدية، لازم تعرف نقاط ضعف KAN بصدق)
-- [ ] قراءة ورقة KAN الأصلية (Liu et al. 2024) + KAN 2.0
-- [ ] مسح المكتبات الموجودة: pykan, efficient-kan, FastKAN — تحديد أيها أساس أفضل للبناء عليه (الأرجح efficient-kan أو FastKAN للسرعة)
-- [ ] التأكد عمليًا: هل GB-KAN لها كود منشور علنًا؟ (لو لا، هذي فرصتك الحقيقية لأول تطبيق مفتوح)
+**v0.0.3 — multiclass, persistence, missing values, interpretability, weighting**
+- Multiclass classification (one-vs-rest binary chains + softmax)
+- `save()` / `load()` model persistence (learners stored as `state_dict`s,
+  since pykan's `KAN` isn't directly picklable)
+- Automatic missing-value handling (median imputation + optional
+  `<col>_missing` indicator columns)
+- `plot_feature(name)` — partial-dependence-style spline plot
+- `sample_weight` support in `fit()`
 
-**الفجوة البحثية التي تسدها:** لا توجد دراسة منشورة تقيّم GB-KAN على بيانات تسويقية/churn ضخمة (100K+ صف) مقابل CatBoost تحديدًا.
+**v0.0.4 — objectives, training scale, native attribution**
+- Shared boosting loop (`_BaseKANBoost._boost_chain`) driven by pluggable
+  loss objects (`kanboost/losses.py`), replacing near-duplicate
+  classifier/regressor loops
+- `KANBoostRegressor(objective="quantile", alpha=...)` — pinball-loss
+  quantile regression
+- `validation_fraction` — internal train/validation split for early
+  stopping when no explicit `eval_set` is given (split happens before
+  preprocessing is fit, so no leakage)
+- `batch_size` — mini-batch Adam training per weak learner, for datasets
+  where full-batch is too slow or doesn't fit in memory
+- `feature_contributions(X)` — native per-sample, per-feature attribution
+  from each learner's first KAN layer (exact reconstruction of the
+  hidden representation when `kan_hidden=1`; see its docstring for the
+  precise guarantee)
 
----
+## Deferred (with reasons)
 
-## المرحلة 1: النموذج الأولي (Prototype) — 3-4 أسابيع
+- **Monotonic constraints** — no sound way to constrain a KAN with a
+  hidden layer (the output layer's own spline can undo any per-feature
+  monotonicity); a penalty-based approximation would be misleading
+  rather than a real guarantee. Revisit only alongside a documented
+  "pure additive" (`kan_hidden=1`, identity output layer) mode.
+- **Symbolic formula extraction** (`pykan.auto_symbolic`) — fragile and
+  slow in practice, and formula count explodes with more than a handful
+  of estimators. Worth a standalone spike against a `kan_hidden=1`,
+  small-`n_estimators` model, not a general-purpose feature.
+- **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`
+  modules don't trace or compile cleanly out of the box; would need
+  upstream changes or a from-scratch spline layer.
+- **Multi-GPU** — each weak learner is tiny; the bottleneck is the
+  number of sequential boosting rounds, not per-learner compute, so
+  multi-GPU wouldn't help without changing the training loop's
+  architecture.
+- **Benchmark suite vs. XGBoost/LightGBM/CatBoost on standard UCI
+  datasets, and a docs site** — legitimate next steps, but they're
+  ongoing measurement/writing efforts rather than library features;
+  tracked separately from this code roadmap.
+- **`kantun` integration test** — depends on the sibling `kantun`
+  package; add once both repos' APIs have settled rather than pinning
+  kanboost's test suite to kantun's release cadence.
+- **CLI** — the sklearn-style Python API already covers the realistic
+  usage patterns; a CLI wouldn't add much for a model-fitting library.
 
-### 1.1 التصميم الخوارزمي
-```
-خوارزمية GB-KAN (Gradient Boosting):
-1. ابدأ بتنبؤ ثابت F0(x) = متوسط y
-2. لكل تكرار t من 1 إلى T:
-   a. احسب pseudo-residuals: r_i = -∂Loss/∂F(x_i)
-   b. درّب KAN صغيرة (weak learner) ft على (X, r)
-   c. حدّث: F(t)(x) = F(t-1)(x) + ν · ft(x)   [ν = learning rate]
-3. التنبؤ النهائي = F(T)(x)
-```
+## Honest limitations (see also `README.md`)
 
-### 1.2 قرارات تصميم أساسية يجب اتخاذها بالكود
-- [ ] حجم KAN الفردية: width=[n_features, k, 1] — k صغير جدًا (2-4) لضمان السرعة كـ "weak" learner
-- [ ] grid منخفض (2-3) لكل learner فردي
-- [ ] عدد التكرارات (n_estimators): 50-300 كبداية
-- [ ] معالجة Loss functions متعددة: BCE (تصنيف)، MSE (انحدار)
-- [ ] معالجة Missing values: بناء imputer مدمج (نقطة ضعف KAN الحالية مقابل CatBoost)
-- [ ] معالجة Categorical: ترميز مدمج تلقائي (target encoding أو embedding بسيط) بدل one-hot يدوي
-
-### 1.3 الكود الأساسي (نقطة انطلاق)
-```python
-import numpy as np
-from kan import KAN
-import torch
-
-class GBKANClassifier:
-    def __init__(self, n_estimators=100, learning_rate=0.1,
-                 kan_width=3, kan_grid=2):
-        self.n_estimators = n_estimators
-        self.lr = learning_rate
-        self.kan_width = kan_width
-        self.kan_grid = kan_grid
-        self.learners = []
-        self.init_pred = None
-
-    def fit(self, X, y):
-        n_features = X.shape[1]
-        X_t = torch.tensor(X, dtype=torch.float32)
-        y_t = torch.tensor(y, dtype=torch.float32)
-
-        # التنبؤ الابتدائي (log-odds للتصنيف الثنائي)
-        p = y.mean()
-        self.init_pred = np.log(p / (1 - p))
-        F = np.full(len(y), self.init_pred)
-
-        for t in range(self.n_estimators):
-            prob = 1 / (1 + np.exp(-F))
-            residual = y - prob   # pseudo-residual لـ Logloss
-
-            learner = KAN(width=[n_features, self.kan_width, 1],
-                          grid=self.kan_grid, k=3, seed=t)
-            r_t = torch.tensor(residual, dtype=torch.float32).unsqueeze(1)
-            dataset = {'train_input': X_t, 'train_label': r_t,
-                       'test_input': X_t, 'test_label': r_t}
-            learner.fit(dataset, opt="Adam", steps=20, lr=0.01)
-
-            with torch.no_grad():
-                update = learner(X_t).numpy().flatten()
-            F += self.lr * update
-            self.learners.append(learner)
-
-        return self
-
-    def predict_proba(self, X):
-        X_t = torch.tensor(X, dtype=torch.float32)
-        F = np.full(len(X), self.init_pred)
-        for learner in self.learners:
-            with torch.no_grad():
-                F += self.lr * learner(X_t).numpy().flatten()
-        return 1 / (1 + np.exp(-F))
-```
-
-### 1.4 اختبار أولي
-- [ ] تجربة على بيانات churn عندك (نفس التي استخدمناها) — قياس AUC مقابل CatBoost (0.6992)
-- [ ] تجربة على 2-3 بيانات UCI معيارية (Breast Cancer, Adult Income, California Housing) للمقارنة المباشرة مع نتائج ورقة GB-KAN المنشورة
-
----
-
-## المرحلة 2: التحسين الهندسي (6-8 أسابيع) — الأصعب
-
-- [ ] **السرعة**: قياس زمن التدريب الحالي، ثم:
-  - تجربة `torch.compile` لتسريع كل KAN فردية
-  - تجربة استبدال B-spline بـ FastKAN (RBF) داخل كل weak learner للسرعة
-  - Parallelization: تدريب متوازي إن أمكن (Gradient Boosting تسلسلي بطبيعته، لكن كل learner نفسه يقبل batch parallelism)
-- [ ] **معالجة تلقائية للفئوية**: بناء encoder مدمج (شبيه بـ CatBoost's ordered target statistics)
-- [ ] **Early stopping**: مراقبة validation loss وتوقف تلقائي
-- [ ] **Regularization**: دمج L1 على معاملات spline (كما بـ pykan الأصلية) لتفادي overfitting بكل weak learner
-- [ ] **Feature importance**: استخراج أهمية الفيتشرز (مجموع مساهمة كل learner لكل فيتشر) — هذي أقوى نقطة تسويقية (تفسير أفضل من CatBoost)
-- [ ] **استخراج معادلة رمزية للنموذج الكامل** (لو ممكن) — ميزة فريدة ما عند أي GBDT
-
----
-
-## المرحلة 3: البنچماركينج الشامل (3-4 أسابيع)
-
-| البيانات | الحجم | المقارنة مع |
-|---|---|---|
-| churn (عندك) | 100K | CatBoost, XGBoost, LightGBM |
-| UCI Adult Income | ~48K | نفس أعلاه |
-| California Housing | ~20K | نفس أعلاه (انحدار) |
-| Breast Cancer Wisconsin | ~570 | نفس أعلاه (بيانات صغيرة) |
-| بيانات صناعية إضافية (اختياري) | - | - |
-
-**المقاييس:** AUC/Accuracy، زمن التدريب، عدد البارامترات، Calibration (ECE)، قابلية التفسير (كمية/نوعية)
-
----
-
-## المرحلة 4: التوثيق والنشر مفتوح المصدر (2-3 أسابيع)
-
-- [ ] بنية مشروع بايثون قياسية:
-```
-kanboost/
-├── kanboost/
-│   ├── __init__.py
-│   ├── classifier.py
-│   ├── regressor.py
-│   ├── encoders.py      # معالجة الفئوية
-│   └── utils.py
-├── tests/
-├── examples/
-├── docs/
-├── README.md
-├── LICENSE (MIT)
-├── setup.py / pyproject.toml
-└── requirements.txt
-```
-- [ ] رفع على GitHub بترخيص MIT
-- [ ] نشر على PyPI (`pip install kanboost`)
-- [ ] README قوي: benchmarks، أمثلة كود، مقارنات رسومية
-- [ ] توثيق Sphinx/MkDocs
-
----
-
-## المرحلة 5: النشر الأكاديمي (بالتوازي، 4-6 أسابيع)
-
-- [ ] كتابة ورقة بحثية: "KANBoost: An Interpretable Gradient Boosting Framework with KAN Learners — Evaluation on Real-World Churn Data"
-- [ ] أهداف نشر مناسبة لحجم المشروع: workshop papers (ICAART، AICT نفس مكان GB-KAN)، أو arXiv preprint مباشر
-- [ ] تقديم للمؤتمرات الطلابية أو GCI (نفس المنصة اللي استخدمتها بمشروع churn)
-
----
-
-## المرحلة 6: بناء الانتشار (استمراري)
-
-- [ ] كتابة مقالات (Medium/Dev.to/LinkedIn) تشرح الفكرة والنتائج
-- [ ] نشر على Reddit (r/MachineLearning) وHacker News عند الجهوزية
-- [ ] التواصل مع فريق pykan الأصلي / مؤلفي ورقة GB-KAN (تواصل أكاديمي، ممكن تعاون)
-- [ ] فتح المشروع لمساهمات (good first issues، CONTRIBUTING.md)
-
----
-
-## المخاطر والتحديات الصادقة
-
-| الخطر | التخفيف |
-|---|---|
-| GB-KAN لا تنافس CatBoost بالسرعة أبداً بدون C++/CUDA حقيقي | ركّز على قيمة "التفسير" كميزة تنافسية أساسية، مش السرعة |
-| نتائج مخيبة على بيانات كبيرة (كما شفنا بتجربتنا) | كن صادق بالنتائج بالورقة/التوثيق — النقد العلمي المتوازن يبني مصداقية أكبر من التسويق المبالغ |
-| مجال بحثي متغير بسرعة (قد يظهر بديل أقوى قبل ما تنتهي) | انشر مبكرًا (MVP + benchmark أولي) بدل الانتظار للكمال |
-
----
-
-## الجدول الزمني التقديري الكامل
-
-| المرحلة | المدة | تراكمي |
-|---|---|---|
-| 0. الأساس البحثي | 2-3 أسابيع | 3 أسابيع |
-| 1. النموذج الأولي | 3-4 أسابيع | 7 أسابيع |
-| 2. التحسين الهندسي | 6-8 أسابيع | 15 أسبوع |
-| 3. البنچماركينج | 3-4 أسابيع | 19 أسبوع |
-| 4. النشر مفتوح المصدر | 2-3 أسابيع | 22 أسبوع |
-| 5. النشر الأكاديمي | 4-6 أسابيع (متوازي) | ~24-26 أسبوع |
-
-**الإجمالي: تقريباً 6 أشهر لمشروع كامل بمعايير أكاديمية وتقنية جيدة.**
+- **Speed**: each weak learner is a full KAN forward/backward pass in
+  pure PyTorch — slower per-iteration than a histogram-based tree split.
+  `batch_size` helps on large datasets but doesn't close this gap.
+- **Multiclass is one-vs-rest**, not a single joint softmax objective —
+  `n_classes` independent binary chains, `n_classes` times the training cost.
+- **Categorical encoding** is a simple smoothed target-mean encoder, not
+  CatBoost's ordered boosting scheme.

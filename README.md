@@ -35,14 +35,20 @@ implementation of the same general idea, plus:
 ## Features
 
 - **Binary and multiclass classification** (`KANBoostClassifier`,
-  one-vs-rest for 3+ classes) and **regression** (`KANBoostRegressor`)
+  one-vs-rest for 3+ classes) and **regression** (`KANBoostRegressor`,
+  squared-error or quantile/pinball loss)
 - **GPU support** — `device="cuda"` (or `device=None` to auto-detect),
   falls back to CPU
 - **Model persistence** — `model.save(path)` / `KANBoostClassifier.load(path)`
 - **`sample_weight`** support in `fit()`
+- **`validation_fraction`** — automatic internal train/validation split
+  for early stopping when you don't have a separate `eval_set` handy
+- **`batch_size`** — mini-batch training for larger datasets
 - **Interpretability**: `model.feature_importances()` /
-  `feature_importances_dict()`, and `model.plot_feature(name)` for a
-  partial-dependence-style curve of a single feature's learned response
+  `feature_importances_dict()`, `model.plot_feature(name)` for a
+  partial-dependence-style curve of a single feature's learned response,
+  and `model.feature_contributions(X)` for native per-sample,
+  per-feature attribution (not a post-hoc method like SHAP)
 - Automatic categorical encoding and missing-value handling, no manual
   preprocessing required
 

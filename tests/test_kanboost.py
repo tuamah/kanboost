@@ -256,6 +256,132 @@ def test_save_load_multiclass_with_missing_values(tmp_path):
     assert np.array_equal(loaded.classes_, model.classes_)
 
 
+def test_quantile_regressor():
+    rng = np.random.RandomState(0)
+    X, y = make_regression(n_samples=300, n_features=4, noise=0.0, random_state=0)
+    y = y + rng.exponential(scale=5.0, size=len(y))  # skewed noise
+    X_df = pd.DataFrame(X, columns=["a", "b", "c", "d"])
+
+    low = KANBoostRegressor(
+        n_estimators=15, kan_steps=5, early_stopping_rounds=None,
+        objective="quantile", alpha=0.1, random_state=0,
+    )
+    low.fit(X_df, y)
+    high = KANBoostRegressor(
+        n_estimators=15, kan_steps=5, early_stopping_rounds=None,
+        objective="quantile", alpha=0.9, random_state=0,
+    )
+    high.fit(X_df, y)
+
+    # the 0.9-quantile prediction should exceed the 0.1-quantile prediction
+    # for the large majority of rows
+    assert (high.predict(X_df) > low.predict(X_df)).mean() > 0.8
+
+    report = high.evaluate(X_df, y, verbose=False)
+    assert "pinball" in report
+
+    try:
+        KANBoostRegressor(objective="not_a_real_objective").fit(X_df, y)
+        raise AssertionError("unknown objective was not rejected")
+    except ValueError:
+        pass
+
+
+def test_internal_split_early_stopping():
+    X, y = make_classification(n_samples=400, n_features=5, random_state=2)
+    X_df = pd.DataFrame(X, columns=[f"f{i}" for i in range(5)])
+
+    model = KANBoostClassifier(
+        n_estimators=20, kan_steps=3, early_stopping_rounds=3,
+        validation_fraction=0.2, random_state=0,
+    )
+    model.fit(X_df, y)  # no eval_set passed
+    assert model.best_iteration_ <= 20
+    preds = model.predict(X_df)
+    assert preds.shape == (400,)
+
+
+def test_batch_size_training():
+    X, y = make_classification(n_samples=200, n_features=5, random_state=2)
+    X_df = pd.DataFrame(X, columns=[f"f{i}" for i in range(5)])
+    weights = np.random.RandomState(0).uniform(0.5, 2.0, size=len(y))
+
+    model = KANBoostClassifier(
+        n_estimators=4, kan_steps=5, early_stopping_rounds=None,
+        batch_size=32, random_state=0,
+    )
+    model.fit(X_df, y, sample_weight=weights)
+    proba = model.predict_proba(X_df)
+    assert proba.shape == (200, 2)
+    assert np.allclose(proba.sum(axis=1), 1.0, atol=1e-4)
+
+
+def test_batch_size_uses_different_batches_per_learner():
+    """Regression test: every weak learner must see a different mini-batch
+    sequence, not the same one replayed (which would silently starve most
+    of the training set of any gradient)."""
+    X, y = make_classification(n_samples=200, n_features=5, random_state=2)
+    X_df = pd.DataFrame(X, columns=[f"f{i}" for i in range(5)])
+
+    model = KANBoostClassifier(
+        n_estimators=6, kan_steps=5, early_stopping_rounds=None,
+        batch_size=16, random_state=0,
+    )
+
+    import kanboost._base as _base_module
+
+    seen_indices = []
+
+    class _SpyingRandomState(np.random.RandomState):
+        def choice(self, a, size=None, replace=True, p=None):
+            idx = super().choice(a, size=size, replace=replace, p=p)
+            seen_indices.append(np.sort(idx))
+            return idx
+
+    real_random_state = _base_module.np.random.RandomState
+    _base_module.np.random.RandomState = _SpyingRandomState
+    try:
+        model.fit(X_df, y)
+    finally:
+        _base_module.np.random.RandomState = real_random_state
+
+    # batches drawn for the first learner's steps must differ from the
+    # second learner's steps (identical RNG seeding per learner would
+    # make every learner replay the exact same sequence of batches)
+    steps_per_learner = 5
+    first_learner_batches = seen_indices[:steps_per_learner]
+    second_learner_batches = seen_indices[steps_per_learner:2 * steps_per_learner]
+    assert not all(
+        np.array_equal(a, b) for a, b in zip(first_learner_batches, second_learner_batches)
+    )
+
+
+def test_feature_contributions():
+    X, y = make_classification(n_samples=200, n_features=5, random_state=2)
+    X_df = pd.DataFrame(X, columns=[f"f{i}" for i in range(5)])
+
+    model = KANBoostClassifier(
+        n_estimators=4, kan_steps=3, kan_hidden=1,
+        early_stopping_rounds=None, random_state=0,
+    )
+    model.fit(X_df, y)
+    contrib = model.feature_contributions(X_df)
+    assert contrib.shape == (200, 5)
+
+    # multiclass: dict keyed by class label
+    Xm, ym = make_classification(
+        n_samples=200, n_features=5, n_informative=4, n_redundant=0,
+        n_classes=3, n_clusters_per_class=1, random_state=1,
+    )
+    Xm_df = pd.DataFrame(Xm, columns=[f"f{i}" for i in range(5)])
+    model_mc = KANBoostClassifier(n_estimators=3, kan_steps=3, early_stopping_rounds=None, random_state=0)
+    model_mc.fit(Xm_df, ym)
+    contrib_mc = model_mc.feature_contributions(Xm_df)
+    assert set(contrib_mc.keys()) == set(model_mc.classes_)
+    for arr in contrib_mc.values():
+        assert arr.shape == (200, 5)
+
+
 if __name__ == "__main__":
     import tempfile
 
@@ -274,6 +400,11 @@ if __name__ == "__main__":
     test_missing_values_are_imputed_not_rejected()
     test_plot_feature_returns_axes()
     test_sample_weight_changes_fit()
+    test_quantile_regressor()
+    test_internal_split_early_stopping()
+    test_batch_size_training()
+    test_batch_size_uses_different_batches_per_learner()
+    test_feature_contributions()
     print("All tests passed.")
 
 
