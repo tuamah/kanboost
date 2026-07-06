@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kanboost"
-version = "0.0.5"
+version = "0.0.6"
 description = "Gradient boosting with Kolmogorov-Arnold Network (KAN) learners -- an interpretable alternative to tree-based boosting (XGBoost/LightGBM/CatBoost)."
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -28,6 +28,9 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
+
+[project.optional-dependencies]
+api = ["fastapi>=0.100", "pydantic>=2.0", "uvicorn>=0.23"]
 
 [project.urls]
 Homepage = "https://github.com/tuamah/kanboost"

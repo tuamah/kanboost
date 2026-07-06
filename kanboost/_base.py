@@ -165,10 +165,21 @@ class _BaseKANBoost(BaseEstimator):
                 raise ValueError("monotone_constraints values must be 1 (increasing) or -1 (decreasing)")
 
     def _resolve_device(self) -> torch.device:
-        """`device=None` auto-selects cuda when available, else cpu."""
-        if self.device is not None:
-            return torch.device(self.device)
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        """`device=None` auto-selects cuda when available, else cpu.
+
+        An explicit `device="cuda"`/`"cuda:0"` fails fast with a clear
+        error if CUDA isn't actually available, instead of silently
+        falling back to CPU or failing later with a cryptic CUDA error
+        deep inside training.
+        """
+        if self.device is None:
+            return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        resolved = torch.device(self.device)
+        if resolved.type == "cuda" and not torch.cuda.is_available():
+            raise RuntimeError(
+                f"device={self.device!r} requested but CUDA is not available on this machine."
+            )
+        return resolved
 
     def _resolve_monotone_signs(self) -> np.ndarray:
         names = self.preprocessor_.transformed_feature_names()
