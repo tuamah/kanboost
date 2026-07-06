@@ -67,6 +67,14 @@ implementation of the same general idea, plus:
   scores read off the trained weights (`kan_hidden > 1`)
 - **`lamb`/`lamb_l1`/`lamb_coefdiff`** — tunable smoothness/sparsity
   regularization on the learned splines (pykan's own regularizers)
+- **`kanboost.editing.consolidate(model)`** (requires `gam=True`) — collapse
+  a fitted ensemble's per-feature shape functions (each currently a sum of
+  splines across every boosting round) into one editable spline per
+  feature, wrapped in an `EditableGAM`: shift/pin a region
+  (`set_offset`/`set_values`), re-enforce hard monotonicity after an edit
+  (`enforce_monotone`, same guarantee as `monotone_constraints`), inspect
+  the effect (`diff`), and predict/save/load exactly like the original
+  model. See [Editable models](#editable-models-human-in-the-loop) below.
 - Automatic categorical encoding and missing-value handling, no manual
   preprocessing required
 
@@ -171,6 +179,43 @@ KANBOOST_MODEL_PATH=model.pt uvicorn kanboost.serving:app
 
 Endpoints: `GET /health`, `POST /predict` (`{"records": [{"col": val, ...}]}`),
 and `POST /predict_proba` (classifiers only).
+
+## Editable models (human-in-the-loop)
+
+`kanboost.editing.consolidate(model)` collapses a fitted `gam=True`
+ensemble's per-feature shape function -- currently a sum of splines
+across every boosting round -- into one editable spline per feature.
+This is conceptually similar to Microsoft's [GAM Changer](https://github.com/interpretml/gam-changer),
+an editing tool for EBM (Explainable Boosting Machine): both let a
+domain expert directly reshape a model's per-feature curves. The
+difference is what happens *after* an edit. EBM's shape functions are
+piecewise-constant bins, so checking monotonicity there is just
+comparing adjacent bins -- there's no notion of smoothness or
+between-point behavior to verify, because there's no continuous curve
+in the first place. KANBoost's feature is a genuine continuous
+B-spline, so `enforce_monotone` re-derives a provably monotone
+coefficient sequence after an edit -- guaranteed for *every* point on
+the curve, not just at the sampled locations used to build it -- the
+same variation-diminishing projection `monotone_constraints` uses
+during training, not a best-effort correction.
+
+```python
+from kanboost.editing import consolidate
+
+model = KANBoostRegressor(gam=True, kan_hidden=1, n_estimators=50)
+model.fit(X_train, y_train)
+
+gam = consolidate(model)  # multiclass classifier -> {class_label: EditableGAM}
+print(gam.max_consolidation_error())  # worst per-feature fit error (call with feature=... for one feature)
+
+gam.set_offset("age", x_range=(-0.2, 0.3), delta=0.5)   # shift a region
+gam.set_values("region", x_range=(0.6, 1.0), value=0.0)  # pin a region flat
+gam.enforce_monotone("income", sign=1)  # re-derive a provably monotone curve
+
+report = gam.diff(X_val, y_val)  # per-feature deltas + before/after metric
+gam.predict(X_val)                # exact, same interface as the original model
+gam.save("edited_model.pt")
+```
 
 ## Benchmarks
 

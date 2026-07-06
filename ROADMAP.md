@@ -96,6 +96,31 @@ inspectable per-feature spline shape functions.
   `/predict`, `/predict_proba` endpoints, auto-detecting classifier vs.
   regressor from a saved model's own metadata.
 
+**v0.0.7 — docs-only release**
+- Added an independent real-world benchmark (NFL Draft prediction
+  dataset, 5-fold CV vs. tuned CatBoost) to the README. No code changes.
+
+**v0.0.8 — editable models**
+- `kanboost/editing.py` (new): `consolidate(model)` collapses a fitted
+  `gam=True` ensemble's per-feature shape function -- a sum of splines
+  across every boosting round -- into a single spline per feature,
+  wrapped in an `EditableGAM`. Positioned against Microsoft's GAM
+  Changer (an editing tool for EBM): EBM's piecewise-constant bins give
+  no way to verify an edit preserves monotonicity/smoothness; here,
+  `enforce_monotone` re-derives a provably monotone coefficient sequence
+  after an edit, reusing the same variation-diminishing projection
+  `monotone_constraints` already uses during training.
+- Consolidation correctness note: naively sampling each feature's curve
+  by zeroing every other (scaled) feature captures `g_j(x_j) + sum_{i!=j}
+  g_i(0)`, not `g_j(x_j)` alone -- summing those probes directly would
+  double-count every other feature's zero-point contribution `(n-1)`
+  times over. Fixed by centering each probe against the ensemble's score
+  at the all-zero input (the standard GAM identifiability convention,
+  `g_j(0) := 0`, with the removed constant folded into the intercept).
+  Caught via a predict-parity check before shipping, not assumed correct
+  from the per-feature curve fit alone (which was already accurate and
+  would not have surfaced this).
+
 ## Deferred (with reasons)
 
 - **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`
