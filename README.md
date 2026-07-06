@@ -217,6 +217,35 @@ gam.predict(X_val)                # exact, same interface as the original model
 gam.save("edited_model.pt")
 ```
 
+## Experimental utilities (optional, additive)
+
+`kanboost.experimental` is a small toolkit of convenience functions
+built entirely on the public methods above -- nothing here needs core
+changes, and `suggest_constraints` in particular is a heuristic, not a
+guarantee: always confirm with `audit_monotonicity` on a model actually
+fit with the suggested constraints.
+
+```python
+from kanboost.experimental import (
+    suggest_constraints, audit_monotonicity, symbolic_export,
+    predict_interval, explain_row, dashboard_html,
+)
+
+# suggest which features look monotone in the raw data (advisory only)
+constraints = suggest_constraints(X_train, y_train)
+
+model = KANBoostRegressor(gam=True, kan_hidden=1, monotone_constraints=constraints)
+model.fit(X_train, y_train)
+
+# verify the constraint actually held on held-out data (not just training data)
+print(audit_monotonicity(model, X_test))
+
+print(symbolic_export(model, X_test))                  # compact human-readable summary
+print(explain_row(model, X_test, row_index=0))          # top feature contributions for one row
+predict_interval([model_seed0, model_seed1], X_test)     # mean/lower/upper/std across models
+dashboard_html(model, X_test, y_test, path="report.html")  # one static HTML report
+```
+
 ## Benchmarks
 
 Preliminary results on a real-world telecom churn dataset (100K rows,

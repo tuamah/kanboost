@@ -121,6 +121,32 @@ inspectable per-feature spline shape functions.
   from the per-feature curve fit alone (which was already accurate and
   would not have surfaced this).
 
+**v0.0.9 — experimental utilities**
+- `kanboost/experimental.py` (new, additive): `suggest_constraints`
+  (Spearman correlation + quantile-binned bin-mean consistency, advisory
+  only -- not a guarantee), `audit_monotonicity` (verifies
+  `predict_derivative`'s sign actually matches `monotone_constraints` on
+  given data -- catches a constraint that was requested but silently not
+  enforced, e.g. by a custom weak-learner backend that bypasses the
+  training-time projection), `symbolic_export` (compact text summary
+  over `symbolic_report`), `predict_interval` (mean/quantile spread
+  across a list of independently fitted models -- a convenience wrapper,
+  not a replacement for `objective="quantile"`'s calibrated conditional
+  quantiles), `explain_row` (top feature contributions for one row via
+  `feature_contributions`), and `dashboard_html` (one static HTML report
+  combining several of the above).
+- Two bugs found and fixed before shipping (both surfaced by testing
+  against real fitted models, not assumed from the code alone):
+  `suggest_constraints`'s original point-to-point consistency check gave
+  a false negative on a genuinely strongly-monotone feature (Spearman
+  0.881) once other noisy signal was mixed in; switched to checking
+  consistency of quantile-binned means instead, which is far less
+  sensitive to point-level noise. `dashboard_html` crashed on
+  `json.dumps` whenever a `np.float32`/`np.int64`/`np.ndarray` value
+  reached it (only `np.float64` happens to satisfy Python's `float`
+  duck-typing); fixed with a recursive numpy-to-plain-Python converter
+  applied before serializing.
+
 ## Deferred (with reasons)
 
 - **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`
