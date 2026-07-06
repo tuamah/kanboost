@@ -513,6 +513,30 @@ def test_regularization_lamb_params_accepted():
     assert model.predict(X_df).shape == (100,)
 
 
+def test_device_resolution():
+    import torch
+
+    X, y = make_regression(n_samples=50, n_features=3, random_state=0)
+    X_df = pd.DataFrame(X, columns=["a", "b", "c"])
+
+    cpu_model = KANBoostRegressor(n_estimators=2, kan_steps=2, device="cpu")
+    assert cpu_model._resolve_device() == torch.device("cpu")
+
+    auto_model = KANBoostRegressor(n_estimators=2, kan_steps=2, device=None)
+    expected = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    assert auto_model._resolve_device() == expected
+
+    if not torch.cuda.is_available():
+        # explicit cuda request must fail fast with a clear error, not
+        # silently fall back to cpu or fail later with a cryptic CUDA error
+        for bad_device in ("cuda", "cuda:0"):
+            try:
+                KANBoostRegressor(n_estimators=2, device=bad_device)._resolve_device()
+                raise AssertionError(f"device={bad_device!r} should have raised RuntimeError")
+            except RuntimeError:
+                pass
+
+
 if __name__ == "__main__":
     import tempfile
 
@@ -542,6 +566,7 @@ if __name__ == "__main__":
     test_prune_and_refine()
     test_feature_interaction()
     test_regularization_lamb_params_accepted()
+    test_device_resolution()
     print("All tests passed.")
 
 

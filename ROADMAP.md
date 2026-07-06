@@ -74,6 +74,28 @@ inspectable per-feature spline shape functions.
 - `examples/benchmark_uci.py` — Adult Income and California Housing vs.
   `HistGradientBoosting*` as an honest sanity floor (results in README).
 
+**v0.0.6 — device fail-fast fix, observability, logging, optional serving API**
+- `_resolve_device` now fails fast with a clear `RuntimeError` when
+  `device="cuda"`/`"cuda:0"` is requested but CUDA isn't available,
+  instead of silently degrading or failing later with a cryptic CUDA
+  error deep inside training. Still resolves arbitrary device strings
+  (`"cuda:0"`, `"mps"`) via `torch.device(...)`, unlike a naive
+  `if device == "cuda"` check that would only handle the exact string.
+- `kanboost/observability.py` (new, additive -- no changes to
+  `_base.py`/`classifier.py`/`regressor.py`): `time_predict`,
+  `memory_snapshot`, `gpu_utilization_flag`, and
+  `capture_boosting_rounds` (per-round timing/loss/GPU-memory, via a
+  temporary instance-level wrap of `_fit_learner` plus parsing the
+  existing `verbose=True` log lines -- restored automatically even if
+  `fit()` raises).
+- `kanboost/logging_utils.py` (new) -- a thin, opt-in wrapper around the
+  stdlib `logging` module, pairing with `capture_boosting_rounds` for
+  structured per-round log lines instead of raw `print()`.
+- `kanboost/serving.py` (new, optional: `pip install kanboost[api]`) --
+  a FastAPI wrapper (`create_app(model_path)`) with `/health`,
+  `/predict`, `/predict_proba` endpoints, auto-detecting classifier vs.
+  regressor from a saved model's own metadata.
+
 ## Deferred (with reasons)
 
 - **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`
