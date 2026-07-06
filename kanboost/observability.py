@@ -158,7 +158,11 @@ class RoundMetric:
     loss: float | None  # val_loss if eval_set/validation_fraction is set, else None
 
 
-_ROUND_LOG_RE = re.compile(r"val_loss=([\d.eE+-]+)")
+# Anchored to _boost_chain's exact log format (`_base.py`: f"[{t+1}/{n}] val_loss=...")
+# rather than a bare `val_loss=` substring, so an unrelated line written to
+# stdout during the block (e.g. the caller's own logging) can't be mistaken
+# for a round's loss and shift every subsequent round's value by one.
+_ROUND_LOG_RE = re.compile(r"^\[\d+/\d+\] val_loss=([\d.eE+-]+)", re.MULTILINE)
 
 
 @contextlib.contextmanager
@@ -175,6 +179,10 @@ def capture_boosting_rounds(model):
     recover each round's `val_loss` from kanboost's existing verbose
     logging (parsed, not reprinted) -- no core file is modified, and
     both are restored in `finally` even if `fit()` raises.
+
+    Note: stdout is fully captured (not just kanboost's log lines) for
+    the duration of the block, so anything else you `print()` inside it
+    won't reach the terminal until the `with` block exits.
     """
     if not hasattr(model, "_fit_learner"):
         raise AttributeError(

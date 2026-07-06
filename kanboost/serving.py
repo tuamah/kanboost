@@ -102,6 +102,12 @@ def create_app(model_path: str, device: str | None = None):
         try:
             preds, metrics = time_predict(model, X, method="predict")
         except Exception as exc:
+            # Deliberately broad: almost every failure at this point (unknown
+            # columns, wrong dtypes, an unfitted model) is a bad request, not
+            # a server bug, and a client-facing 400 beats leaking a raw 500
+            # traceback. The tradeoff is a genuine internal error also comes
+            # back as 400 -- check server logs, not just the HTTP status, if
+            # requests are failing unexpectedly.
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {
             "predictions": np.asarray(preds).tolist(),

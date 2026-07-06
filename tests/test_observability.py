@@ -76,6 +76,24 @@ def test_capture_boosting_rounds_binary_classifier():
     assert model._fit_learner.__func__ is type(model)._fit_learner
 
 
+def test_capture_boosting_rounds_ignores_unrelated_stdout():
+    """Regression test: an unrelated line printed to stdout during the
+    block that happens to contain the substring `val_loss=` must not be
+    mistaken for a round's loss and shift every subsequent round."""
+    X, y = make_classification(n_samples=150, n_features=5, random_state=2)
+    X_val, y_val = X[:30], y[:30]
+    X_df = pd.DataFrame(X, columns=[f"f{i}" for i in range(5)])
+    X_val_df = pd.DataFrame(X_val, columns=[f"f{i}" for i in range(5)])
+
+    model = KANBoostClassifier(n_estimators=3, kan_steps=3, early_stopping_rounds=None, random_state=0)
+    with capture_boosting_rounds(model) as rounds:
+        print("unrelated line from user code: val_loss=999.0")
+        model.fit(X_df, y, eval_set=(X_val_df, y_val))
+
+    assert len(rounds) == 3
+    assert all(r.loss is not None and r.loss < 10 for r in rounds)  # not polluted by 999.0
+
+
 def test_capture_boosting_rounds_multiclass_and_regressor():
     X, y = make_classification(
         n_samples=150, n_features=5, n_informative=4, n_redundant=0,
@@ -118,6 +136,7 @@ if __name__ == "__main__":
     test_memory_snapshot_returns_a_value()
     test_gpu_utilization_flag_shape()
     test_capture_boosting_rounds_binary_classifier()
+    test_capture_boosting_rounds_ignores_unrelated_stdout()
     test_capture_boosting_rounds_multiclass_and_regressor()
     test_capture_boosting_rounds_restores_state_on_exception()
     print("All observability tests passed.")

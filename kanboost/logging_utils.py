@@ -18,13 +18,16 @@ _DEFAULT_FORMAT = "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
 def get_logger(name: str = "kanboost", level: str | int | None = None) -> logging.Logger:
     """Return a configured logger. Idempotent: calling this again with
     the same `name` returns the same logger without adding duplicate
-    handlers.
+    handlers -- but an explicit `level` is still applied every call, even
+    on an already-configured logger, so a later call can raise/lower it.
 
     `level` defaults to the `KANBOOST_LOG_LEVEL` env var (e.g. "DEBUG",
     "INFO"), falling back to "INFO" if unset.
     """
     logger = logging.getLogger(name)
     if logger.handlers:
+        if level is not None:
+            logger.setLevel(level)
         return logger
 
     resolved_level = level or os.environ.get("KANBOOST_LOG_LEVEL", "INFO")
