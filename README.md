@@ -197,6 +197,24 @@ in one run (`kan_hidden=1`, `n_estimators=60`, `kan_steps=15`,
 | California Housing (full, 20.6K rows) | R² | 0.639 | 0.836 | ~13s |
 | Breast Cancer Wisconsin (full, 569 rows) | AUC | **0.9954** | 0.9931 | ~11s |
 
+A separate, fully independent real-world test (an NFL Draft prediction
+dataset, ~2.8K rows, 80 engineered features after preprocessing, 5-fold
+CV, `n_estimators=300`, `early_stopping_rounds=30`,
+`validation_fraction=0.15`), comparing against tuned CatBoost rather than
+untuned HistGradientBoosting:
+
+| Model | Mean CV AUC | OOF AUC | Time per fold |
+|---|---|---|---|
+| CatBoost (tuned) | **0.83880** | 0.81961 | 2.4–7.8s |
+| KANBoost | 0.83153 | **0.83002** | 84–90s |
+
+KANBoost trailed on 4 of 5 individual folds by under 0.5 points, and
+actually edged CatBoost out on OOF AUC (the metric computed on all
+pooled out-of-fold predictions at once, rather than averaged per-fold) —
+at roughly 17–20x the training time. Consistent with the UCI results
+above: KANBoost's accuracy is competitive, not the reason to reach for
+it; the ~20x slowdown is real and dataset-independent so far.
+
 On the small-data end (Breast Cancer, 569 rows), KANBoost's smaller
 per-round learner capacity stops being a handicap and it edges out the
 tree baseline — the two larger datasets show the more typical pattern of
