@@ -246,6 +246,32 @@ predict_interval([model_seed0, model_seed1], X_test)     # mean/lower/upper/std 
 dashboard_html(model, X_test, y_test, path="report.html")  # one static HTML report
 ```
 
+## Interactive dashboard (optional, additive)
+
+`dashboard_html` above is a zero-dependency static snapshot -- good for
+sharing or archiving in CI. `kanboost.dashboard` is a live, local
+Streamlit app for actually exploring one of your own fitted models:
+feature importances, `plot_feature` curves, `symbolic_report` (GAM
+mode), `feature_interaction`, per-row `explain_row`, and -- for a
+single-chain `gam=True` model (regressor or binary classifier; not yet
+multiclass) -- a panel to live-edit shape functions via
+`kanboost.editing.EditableGAM` (`set_offset`, `enforce_monotone`, `diff`,
+`save`), with the before/after curve redrawn immediately. Requires
+`pip install kanboost[dashboard]`.
+
+```python
+from kanboost.dashboard import launch
+
+launch("model.pt")                      # opens a local browser tab
+launch("model.pt", data_path="X.csv")   # preload a dataset to explore
+```
+
+or from the command line: `python -m kanboost.dashboard model.pt X.csv`
+
+This runs a local server for one person exploring one model, not a
+hosted multi-tenant service -- see [Serving](#serving--observability-optional-additive)
+for that.
+
 ## Benchmarks
 
 Preliminary results on a real-world telecom churn dataset (100K rows,

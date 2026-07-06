@@ -147,6 +147,36 @@ inspectable per-feature spline shape functions.
   duck-typing); fixed with a recursive numpy-to-plain-Python converter
   applied before serializing.
 
+**v0.0.10 — interactive dashboard**
+- `kanboost/dashboard.py` + `kanboost/_dashboard_app.py` (new, optional:
+  `pip install kanboost[dashboard]`): a local Streamlit app
+  (`launch(model_path, data_path=None)`) for exploring one fitted model
+  -- feature importances, `plot_feature`, `symbolic_report` (GAM mode),
+  `feature_interaction`, `explain_row`, and, for a single-chain
+  `gam=True` model, a live editing panel wired to
+  `kanboost.editing.EditableGAM` (`set_offset`, `enforce_monotone`,
+  `diff`, `save`), with the curve redrawn immediately after each edit.
+  Chosen over Dash/Gradio/a hand-written Flask+JS app because Streamlit
+  renders matplotlib figures natively (`plot_feature` needed no
+  changes) and every widget interaction is a plain server-side Python
+  callback, which a stateful editing panel needs and Gradio's
+  input-to-output function model doesn't fit well.
+- Verified end-to-end (not just import-tested) via Streamlit's
+  `AppTest` harness: full script execution, button clicks
+  (`set_offset`/`enforce_monotone`/`save`) round-tripping through a real
+  `EditableGAM`, and a saved edited model reloading correctly -- across
+  a GAM regressor with data, a non-GAM model (edit tab correctly absent),
+  and a multiclass GAM classifier (edit tab correctly absent too, since
+  `consolidate()` returns a dict of independent per-class models in that
+  case, out of scope for v1's single-chain editing panel).
+- The existing static `kanboost.experimental.dashboard_html` is kept
+  as-is (not superseded) -- a zero-dependency shareable snapshot and a
+  live local tool serve genuinely different purposes.
+- Deferred to a later release: drag-on-canvas curve editing (vs. slider
+  + offset), a multiclass editing panel, a what-if prediction
+  playground, and an in-app "export static report" button wrapping
+  `dashboard_html`.
+
 ## Deferred (with reasons)
 
 - **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`
