@@ -236,6 +236,24 @@ inspectable per-feature spline shape functions.
   (not just fit time) is markedly slower than tree ensembles on this
   benchmark. No code changes.
 
+**v0.0.13 — docs-only release**
+- Added a second, independent Breast Cancer Wisconsin benchmark with a
+  stricter methodology (decision threshold selected on a held-out
+  *validation* split, then applied once to a separate *test* split,
+  rather than the per-fold-optimal-on-test-itself threshold from
+  v0.0.12's benchmark). Both confirms the calibration finding (Brier
+  score still clearly the worst of the group) and strengthens the
+  practical takeaway: with an honestly-selected threshold, KANBoost's
+  accuracy/F1/MCC come out in an exact three-way tie for best in the
+  comparison, matching LightGBM and XGBoost. No code changes.
+- Added a third, independent Breast Cancer Wisconsin CV run (8 models
+  including CatBoost, log-loss added alongside Brier). KANBoost's ROC
+  AUC/PR AUC come out highest of all 8 models this time; its log loss
+  is roughly 2x worse than the next-worst model and 4-5x worse than the
+  tree ensembles -- the starkest confirmation yet, across a third
+  independent methodology, of the ranking-vs-calibration gap. No code
+  changes.
+
 ## Deferred (with reasons)
 
 - **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`

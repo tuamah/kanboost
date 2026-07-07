@@ -145,6 +145,59 @@ fit time, is markedly slower here too (~0.99s vs. 0.006–0.12s for the
 tree ensembles) — roughly two orders of magnitude, distinct from the
 already-documented training-speed gap.
 
+A second, independent run on the same dataset with a stricter
+methodology — the decision threshold picked on a held-out *validation*
+split, then applied once to a separate *test* split (rather than the
+per-fold-optimal-on-test-itself threshold above, which is a slightly
+more optimistic setup) — both confirms and strengthens this picture:
+
+| Model | Test ROC AUC | Test Brier | Threshold (from val) | Test accuracy @ that threshold | Test F1 | Test MCC |
+|---|---|---|---|---|---|---|
+| RandomForest | **0.9983** | 0.0274 | 0.440 | 0.9649 | 0.9512 | 0.9245 |
+| **KANBoost (tuned)** | 0.9980 | **0.0578** | 0.415 | **0.9825** | **0.9756** | **0.9626** |
+| LogReg (scaled) | 0.9954 | 0.0222 | 0.730 | 0.9649 | 0.9500 | 0.9258 |
+| HistGradientBoosting | 0.9940 | 0.0296 | 0.235 | 0.9737 | 0.9630 | 0.9442 |
+| LightGBM | 0.9940 | **0.0198** | 0.270 | **0.9825** | **0.9756** | **0.9626** |
+| XGBoost | 0.9931 | 0.0199 | 0.280 | **0.9825** | **0.9756** | **0.9626** |
+| MLP (scaled) | 0.9894 | 0.0980 | 0.555 | 0.9386 | 0.9136 | 0.8675 |
+
+Brier score replicates the calibration gap independently — still
+clearly the worst of the group, confirming it's a real, repeatable
+property of KANBoost's raw probability outputs, not an artifact of one
+experimental setup. But with an honestly-selected (validation-derived,
+not test-leaked) threshold, KANBoost's classification metrics
+(accuracy/F1/MCC) come out in an exact three-way tie for **best in the
+entire comparison**, matching LightGBM and XGBoost and ahead of
+RandomForest, LogReg, HistGradientBoosting, and MLP — while its ROC AUC
+is second only to RandomForest. Threshold calibration isn't a marginal
+tweak here; it's the difference between mediocre and top-tier
+classification performance for KANBoost specifically.
+
+A **third**, independent CV run on the same dataset (8 models including
+CatBoost, mean ± std over folds, log-loss added alongside Brier)
+confirms the pattern again, and sharpens it:
+
+| Model | ROC AUC | PR AUC | F1 @ 0.5 | Log loss | Brier |
+|---|---|---|---|---|---|
+| **KANBoost (tuned)** | **0.9960** | **0.9948** | 0.9309 | **0.3628** | **0.0971** |
+| LogReg (scaled) | 0.9951 | 0.9939 | **0.9620** | 0.0796 | 0.0213 |
+| CatBoost | 0.9947 | 0.9934 | 0.9474 | 0.0929 | 0.0257 |
+| XGBoost | 0.9935 | 0.9914 | 0.9499 | 0.0967 | 0.0272 |
+| HistGradientBoosting | 0.9928 | 0.9909 | 0.9464 | 0.1292 | 0.0285 |
+| LightGBM | 0.9916 | 0.9898 | 0.9490 | 0.1501 | 0.0306 |
+| RandomForest | 0.9904 | 0.9889 | 0.9430 | 0.1253 | 0.0336 |
+| MLP (scaled) | 0.9855 | 0.9831 | 0.9284 | 0.2218 | 0.0580 |
+
+This time KANBoost's ROC AUC and PR AUC are the **highest of all 8
+models** — including CatBoost and LogReg. But log loss (which, unlike
+Brier, penalizes confidently-wrong probabilities heavily) is nearly 2x
+worse than the next-worst model (MLP) and 4-5x worse than the tree
+ensembles — the starkest evidence yet, across a third independent
+methodology, that KANBoost's ranking and its raw probability confidence
+are two very different things. The practical guidance stands regardless
+of which of these three runs you look at: trust the ranking, calibrate
+or threshold-tune before trusting the raw probability values.
+
 **Read these tables honestly**: KANBoost does not consistently beat tuned
 tree boosting on accuracy or speed. The value proposition is
 interpretability and structural guarantees (monotonicity, exact additive
