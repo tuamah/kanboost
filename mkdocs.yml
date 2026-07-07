@@ -42,6 +42,7 @@ nav:
       - Classification & regression: guide/classification.md
       - Interpretability (GAM, monotone, symbolic, derivatives): guide/interpretability.md
       - Editable models & dashboard: guide/editing-dashboard.md
+      - Calibration: guide/calibration.md
       - Serving & observability: guide/serving.md
       - Tuning with kantun: guide/tuning-with-kantun.md
   - API reference: api.md

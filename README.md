@@ -75,6 +75,10 @@ implementation of the same general idea, plus:
   (`enforce_monotone`, same guarantee as `monotone_constraints`), inspect
   the effect (`diff`), and predict/save/load exactly like the original
   model. See [Editable models](#editable-models-human-in-the-loop) below.
+- **`kanboost.calibration.calibrate(model, X_cal, y_cal)`** — post-hoc
+  Platt/isotonic probability calibration for `KANBoostClassifier`; fixes
+  a real, benchmark-confirmed miscalibration gap without retraining. See
+  [Calibration](#calibration-optional-additive) below.
 - Automatic categorical encoding and missing-value handling, no manual
   preprocessing required
 
@@ -216,6 +220,55 @@ report = gam.diff(X_val, y_val)  # per-feature deltas + before/after metric
 gam.predict(X_val)                # exact, same interface as the original model
 gam.save("edited_model.pt")
 ```
+
+`consolidate()` is also, incidentally, a fast predict path for `gam=True`
+models: one B-spline evaluation per feature instead of `n_estimators`
+full KAN forward passes. Measured **~30-50x faster prediction** than the
+original ensemble (varies by hardware/model size; 1000-row, 6-feature,
+40-estimator model), with a consolidation fidelity cost around 1e-6
+(`gam.max_consolidation_error()`)
+-- see [Honest limitations](#honest-limitations) for KANBoost's
+predict-time gap against tree ensembles, which this closes for GAM-mode
+models specifically.
+
+## Calibration (optional, additive)
+
+Three independent benchmarks (see [Benchmarks](#benchmarks)) found the
+same pattern: KANBoost's `predict_proba` *ranking* (ROC AUC/PR AUC) is
+competitive with or ahead of tuned tree ensembles, but its raw
+probability *values* are comparatively miscalibrated -- worst Brier
+score and log-loss in all three runs, with the F1-optimal decision
+threshold sitting around 0.40-0.42 rather than 0.5. `kanboost.calibration`
+fixes this post-hoc, without retraining:
+
+```python
+from kanboost.calibration import calibrate
+
+model = KANBoostClassifier(n_estimators=100)
+model.fit(X_train, y_train)
+
+# X_cal/y_cal must be held out -- not used in model.fit()
+cal_model = calibrate(model, X_cal, y_cal, method="platt")  # or method="isotonic"
+
+cal_model.predict_proba(X_test)  # calibrated probabilities
+cal_model.predict(X_test)         # same threshold semantics as the base model
+cal_model.save("calibrated_model.pt")
+loaded = CalibratedKANBoost.load("calibrated_model.pt")
+```
+
+`method="platt"` (default) fits a 2-parameter logistic rescaling of the
+raw score -- the right fix for a systematic shift like KANBoost's, needs
+little calibration data, and being strictly monotone, leaves ROC AUC/PR
+AUC exactly unchanged (verified in tests). `method="isotonic"` is more
+flexible but needs a larger `X_cal` (order of 1000+ rows) to avoid
+overfitting. On a held-out Breast Cancer split: Brier score
+0.090 -> 0.030, log-loss 0.344 -> 0.119, ROC AUC unchanged, with Platt.
+
+Multiclass: each one-vs-rest chain is calibrated independently, then
+rows are renormalized to sum to 1. If you also use `kanboost.editing`,
+calibrate *after* finalizing any `EditableGAM` edits, not before -- an
+edit changes the model's raw scores and would silently stale an
+already-fitted calibration map.
 
 ## Experimental utilities (optional, additive)
 
@@ -434,9 +487,15 @@ can't provide even in principle — not raw predictive performance.
   probability *values* are comparatively miscalibrated out of the box
   (worst Brier score in the Breast Cancer benchmark above, with the
   per-fold F1-optimal threshold sitting well below the default 0.5).
-  Tune the decision threshold or apply post-hoc calibration
-  (Platt scaling/isotonic regression) before relying on classification
-  metrics at the default cutoff.
+  Use `kanboost.calibration.calibrate()` (see
+  [Calibration](#calibration-optional-additive) above) or tune the
+  decision threshold yourself before relying on classification metrics
+  at the default cutoff.
+- **Prediction speed for `gam=True` models specifically has a fix**:
+  `kanboost.editing.consolidate()` (see
+  [Editable models](#editable-models-human-in-the-loop) above) is also
+  a ~30-50x-faster predict path for GAM-mode models, at negligible fidelity
+  cost -- it doesn't help non-GAM models or training speed.
 - **Tuning**: hyperparameters (`kan_grid`, `kan_hidden`, `kan_steps`,
   `learning_rate`) interact in ways that are not yet well understood;
   expect to need real tuning for your dataset.

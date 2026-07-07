@@ -38,6 +38,16 @@ gam.predict(X_val)                # exact, same interface as the original model
 gam.save("edited_model.pt")
 ```
 
+!!! tip "Also a fast predict path"
+    `consolidate()` doubles as a fast predictor for `gam=True` models:
+    one B-spline evaluation per feature instead of `n_estimators` full
+    KAN forward passes. Measured **~30-50x faster prediction** (varies
+    by hardware/model size; 1000-row, 6-feature, 40-estimator model),
+    with `max_consolidation_error()` around 1e-6. See [Calibration](calibration.md)
+    for KANBoost's known prediction-speed gap against tree ensembles --
+    this closes it for GAM-mode models specifically (not non-GAM models,
+    and not training speed).
+
 ## Interactive dashboard
 
 `kanboost.experimental.dashboard_html` (see [Interpretability](interpretability.md))

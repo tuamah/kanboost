@@ -254,6 +254,37 @@ inspectable per-feature spline shape functions.
   independent methodology, of the ranking-vs-calibration gap. No code
   changes.
 
+**v0.0.14 — post-hoc calibration, documented predict-speed fix for GAM mode**
+- `kanboost/calibration.py` (new): `calibrate(model, X_cal, y_cal, method="platt"|"isotonic")`
+  / `CalibratedKANBoost` -- post-hoc Platt scaling (default) or isotonic
+  regression on a fitted `KANBoostClassifier`'s raw scores, addressing
+  the calibration gap documented in v0.0.12/v0.0.13's three benchmarks.
+  Platt is the default because the measured miscalibration is a
+  systematic shift (F1-optimal threshold ~0.40-0.42, not 0.5) -- exactly
+  what a 2-parameter monotone rescaling fixes, with less data and less
+  overfitting risk than isotonic, and (being strictly monotone) zero
+  effect on ROC AUC/PR AUC. Multiclass: each one-vs-rest chain
+  calibrated independently, then rows renormalized to sum to 1. No
+  changes to `_base.py`/`classifier.py` -- reads raw scores through the
+  same `_raw_score_chain`/`_transform_X` `predict_proba` itself uses.
+  Verified end-to-end on a real held-out Breast Cancer split: Brier
+  0.090 -> 0.030, log-loss 0.344 -> 0.119, ROC AUC unchanged to `1e-9`.
+- Documented (no new code): `kanboost.editing.consolidate()` is also a
+  fast predict path for `gam=True` models -- one spline evaluation per
+  feature instead of `n_estimators` full KAN forward passes. Measured
+  ~50x faster prediction on a 1000-row/6-feature/40-estimator model, at
+  ~1e-6 consolidation fidelity cost. This is the answer to the
+  prediction-speed gap for GAM-mode models specifically; it does not
+  help non-GAM models or training speed.
+- Fit-time speed: deliberately left deferred. The boosting loop is
+  inherently sequential and each round's cost is `kan_steps` full
+  KAN forward/backward passes; cutting `kan_steps`/`kan_grid` defaults
+  trades accuracy for speed (a tuning knob users already have, not a
+  free optimization), and every from-scratch-backend alternative
+  considered this session risks repeating the earlier rejected RBF
+  backend's mistake (silently not enforcing `monotone_constraints`).
+  No new safe, meaningfully-impactful fit-time speedup was found.
+
 ## Deferred (with reasons)
 
 - **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`

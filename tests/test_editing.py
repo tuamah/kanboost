@@ -197,6 +197,39 @@ def test_save_load_roundtrip_preserves_edits(tmp_path):
     assert np.diff(loaded_curve).min() >= -1e-3  # monotonicity survives the round-trip
 
 
+def test_consolidated_predict_is_much_faster_than_the_ensemble():
+    """consolidate() isn't just an editing tool -- for a gam=True model,
+    EditableGAM.predict() is also a fast, high-fidelity predict path:
+    one spline evaluation per feature instead of n_estimators full KAN
+    forward passes. This is the documented answer to KANBoost's slow
+    prediction time for GAM-mode models specifically (see README's
+    "Honest limitations")."""
+    import time
+
+    X, y = make_regression(n_samples=1000, n_features=6, noise=0.1, random_state=0)
+    X_df = pd.DataFrame(X, columns=[f"f{i}" for i in range(6)])
+    model = KANBoostRegressor(
+        n_estimators=40, kan_steps=8, kan_hidden=1, gam=True,
+        early_stopping_rounds=None, random_state=0,
+    )
+    model.fit(X_df, y)
+    gam = consolidate(model)
+
+    model.predict(X_df.iloc[:5])  # warm up (lazy CUDA init etc.)
+    gam.predict(X_df.iloc[:5])
+
+    t0 = time.time()
+    model.predict(X_df)
+    ensemble_time = time.time() - t0
+
+    t0 = time.time()
+    gam.predict(X_df)
+    gam_time = time.time() - t0
+
+    assert gam.max_consolidation_error() < 1e-3  # fidelity cost is negligible
+    assert gam_time < ensemble_time / 3  # a real, large speedup, not a fluke
+
+
 if __name__ == "__main__":
     import tempfile
     from pathlib import Path
@@ -211,4 +244,5 @@ if __name__ == "__main__":
     test_enforce_monotone_decreasing()
     with tempfile.TemporaryDirectory() as d:
         test_save_load_roundtrip_preserves_edits(Path(d))
+    test_consolidated_predict_is_much_faster_than_the_ensemble()
     print("All editing tests passed.")
