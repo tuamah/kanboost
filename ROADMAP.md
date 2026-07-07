@@ -177,6 +177,50 @@ inspectable per-feature spline shape functions.
   playground, and an in-app "export static report" button wrapping
   `dashboard_html`.
 
+**v0.0.11 — kantun integration test, Beta, docs site**
+- `tests/test_kantun_integration.py` (new, skipped if `kantun` isn't
+  installed -- same optional-dependency test pattern already used for
+  fastapi/streamlit): a real `KantunSearch(KANBoostClassifier, ...).fit`
+  and `KantunSearch(KANBoostRegressor, ...).fit`, plus dedicated cases
+  for kantun's new `search_type="halving"` and `n_jobs` parallelism
+  (both added in kantun v0.0.3, alongside fold-1 pruning) tuning
+  KANBoost specifically. `kantun` is still not a `kanboost` dependency
+  -- the whole point of splitting the two packages was keeping
+  kanboost's footprint minimal, so this stays a sibling-package test,
+  not a hard coupling.
+- The `kantun` integration test was deferred pending "both APIs
+  settling" -- kantun's public surface hasn't changed since its initial
+  release (only additive: `n_jobs`, `prune`, `search_type="halving"`,
+  none breaking), and kanboost's has been additive-only since v0.0.4.
+  That condition has been met.
+- `Development Status :: 4 - Beta` (from `3 - Alpha`): justified by the
+  breadth of what's shipped and tested (37+ features across
+  interpretability, persistence, serving, editing, and now a verified
+  sibling-package integration), not by this one test in isolation.
+- `mkdocs.yml` + `docs/` (new, optional: `pip install kanboost[docs]`) --
+  a docs site (mkdocs-material) covering installation, classification/
+  regression + benchmarks, interpretability, editable models/dashboard,
+  serving/observability, and tuning with kantun (including the new
+  `search_type="halving"`/`n_jobs`/`prune` options); deployed to GitHub
+  Pages on push to `main` via `.github/workflows/docs.yml`, which also
+  runs `mkdocs build --strict` on every PR touching docs so a broken
+  link/nav entry fails CI instead of silently shipping.
+- Two real bugs in kantun's new code, found and fixed before shipping
+  (both via testing against real fitted models, not assumed correct
+  from the code alone): successive halving's stratified train
+  subsampling crashed (`ValueError: test_size ... < n_classes`) when a
+  rung's resource count, computed from one fold's size, landed just
+  below another fold's actual size (`StratifiedKFold` doesn't guarantee
+  perfectly equal folds) -- fixed by treating "not enough left over to
+  stratify the discard" the same as "at capacity: use the full fold".
+  Separately, halving's `best_score_`/`best_params_` were being updated
+  from *every* rung, including subsampled ones -- a low-resource score
+  isn't comparable to a full CV mean, any more than a single pruned
+  fold's score is (concretely observed: a combo's rung-2 score, on 144
+  of 204 training rows, briefly outranked the eventual winner's true
+  full-data score). Fixed so only the final, full-training-data rung's
+  scores can win `best_score_`/`best_params_`.
+
 ## Deferred (with reasons)
 
 - **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`
@@ -187,12 +231,9 @@ inspectable per-feature spline shape functions.
   multi-GPU wouldn't help without changing the training loop's
   architecture.
 - **Benchmark suite vs. XGBoost/LightGBM/CatBoost on standard UCI
-  datasets, and a docs site** — legitimate next steps, but they're
-  ongoing measurement/writing efforts rather than library features;
-  tracked separately from this code roadmap.
-- **`kantun` integration test** — depends on the sibling `kantun`
-  package; add once both repos' APIs have settled rather than pinning
-  kanboost's test suite to kantun's release cadence.
+  datasets** — a legitimate next step, but an ongoing measurement effort
+  rather than a library feature; tracked separately from this code
+  roadmap. (The docs site itself shipped in v0.0.11 -- see below.)
 - **CLI** — the sklearn-style Python API already covers the realistic
   usage patterns; a CLI wouldn't add much for a model-fitting library.
 

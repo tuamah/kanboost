@@ -1,0 +1,48 @@
+site_name: KANBoost
+site_description: Gradient boosting with Kolmogorov-Arnold Network (KAN) learners
+site_url: https://tuamah.github.io/kanboost/
+repo_url: https://github.com/tuamah/kanboost
+repo_name: tuamah/kanboost
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Guide:
+      - Classification & regression: guide/classification.md
+      - Interpretability (GAM, monotone, symbolic, derivatives): guide/interpretability.md
+      - Editable models & dashboard: guide/editing-dashboard.md
+      - Serving & observability: guide/serving.md
+      - Tuning with kantun: guide/tuning-with-kantun.md
+  - API reference: api.md
+  - Roadmap: roadmap.md
