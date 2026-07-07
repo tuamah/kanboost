@@ -221,6 +221,21 @@ inspectable per-feature spline shape functions.
   full-data score). Fixed so only the final, full-training-data rung's
   scores can win `best_score_`/`best_params_`.
 
+**v0.0.12 — docs-only release**
+- Added a rigorous cross-validated Breast Cancer Wisconsin benchmark
+  (tuned KANBoost vs. tuned tree ensembles, LogReg, MLP; mean ± std over
+  folds) to the README and docs site, surfacing a genuine finding not
+  previously documented: KANBoost's `predict_proba` *ranking* (ROC
+  AUC/PR AUC) is competitive with or ahead of tuned tree ensembles, but
+  its raw probability *values* are comparatively miscalibrated out of
+  the box (worst Brier score of the group; per-fold F1-optimal
+  threshold averaged 0.405, not 0.5). Added a corresponding "Honest
+  limitations" entry and a docs tip: tune the decision threshold or
+  apply post-hoc calibration before relying on classification metrics
+  at the default 0.5 cutoff. Also newly documented: prediction time
+  (not just fit time) is markedly slower than tree ensembles on this
+  benchmark. No code changes.
+
 ## Deferred (with reasons)
 
 - **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`

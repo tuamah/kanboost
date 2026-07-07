@@ -107,6 +107,44 @@ California Housing, verified via `predict_derivative` to have a
 non-negative derivative (min ≈ +0.50) on the *held-out test set* — a
 hard structural guarantee tree-boosting libraries can't offer.
 
+A separate, more rigorous cross-validated benchmark on Breast Cancer
+Wisconsin (mean ± std over folds, tuned KANBoost vs. tuned tree
+ensembles and a scaled logistic regression/MLP baseline) surfaces a
+genuine, previously undocumented finding — a calibration gap, not just
+a speed one:
+
+| Model | ROC AUC | F1 @ 0.5 | F1 @ best per-fold threshold | Brier score | Fit time |
+|---|---|---|---|---|---|
+| LogReg (scaled) | 0.9954 | 0.9616 | **0.9823** | **0.0201** | 0.02s |
+| **KANBoost (tuned)** | **0.9940** | 0.9476 | 0.9706 | 0.0578 | 30.4s |
+| LightGBM | 0.9936 | 0.9551 | 0.9680 | 0.0246 | 0.14s |
+| XGBoost | 0.9934 | **0.9614** | 0.9673 | 0.0228 | 0.28s |
+| HistGradientBoosting | 0.9937 | 0.9518 | 0.9619 | 0.0300 | 0.33s |
+| RandomForest | 0.9881 | 0.9406 | 0.9579 | 0.0331 | 1.49s |
+| MLP (scaled) | 0.9751 | 0.8951 | 0.9345 | 0.1151 | 0.05s |
+
+KANBoost's *ranking* ability (ROC AUC, PR AUC) is genuinely excellent
+here — second only to logistic regression, ahead of every tree
+ensemble. But its raw probabilities are comparatively **miscalibrated**:
+worst Brier score of the group, and the per-fold F1-optimal decision
+threshold averaged **0.405**, not 0.5 — a real, systematic skew, not
+noise. At the default 0.5 cutoff its F1 looks mediocre; using each
+fold's own optimal threshold instead, F1 and MCC both jump to
+second-best overall, ahead of LightGBM, XGBoost, and
+HistGradientBoosting.
+
+!!! tip "Don't threshold at 0.5 without checking"
+    Tune the decision threshold on a validation set (or apply a
+    post-hoc calibration step like Platt scaling/isotonic regression)
+    the way you would for any model with a known calibration gap.
+    KANBoost's probability *ranking* can be trusted at face value; its
+    probability *values* currently can't be, out of the box.
+
+Also notable, and not previously measured: **prediction time**, not just
+fit time, is markedly slower here too (~0.99s vs. 0.006–0.12s for the
+tree ensembles) — roughly two orders of magnitude, distinct from the
+already-documented training-speed gap.
+
 **Read these tables honestly**: KANBoost does not consistently beat tuned
 tree boosting on accuracy or speed. The value proposition is
 interpretability and structural guarantees (monotonicity, exact additive
