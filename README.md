@@ -75,6 +75,13 @@ implementation of the same general idea, plus:
   (`enforce_monotone`, same guarantee as `monotone_constraints`), inspect
   the effect (`diff`), and predict/save/load exactly like the original
   model. See [Editable models](#editable-models-human-in-the-loop) below.
+- **`kanboost.symbolic.export_symbolic(model)`** (requires `gam=True`) —
+  a real, executable symbolic formula: `sympy` expression, LaTeX,
+  standalone numpy predict function, and a per-feature fidelity report
+  (closed-form R^2 + amplitude, with a numeric fallback for features no
+  candidate fits well). See
+  [Symbolic formula export](#symbolic-formula-export-optional-additive)
+  below.
 - **`kanboost.calibration.calibrate(model, X_cal, y_cal)`** — post-hoc
   Platt/isotonic probability calibration for `KANBoostClassifier`; fixes
   a real, benchmark-confirmed miscalibration gap without retraining. See
@@ -230,6 +237,63 @@ original ensemble (varies by hardware/model size; 1000-row, 6-feature,
 -- see [Honest limitations](#honest-limitations) for KANBoost's
 predict-time gap against tree ensembles, which this closes for GAM-mode
 models specifically.
+
+## Symbolic formula export (optional, additive)
+
+`model.symbolic_report(X)` / `kanboost.experimental.symbolic_export`
+give a human-readable summary of each feature's best-fitting named
+function. `kanboost.symbolic.export_symbolic` goes further: an actual
+executable formula.
+
+```python
+from kanboost.symbolic import export_symbolic
+
+model = KANBoostRegressor(gam=True, kan_hidden=1, n_estimators=50)
+model.fit(X_train, y_train)
+
+sym = export_symbolic(model, min_r2=0.85)  # multiclass classifier -> {class_label: SymbolicModel}
+
+print(sym.to_sympy())          # a real sympy expression
+print(sym.to_latex())          # ready to paste into a paper
+print(sym.fidelity_report())   # {feature: {"kind", "r2", "candidate", "amplitude"}}
+print(sym.symbolic_fraction()) # fraction of features that got a true closed form
+
+sym.predict(X_test)            # standalone -- no torch/pykan needed at call time
+sym.save("formula.pt")
+```
+
+Each feature's exact aggregated shape function (the same one
+`plot_feature`/`symbolic_report` use) gets one closed-form candidate
+fit (`c * fun(a*x + b) + d`, pykan's own `SYMBOLIC_LIB`) if some
+candidate clears `min_r2`; otherwise it's kept as a numeric
+(spline-interpolated) term instead of forced into a misleading formula.
+`fidelity_report()`'s `amplitude` field matters alongside `r2` --  a
+near-flat, unimportant feature can still score a deceptively high R^2
+by fitting its own tiny wiggles, so check amplitude against other
+features' before treating a high-R^2 term as meaningful. Because this
+refits every feature's spline as a parametric approximation,
+`sym.predict()` is a *lossy* approximation of the original model
+(unlike `EditableGAM.predict`, which is exact) -- `fidelity_report()`
+tells you how lossy, per feature.
+
+For a quick, ranked summary instead of the full formula:
+
+```python
+from kanboost.symbolic import explain
+
+for entry in explain(model, top_features=5, symbolic=True, simplify=True):
+    print(entry["feature"], entry["importance"], entry["formula"])
+```
+
+`explain()` ranks features by `model.feature_importances_dict()` and
+attaches each top feature's symbolic term (`simplify=True` runs
+`sympy.simplify()` on it -- cheap here, since it's one term, not the
+whole model). `symbolic=False` skips formula extraction entirely, for
+a plain top-`N` importance ranking. Multiclass: uses each feature's term
+from `model.classes_[0]`'s chain as a representative formula (one-vs-rest
+chains can fit a feature differently per class) -- call
+`export_symbolic(model)` directly and index by class for a true
+per-class formula.
 
 ## Calibration (optional, additive)
 

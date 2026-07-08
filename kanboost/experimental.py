@@ -118,7 +118,13 @@ def symbolic_export(model, X, top_k: int = 1, min_r2: float = 0.8) -> str:
     named function (`sin`, `x^2`, `tanh`, ...) if its R^2 clears
     `min_r2`, else the feature is omitted (its shape isn't well
     described by any candidate -- the underlying spline is still exact,
-    this is just a lossy human-readable approximation of it)."""
+    this is just a lossy human-readable approximation of it).
+
+    For an actual executable/exportable formula (a real `sympy`
+    expression, LaTeX, a standalone numpy predict function, and a
+    fidelity report with per-feature amplitude, not just this text
+    summary), see `kanboost.symbolic.export_symbolic` instead.
+    """
     raw = model.symbolic_report(X, top_k=top_k)
 
     def one_chain(report, prefix="score"):

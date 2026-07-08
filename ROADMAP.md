@@ -300,6 +300,63 @@ inspectable per-feature spline shape functions.
   Breast-Cancer-family-plus-this run tracks dataset size -- better
   relative to tree ensembles on smaller datasets. No code changes.
 
+**v0.0.16 — executable symbolic formula export**
+- `kanboost/symbolic.py` (new): `export_symbolic(model, min_r2=0.8)` /
+  `SymbolicModel` -- a real `sympy` expression, LaTeX string, and
+  standalone (no torch/pykan needed at call time) numpy predict
+  function for a fitted `gam=True` model, not just the existing
+  human-readable text summary (`symbolic_report`/
+  `kanboost.experimental.symbolic_export`). Fits one closed-form
+  candidate (`c * fun(a*x + b) + d`, pykan's `SYMBOLIC_LIB`) per
+  feature to the exact aggregated shape function; features below
+  `min_r2` fall back to a numeric (spline-interpolated) term instead of
+  a misleading forced formula. Multiclass: `{class_label: SymbolicModel}`.
+- Reuses `kanboost.editing.consolidate()` for per-feature curves and
+  the intercept, rather than re-deriving curve sampling from scratch --
+  deliberately avoiding a repeat of `consolidate()`'s own earlier
+  double-counting bug (v0.0.8) by building on its already-fixed,
+  already-tested centering logic instead of a fresh implementation.
+- A real, non-obvious finding surfaced while building this: R^2 alone
+  doesn't mean a fitted term is meaningful. A near-noise synthetic
+  feature (no real relationship to the target) scored R^2=0.996 with a
+  `cos` fit purely by matching its own tiny residual wiggle, while its
+  curve's amplitude (~0.13) was over 20x smaller than a genuinely
+  important feature's (~3.0) in the same model. Added an `amplitude`
+  field to `fidelity_report()` specifically so this can't be missed,
+  and documented it as a required check, not an edge case.
+- Added `sympy` as an explicit core dependency (previously only
+  available transitively via torch's own dependency chain).
+- `explain(model, top_features=5, symbolic=True, simplify=True)`: a
+  high-level convenience wrapper ranking features by
+  `model.feature_importances_dict()` and attaching each top feature's
+  symbolic term (`SymbolicModel.term_sympy()`, a new method extracting
+  one feature's term instead of the whole model's expression).
+  `export_symbolic()` gained a `features=` filter so `explain()` only
+  runs the (relatively expensive) candidate search for the features
+  actually being reported, not every feature in the model.
+- Independent review (this session) on the whole module: APPROVE WITH
+  NITS, all addressed before shipping -- guarded against a real
+  `sympy.Symbol` name collision (two feature names that sanitize to the
+  same symbol, e.g. `"a b"` and `"a-b"`, would otherwise silently
+  conflate into one variable in `to_sympy()`), documented a narrow
+  `predict_scaled()`-vs-`to_sympy()` divergence for `log`/`sqrt` terms
+  on out-of-training-range inputs (unreachable for in-range data, since
+  a candidate that goes negative on its fitting domain gets `NaN` R^2
+  and is never selected), aligned `explain()`'s `min_r2` default with
+  `export_symbolic()`'s (was inconsistently 0.85 vs 0.8), and
+  strengthened a test that named a specific behavior (multiclass
+  `explain()` using `classes_[0]`'s chain) without actually asserting it.
+- Separately, verified and documented a real risk in pykan's own
+  `learner.auto_symbolic()` when called directly by a user on
+  `model.learners_`: it mutates each weak learner in place, replacing
+  its spline with an approximate symbolic function -- silently changing
+  `model.predict()`'s output from that point on, with no guarantee the
+  approximation is close (an edge with R^2=0.0001 was still forced into
+  a formula in one observed case). `export_symbolic()`/`explain()` never
+  touch the original model for exactly this reason.
+- 11 new tests (8 for `export_symbolic`/`SymbolicModel`, 3 for
+  `explain()`). Bumps version to 0.0.16.
+
 ## Deferred (with reasons)
 
 - **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`
