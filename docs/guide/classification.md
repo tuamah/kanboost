@@ -198,6 +198,36 @@ are two very different things. The practical guidance stands regardless
 of which of these three runs you look at: trust the ranking, calibrate
 or threshold-tune before trusting the raw probability values.
 
+A fourth benchmark, this time spanning **three separate datasets** (not
+repeated runs of one) with **Wilcoxon signed-rank significance testing**
+(5-fold, `KANBoost` vs. each of 7 other models, per dataset) rather than
+just comparing means:
+
+| Dataset (rows) | KANBoost ROC AUC | Best of the other 7 | KANBoost rank | Brier (KANBoost) | Fit time (KANBoost) |
+|---|---|---|---|---|---|
+| Heart-Statlog (270) | **0.9181** | LogReg 0.9053 | **1st of 8** | 0.1253 | 9.8s |
+| Breast Cancer Wisconsin (569) | 0.9945 | LogReg 0.9946 (~tied) | 1st–2nd of 8 | 0.0563 | 13.4s |
+| Diabetes / Pima (768) | 0.8290 | CatBoost 0.8402 | 5th of 8 | 0.1659 | 12.2s |
+
+On Heart-Statlog specifically, KANBoost's ROC AUC beat **every one of
+the other 7 models on every one of the 5 folds** — `p=0.0625` against
+all seven, the smallest p-value obtainable with 5 paired folds (i.e.
+maximally significant given the sample size). Brier score again lands
+in the worse half of the pack on the two datasets where it's not
+best-in-class, consistent with the calibration gap documented above.
+
+!!! note "An emerging pattern worth taking seriously, not yet proven"
+    Across all four Breast-Cancer-family runs plus this new
+    multi-dataset one, KANBoost's *relative* standing tracks dataset
+    size — decisive win on the smallest set (270 rows), a near-tie for
+    best on a mid-small one (569 rows), and merely mid-pack on the
+    largest of the three (768 rows). This lines up with the small-data
+    observation already made about Breast Cancer vs. Adult Income/
+    California Housing earlier in this page: fewer rows seem to blunt
+    tree ensembles' usual edge more than they blunt KANBoost's. Three
+    datasets and one 8-model comparison is not enough to call this a
+    rule — it's a pattern to test further, not a guarantee.
+
 **Read these tables honestly**: KANBoost does not consistently beat tuned
 tree boosting on accuracy or speed. The value proposition is
 interpretability and structural guarantees (monotonicity, exact additive

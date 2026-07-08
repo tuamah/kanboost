@@ -272,7 +272,7 @@ inspectable per-feature spline shape functions.
 - Documented (no new code): `kanboost.editing.consolidate()` is also a
   fast predict path for `gam=True` models -- one spline evaluation per
   feature instead of `n_estimators` full KAN forward passes. Measured
-  ~50x faster prediction on a 1000-row/6-feature/40-estimator model, at
+  ~30-50x faster prediction on a 1000-row/6-feature/40-estimator model, at
   ~1e-6 consolidation fidelity cost. This is the answer to the
   prediction-speed gap for GAM-mode models specifically; it does not
   help non-GAM models or training speed.
@@ -284,6 +284,21 @@ inspectable per-feature spline shape functions.
   considered this session risks repeating the earlier rejected RBF
   backend's mistake (silently not enforcing `monotone_constraints`).
   No new safe, meaningfully-impactful fit-time speedup was found.
+
+**v0.0.15 — docs-only release: multi-dataset, statistically-tested benchmark**
+- Added a fourth benchmark, this time spanning three separate datasets
+  (Heart-Statlog 270 rows, Breast Cancer Wisconsin 569 rows, Diabetes/
+  Pima 768 rows) with Wilcoxon signed-rank significance testing
+  (KANBoost vs. each of 7 other models, 5-fold paired) rather than just
+  comparing means. On Heart-Statlog, KANBoost's ROC AUC beat every one
+  of the other 7 models on every one of the 5 folds (p=0.0625 against
+  all seven -- the smallest p-value obtainable at that sample size).
+  Brier score again lands in the worse half of the pack on the two
+  datasets where KANBoost isn't best-in-class, consistent with the
+  calibration gap. Documented, explicitly labeled not-yet-proven, an
+  emerging pattern: KANBoost's relative standing across all four
+  Breast-Cancer-family-plus-this run tracks dataset size -- better
+  relative to tree ensembles on smaller datasets. No code changes.
 
 ## Deferred (with reasons)
 
