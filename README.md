@@ -389,6 +389,65 @@ This runs a local server for one person exploring one model, not a
 hosted multi-tenant service -- see [Serving](#serving--observability-optional-additive)
 for that.
 
+## MLOps integration (optional, additive)
+
+Two small, independent modules for pushing a trained model/its metrics
+somewhere other than the local filesystem. Neither is required by, or
+imports, the other.
+
+**`kanboost.mlhub`** -- push/pull a saved model (`model.save(path)`'s
+output) to/from a MinIO-backed object store behind a FastAPI gateway
+(the shape this targets: `POST /api/minio/buckets/{bucket}/upload`,
+`GET .../download/{key}`, `GET .../objects`). Verified end-to-end
+against a live server: authenticate via `X-API-Key` (not `Authorization:
+Bearer`, which is a different scheme reserved for session tokens), then
+upload/download/list all round-trip correctly -- a model pushed, pulled
+back under a new name, and reloaded produced byte-identical predictions
+to the original.
+
+```python
+from kanboost.mlhub import push_model, pull_model, list_models, ensure_bucket
+
+model.save("model.pt")
+ensure_bucket("kanboost-models", api_key="...")   # or set MLHUB_API_KEY
+push_model("model.pt", "kanboost-models", api_key="...")
+
+pull_model("kanboost-models", "model.pt", "downloaded.pt", api_key="...")
+list_models("kanboost-models", api_key="...")
+```
+
+Requires `pip install kanboost[mlhub]` (`requests`). `base_url` defaults
+to `https://mlhub.dev`; override via `base_url=` or `MLHUB_BASE_URL` for
+a different deployment -- if your platform's endpoint shapes differ
+(field names, response format), the module docstring explains exactly
+what to adjust.
+
+**`kanboost.mlflow_utils`** -- log a training run's hyperparameters
+(`model.get_params()`), evaluation metrics (`model.evaluate()`), and
+optionally the saved model file, to an MLflow tracking server, via the
+standard `mlflow` client (not a platform's own read-only REST wrapper --
+many self-hosted platforms only expose `GET`/`DELETE` on MLflow
+experiments/runs through their own API, with no way to *create* a run
+that way).
+
+```python
+from kanboost.mlflow_utils import log_training_run
+
+run_id = log_training_run(
+    model, X_test, y_test,
+    tracking_uri="https://mlflow.your-host.example/",  # or MLFLOW_TRACKING_URI
+    experiment_name="kanboost",
+    extra_metrics={"brier": 0.03},  # e.g. from kanboost.calibration
+    save_model_path="model.pt",
+)
+```
+
+Requires `pip install kanboost[mlflow]`. Verified end-to-end against a
+local tracking store (params/metrics/artifact all logged and read back
+correctly); talking to a specific remote tracking server may need its
+own auth (`MLFLOW_TRACKING_USERNAME`/`MLFLOW_TRACKING_PASSWORD`, or
+whatever your deployment requires) on top of `tracking_uri`.
+
 ## Benchmarks
 
 Preliminary results on a real-world telecom churn dataset (100K rows,

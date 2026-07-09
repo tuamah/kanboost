@@ -357,6 +357,35 @@ inspectable per-feature spline shape functions.
 - 11 new tests (8 for `export_symbolic`/`SymbolicModel`, 3 for
   `explain()`). Bumps version to 0.0.16.
 
+**v0.0.17 — MLOps integration (mlhub, mlflow_utils)**
+- `kanboost/mlhub.py` (new, `pip install kanboost[mlhub]`):
+  `push_model`/`pull_model`/`list_models`/`ensure_bucket` for a
+  MinIO-backed object store behind a FastAPI gateway. **Verified
+  end-to-end against a live server**, not just written to a guessed
+  spec: authentication is `X-API-Key` (an earlier guess of
+  `Authorization: Bearer` 401'd with "Invalid or expired token" -- a
+  recognized-but-wrong scheme, which is what revealed it, not a bad
+  key); bucket creation's request body field is `name`, not `bucket`
+  (found via a 422 response that spelled out the exact mismatch). A
+  model pushed, pulled back under a new name, and reloaded produced
+  byte-identical predictions to the original.
+- `kanboost/mlflow_utils.py` (new, `pip install kanboost[mlflow]`):
+  `log_training_run(model, X_test, y_test, ...)` logs a fitted model's
+  hyperparameters (`model.get_params()`), evaluation metrics
+  (`model.evaluate()`), and optionally the saved model file, as one
+  MLflow run -- via the standard `mlflow` client pointed at a tracking
+  server, not a platform's own read-only REST wrapper (many self-hosted
+  platforms only expose `GET`/`DELETE` on MLflow experiments/runs
+  through their own API, with no way to *create* a run that way).
+  Verified end-to-end against a local sqlite-backed tracking store.
+- Both modules follow the same additive pattern as everything else this
+  session: new files, heavy dependencies (`requests`, `mlflow`) lazily
+  imported inside functions, zero changes to `_base.py`/`classifier.py`/
+  `regressor.py`.
+- 12 new tests (9 for `mlhub`, all `requests.post`/`get` mocked, no live
+  server involved in the test suite itself; 3 for `mlflow_utils`,
+  offline sqlite-backed).
+
 ## Deferred (with reasons)
 
 - **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`

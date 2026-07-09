@@ -42,6 +42,8 @@ Key constructor parameters: `n_estimators`, `learning_rate`, `kan_hidden`,
 | `kanboost.calibration` | none | `calibrate()` / `CalibratedKANBoost` (Platt/isotonic) |
 | `kanboost.experimental` | none (needs `scipy`) | `suggest_constraints`, `audit_monotonicity`, `symbolic_export`, `predict_interval`, `explain_row`, `dashboard_html` |
 | `kanboost.dashboard` | `kanboost[dashboard]` | Interactive Streamlit app |
+| `kanboost.mlhub` | `kanboost[mlhub]` | Push/pull a model to a MinIO-backed object store |
+| `kanboost.mlflow_utils` | `kanboost[mlflow]` | Log a training run to MLflow |
 
 See the [Guide](guide/interpretability.md) for each module's full API
 with examples.

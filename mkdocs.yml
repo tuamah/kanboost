@@ -45,6 +45,7 @@ nav:
       - Symbolic formula export: guide/symbolic-export.md
       - Calibration: guide/calibration.md
       - Serving & observability: guide/serving.md
+      - MLOps integration: guide/mlops.md
       - Tuning with kantun: guide/tuning-with-kantun.md
   - API reference: api.md
   - Roadmap: roadmap.md
