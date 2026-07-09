@@ -108,8 +108,10 @@ def ensure_bucket(bucket: str, api_key: str | None = None, base_url: str | None 
     import requests
 
     url = f"{_base_url(base_url)}/api/minio/buckets"
+    # Confirmed against a live server: the request body field is `name`,
+    # not `bucket` (a 422 spelled this out exactly: `"loc":["body","name"]`).
     response = requests.post(
-        url, headers=_headers(_resolve_api_key(api_key)), json={"bucket": bucket},
+        url, headers=_headers(_resolve_api_key(api_key)), json={"name": bucket},
     )
     if response.status_code >= 400 and response.status_code != 409:
         response.raise_for_status()

@@ -84,6 +84,20 @@ def test_list_models_returns_json():
     assert result == [{"key": "a.pt"}, {"key": "b.pt"}]
 
 
+def test_ensure_bucket_sends_name_field():
+    """Regression test: the server's create-bucket endpoint expects a
+    `name` field in the request body, not `bucket` -- confirmed via a
+    live 422 response (`"loc":["body","name"],"msg":"Field required"`)
+    after the original guess (`bucket`) was wrong."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    with patch("requests.post", return_value=mock_response) as mock_post:
+        ensure_bucket("kanboost-models", api_key="k")
+
+    _, kwargs = mock_post.call_args
+    assert kwargs["json"] == {"name": "kanboost-models"}
+
+
 def test_ensure_bucket_ignores_conflict():
     mock_response = MagicMock()
     mock_response.status_code = 409
