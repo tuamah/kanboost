@@ -12,15 +12,17 @@ model that was trained elsewhere.
 Additive: `requests` is only imported inside the functions here, so
 importing kanboost (or even this module) never requires it.
 
-**Not yet verified against a live server.** This follows standard
-FastAPI/MinIO-gateway conventions (`Authorization: Bearer <key>`,
-`multipart/form-data` file upload with field name `file`) since the
-platform's own docs page only lists endpoint paths, not full request/
-response schemas. If a call here 404s or 422s, the most likely mismatch
-is the multipart field name or the upload response's key path --
-compare against your platform's actual `POST /api/minio/buckets/{bucket}/upload`
-behavior (e.g. via its Swagger "Try it out") and adjust `_UPLOAD_FIELD_NAME`
-or `push_model`'s response parsing accordingly.
+Authentication is `X-API-Key: <key>` (confirmed against a live server --
+API keys created via `/api/keys` don't authenticate as `Authorization:
+Bearer`, which is a *different* scheme reserved for session tokens from
+`/api/auth/login`; using Bearer with an API key 401s with "Invalid or
+expired token" rather than "not authenticated", which is what gave this
+away). The multipart upload field name (`file`) and response shape are
+still unverified against a live upload call -- if `push_model` 404s or
+422s, that's the most likely mismatch; compare against your platform's
+actual `POST /api/minio/buckets/{bucket}/upload` behavior (e.g. via its
+Swagger "Try it out") and adjust `_UPLOAD_FIELD_NAME` or `push_model`'s
+response parsing accordingly.
 """
 
 from __future__ import annotations
@@ -31,7 +33,13 @@ _UPLOAD_FIELD_NAME = "file"  # adjust if your server expects a different multipa
 
 
 def _headers(api_key: str) -> dict:
-    return {"Authorization": f"Bearer {api_key}"}
+    # Confirmed against a live server: this platform's API keys (from
+    # /api/keys) authenticate via X-API-Key, not `Authorization: Bearer`
+    # -- Bearer is a *different* auth scheme reserved for session tokens
+    # from /api/auth/login (it 401s with "Invalid or expired token" for
+    # an API key, not "not authenticated", confirming it's a recognized
+    # scheme expecting a different kind of token).
+    return {"X-API-Key": api_key}
 
 
 def _base_url(base_url: str | None) -> str:

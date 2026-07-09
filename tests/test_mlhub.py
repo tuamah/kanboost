@@ -37,7 +37,7 @@ def test_push_model_sends_bearer_and_multipart(tmp_path):
     assert result == {"key": "model.pt", "status": "ok"}
     args, kwargs = mock_post.call_args
     assert args[0] == "https://mlhub.dev/api/minio/buckets/kanboost-models/upload"
-    assert kwargs["headers"] == {"Authorization": "Bearer test-key"}
+    assert kwargs["headers"] == {"X-API-Key": "test-key"}
     assert "file" in kwargs["files"]
 
 
@@ -54,7 +54,7 @@ def test_push_model_uses_env_var_api_key(tmp_path, monkeypatch):
         push_model(str(model_file), "bucket")
 
     _, kwargs = mock_post.call_args
-    assert kwargs["headers"] == {"Authorization": "Bearer env-key"}
+    assert kwargs["headers"] == {"X-API-Key": "env-key"}
 
 
 def test_pull_model_writes_streamed_content(tmp_path):
