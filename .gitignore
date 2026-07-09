@@ -6,3 +6,5 @@ model/
 dist/
 build/
 site/
+mlruns/
+mlflow.db
