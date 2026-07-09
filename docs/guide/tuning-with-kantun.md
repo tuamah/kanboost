@@ -83,8 +83,36 @@ search = KantunSearch(KANBoostClassifier, param_space, prune=True, prune_margin=
 
 ## Supported scoring
 
-- Classification: `"auc"` (default), `"f1"`, `"accuracy"`
-- Regression: `"neg_mse"` (default), `"neg_mae"`
+- Classification: `"auc"` (default), `"f1"`, `"accuracy"`, or a callable
+  `scorer(y_true, y_pred, y_prob, labels) -> float`.
+- Regression: `"neg_mse"` (default), `"neg_mae"`, or a callable
+  `scorer(y_true, y_pred) -> float`.
+
+## Continuous parameter ranges
+
+`param_distributions` values can be a callable `sampler(rng) -> value`
+instead of a list, for `search_type="random"`/`"halving"`:
+
+```python
+param_space = {
+    "n_estimators": [30, 60, 100],
+    "kan_lr": lambda rng: 10 ** rng.uniform(-3, -1),   # log-uniform
+}
+search = KantunSearch(KANBoostClassifier, param_space, n_iter=20)
+```
+
+## Time budget and skipping the refit
+
+```python
+search = KantunSearch(
+    KANBoostClassifier, param_space,
+    time_budget_s=600,   # stop after ~10 minutes wall-clock
+    refit=False,          # skip the final full-dataset refit
+)
+```
+
+`time_budget_s` is checked between combos (or halving rungs), never
+mid-fit, and always lets at least one combo/rung finish.
 
 ## Works with any sklearn-style estimator, not just KANBoost
 

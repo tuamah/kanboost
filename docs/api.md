@@ -44,6 +44,8 @@ Key constructor parameters: `n_estimators`, `learning_rate`, `kan_hidden`,
 | `kanboost.dashboard` | `kanboost[dashboard]` | Interactive Streamlit app |
 | `kanboost.mlhub` | `kanboost[mlhub]` | Push/pull a model to a MinIO-backed object store |
 | `kanboost.mlflow_utils` | `kanboost[mlflow]` | Log a training run to MLflow |
+| `kanboost.imbalance` | none | `balanced_weights()` / `find_threshold()` for imbalanced targets |
+| `kanboost.accel` | none | `fast_fit()` — warm-started, ~3x faster opt-in training |
 
 See the [Guide](guide/interpretability.md) for each module's full API
 with examples.

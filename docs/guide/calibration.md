@@ -64,4 +64,5 @@ modules; this is an ordering discipline you need to maintain yourself.
 Calibration doesn't address KANBoost's prediction-*speed* gap against
 tree ensembles (a separate, also benchmark-confirmed issue). For
 `gam=True` models specifically, [`kanboost.editing.consolidate()`](editing-dashboard.md)
-is the fix for that — see its docs for the ~50x measured speedup.
+is the fix for that — see its docs for the ~50x measured speedup. For
+*training*-time speed, see [`kanboost.accel.fast_fit()`](training-speed.md).

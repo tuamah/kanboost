@@ -44,6 +44,8 @@ nav:
       - Editable models & dashboard: guide/editing-dashboard.md
       - Symbolic formula export: guide/symbolic-export.md
       - Calibration: guide/calibration.md
+      - Imbalanced classification: guide/imbalance.md
+      - Training speed: guide/training-speed.md
       - Serving & observability: guide/serving.md
       - MLOps integration: guide/mlops.md
       - Tuning with kantun: guide/tuning-with-kantun.md

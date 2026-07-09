@@ -386,6 +386,65 @@ inspectable per-feature spline shape functions.
   server involved in the test suite itself; 3 for `mlflow_utils`,
   offline sqlite-backed).
 
+**v0.0.18 — imbalanced classification, real fit-time speedup, kantun gaps**
+- `kanboost/imbalance.py` (new): `balanced_weights(y)` / `find_threshold(model, X_val, y_val, metric="f1"|"youden")`.
+  Root-caused and reproduced the exact degenerate-classifier bug
+  surfaced by the arXiv:2509.16750 benchmark (AUC=0.87 but F1=0 on a
+  90/10 split) on a synthetic dataset: `LogisticLoss` and
+  `predict(threshold=0.5)` are each correct in isolation, but a
+  well-calibrated model on a heavily imbalanced split legitimately
+  outputs `p<0.5` almost everywhere, so the default threshold alone
+  reads every score as negative. `find_threshold` was the dominant fix
+  (F1 0.0 -> 0.545, AUC unchanged to `1e-9` since it only moves the
+  cutoff, not the scores); `balanced_weights` alone was much weaker
+  (F1 0.0 -> 0.04) and is documented as a complement, not a
+  substitute. No changes to `losses.py`/`_base.py` -- deliberately did
+  not "fix" `LogisticLoss` itself, since it isn't wrong.
+- `kanboost/accel.py` (new): `fast_fit(model, X, y, ...)`, revisiting
+  v0.0.14's deferred fit-time speedup with a profiler-driven approach
+  instead of a new backend. Warm-starts each boosting round's learner
+  from the previous round's `state_dict` (architecture is identical
+  round-to-round; only the seed differs), so only each chain's first
+  round needs the full `kan_steps` budget. Implemented as a temporary
+  monkey-patch of the model instance's `_new_learner`/`_fit_learner`/
+  `_boost_chain` bound methods, restored in a `finally` block --
+  routes through the exact same `_fit_learner_custom_loop`/
+  `_apply_monotone_projection` machinery as a normal `fit()`, so
+  monotone constraints are enforced identically (verified: 0%
+  violation rate with `monotone_constraints` set). Multiclass chains
+  verified isolated (a new class's chain never warm-starts from a
+  different class's last learner). Measured 3.37x faster on Breast
+  Cancer Wisconsin (11.70s -> 3.48s, 40 estimators) with AUC
+  essentially unchanged (0.9921 vs 0.9893). Zero changes to
+  `_base.py`/`classifier.py`/`regressor.py`.
+- `kantun` v0.0.4: `param_distributions` values may now be a callable
+  `sampler(rng) -> value` (continuous/log-uniform ranges) for
+  `search_type="random"`/`"halving"`; `scoring` may be a callable
+  scorer, not just one of the built-in strings; new `time_budget_s`
+  wall-clock cap, checked between combos/rungs (never mid-fit, always
+  lets at least one combo/rung finish; for halving, promotes the best
+  candidate from the last completed rung if the budget is hit before
+  the final full-data rung); new `refit=False` to skip the final
+  full-dataset refit. Also fixed a stale README install section that
+  still said "once published to PyPI" for a package that had already
+  been on PyPI since v0.0.3.
+- New docs pages: `guide/imbalance.md`, `guide/training-speed.md`;
+  updated `guide/tuning-with-kantun.md` and `docs/api.md`.
+- Independent review (this session) caught a real bug before shipping:
+  `fast_fit()`'s restore step reassigned the original bound methods
+  onto the instance instead of removing the shadowing attributes,
+  leaving `_new_learner`/`_fit_learner`/`_boost_chain` permanently in
+  `model.__dict__` -- which broke `model.save()` (`_base.py`'s
+  `_freeze` pickles `self.__dict__` wholesale, and a closure-holding
+  local function can't be pickled). Empirically reproduced, then fixed
+  by popping the three shadowing keys in the `finally` block instead
+  of reassigning them, so attribute lookup falls back to the class.
+- 6 new tests for `kanboost.imbalance`, 6 for `kanboost.accel`
+  (including a `fast_fit -> save -> load -> predict_proba` parity
+  regression test for the bug above), 6 new for `kantun` (callable
+  param sampling, callable scoring, time budget on both flat and
+  halving search, `refit=False`).
+
 ## Deferred (with reasons)
 
 - **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`

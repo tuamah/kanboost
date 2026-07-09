@@ -86,6 +86,15 @@ implementation of the same general idea, plus:
   Platt/isotonic probability calibration for `KANBoostClassifier`; fixes
   a real, benchmark-confirmed miscalibration gap without retraining. See
   [Calibration](#calibration-optional-additive) below.
+- **`kanboost.imbalance.find_threshold(model, X_val, y_val)`** /
+  **`balanced_weights(y)`** — fix the degenerate always-majority-class
+  predictions a default `threshold=0.5` can produce on heavily
+  imbalanced targets, without retraining (`find_threshold`) or via
+  reweighted training (`balanced_weights`). See
+  [Imbalanced classification](docs/guide/imbalance.md).
+- **`kanboost.accel.fast_fit(model, X, y)`** — opt-in, warm-started
+  training that's ~3x faster with essentially unchanged accuracy. See
+  [Training speed](docs/guide/training-speed.md).
 - Automatic categorical encoding and missing-value handling, no manual
   preprocessing required
 
