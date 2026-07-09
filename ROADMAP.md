@@ -445,6 +445,54 @@ inspectable per-feature spline shape functions.
   param sampling, callable scoring, time budget on both flat and
   halving search, `refit=False`).
 
+**v0.0.19 — `kanboost.symbolic.symbolic_summary()`, a one-call full-formula report**
+- Motivated by hands-on exploration of `heart_model` (the
+  arXiv:2509.16750 benchmark's `heart` dataset, `gam=True`,
+  `kan_hidden=1`) via `export_symbolic`/`explain` in a notebook: getting
+  a complete, amplitude-ranked report required several manual steps
+  (rank by importance, fit candidates, re-fit unrestricted for the full
+  formula, sort by amplitude). `symbolic_summary(model, min_r2=0.8,
+  top_n=None)` does all of it in one call, returning `{"ranked_terms",
+  "full_formula", "full_latex", "model"}`.
+- Ranks by **amplitude** (how much a term actually moves the
+  prediction), not `feature_importances_dict()`'s importance -- the
+  same distinction `fidelity_report()`'s docstring has warned about
+  since v0.0.16 (a high R^2 doesn't mean a term matters). Unlike
+  `explain()`, which only fits candidates for its `top_features` count
+  (leaving the rest as opaque `g_<feature>(x)` placeholders in the
+  implied full formula), `symbolic_summary()` defaults to fitting
+  candidates for *every* feature, so `full_formula` is a genuine closed
+  form for the whole model, not a partial one.
+- A real bug caught and fixed before landing: the first implementation
+  restricted `top_n` to only the (expensive) candidate search, while
+  `ranked_terms` still listed every feature in the model regardless of
+  `top_n` -- caught by writing
+  `test_symbolic_summary_top_n_restricts_ranked_terms_not_just_candidate_search`
+  and seeing it fail (30 terms returned instead of the requested 5)
+  before fixing `ranked_names` to filter to `features` when `top_n` is
+  set, not just sort `fidelity_report()`'s full key set.
+- Verified end-to-end on the real `heart` benchmark data via the
+  updated example notebook: 21/21 features got a genuine closed-form
+  term (`symbolic_fraction() == 1.0`, no numeric fallback), ranked by
+  amplitude in an order clinically consistent with known heart-disease
+  risk factors (`Stroke` history ranked highest, `NoDocbcCost` lowest),
+  and the fitted curves visually overlaid the real per-feature curves
+  from `kanboost.editing.consolidate()` almost exactly (R^2 > 0.9998
+  for all 5 spot-checked features).
+- Independent review (this session) before shipping: APPROVE WITH NITS,
+  all addressed -- `top_n` values below 1 now raise `ValueError` instead
+  of silently slicing (`top_n=-1` previously meant "all but one
+  feature", which is surprising); softened an overclaim in the
+  docstring/docs that `full_formula` never has a `g_<feature>(x)`
+  placeholder (true only when every feature's best candidate clears
+  `min_r2` and `top_n=None` -- a feature that genuinely fits nothing
+  above `min_r2` still falls back correctly, by design); documented
+  that `full_formula` reverts to per-cutoff placeholders once `top_n`
+  is set, same as `explain()`.
+- 4 new tests (adds a `top_n<1` rejection test to the 3 above). Zero
+  changes to `_base.py`/`classifier.py`/`regressor.py` -- purely
+  additive to the existing `kanboost/symbolic.py` module.
+
 ## Deferred (with reasons)
 
 - **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`

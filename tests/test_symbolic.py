@@ -11,7 +11,7 @@ import sympy
 from sklearn.datasets import make_classification
 
 from kanboost import KANBoostClassifier, KANBoostRegressor
-from kanboost.symbolic import export_symbolic, explain, SymbolicModel
+from kanboost.symbolic import export_symbolic, explain, symbolic_summary, SymbolicModel
 
 
 def _known_function_data(n=800, seed=0):
@@ -227,6 +227,78 @@ def test_explain_multiclass_uses_first_class_chain():
         assert sympy.simplify(entry["formula"] - expected) == 0 or entry["formula"] == expected
 
 
+def test_symbolic_summary_ranks_by_amplitude_not_dict_order():
+    X, y = _known_function_data()
+    model = KANBoostRegressor(
+        n_estimators=30, kan_steps=15, kan_hidden=1, gam=True,
+        early_stopping_rounds=None, random_state=0,
+    )
+    model.fit(X, y)
+    result = symbolic_summary(model, min_r2=0.85)
+
+    assert set(result.keys()) == {"ranked_terms", "full_formula", "full_latex", "model"}
+    assert len(result["ranked_terms"]) == 3  # x1, x2, x3
+    amplitudes = [t["amplitude"] for t in result["ranked_terms"]]
+    assert amplitudes == sorted(amplitudes, reverse=True)
+    # x3 is near-noise (see test_fidelity_report_amplitude_flags_negligible_term)
+    # -- it must rank last, not just be present.
+    assert result["ranked_terms"][-1]["feature"] == "x3"
+    for t in result["ranked_terms"]:
+        assert isinstance(t["formula"], sympy.Expr)
+    assert isinstance(result["full_formula"], sympy.Expr)
+    assert isinstance(result["full_latex"], str) and len(result["full_latex"]) > 0
+    assert isinstance(result["model"], SymbolicModel)
+
+
+def test_symbolic_summary_top_n_restricts_ranked_terms_not_just_candidate_search():
+    X, y = _known_function_data()
+    model = KANBoostRegressor(
+        n_estimators=30, kan_steps=15, kan_hidden=1, gam=True,
+        early_stopping_rounds=None, random_state=0,
+    )
+    model.fit(X, y)
+    result = symbolic_summary(model, min_r2=0.85, top_n=2)
+
+    # A real bug this exact test guards against: top_n restricting only
+    # the (expensive) candidate search, while ranked_terms still listed
+    # every feature in the model regardless of top_n.
+    assert len(result["ranked_terms"]) == 2
+    names = {t["feature"] for t in result["ranked_terms"]}
+    assert names == {"x1", "x2"}  # the two features feature_importances_dict() ranks highest
+
+
+def test_symbolic_summary_rejects_non_positive_top_n():
+    X, y = _known_function_data()
+    model = KANBoostRegressor(
+        n_estimators=10, kan_steps=8, kan_hidden=1, gam=True,
+        early_stopping_rounds=None, random_state=0,
+    )
+    model.fit(X, y)
+    for bad in (0, -1):
+        try:
+            symbolic_summary(model, top_n=bad)
+            raise AssertionError(f"top_n={bad} was not rejected")
+        except ValueError:
+            pass
+
+
+def test_symbolic_summary_multiclass_uses_first_class_chain():
+    X, y = make_classification(
+        n_samples=300, n_features=4, n_informative=4, n_redundant=0,
+        n_classes=3, n_clusters_per_class=1, random_state=1,
+    )
+    X_df = pd.DataFrame(X, columns=[f"f{i}" for i in range(4)])
+    model = KANBoostClassifier(
+        n_estimators=10, kan_steps=8, kan_hidden=1, gam=True,
+        early_stopping_rounds=None, random_state=0,
+    )
+    model.fit(X_df, y)
+    result = symbolic_summary(model, min_r2=0.8)
+
+    expected_sym = export_symbolic(model, min_r2=0.8)[model.classes_[0]]
+    assert result["full_latex"] == expected_sym.to_latex()
+
+
 if __name__ == "__main__":
     import tempfile
     from pathlib import Path
@@ -243,4 +315,8 @@ if __name__ == "__main__":
     test_explain_ranks_by_importance_and_attaches_formulas()
     test_explain_symbolic_false_omits_formulas()
     test_explain_multiclass_uses_first_class_chain()
+    test_symbolic_summary_ranks_by_amplitude_not_dict_order()
+    test_symbolic_summary_top_n_restricts_ranked_terms_not_just_candidate_search()
+    test_symbolic_summary_rejects_non_positive_top_n()
+    test_symbolic_summary_multiclass_uses_first_class_chain()
     print("All symbolic tests passed.")

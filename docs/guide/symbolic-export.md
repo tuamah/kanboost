@@ -85,3 +85,36 @@ feature's term from `model.classes_[0]`'s chain as a representative
 formula — one-vs-rest chains can fit a feature differently per class,
 so call `export_symbolic(model)` directly and index by class if you
 need a true per-class formula.
+
+## One-call report: `symbolic_summary()`
+
+`explain()` ranks by *importance* and only fits candidates for its
+top-`N`, so the full model formula it implies still has opaque
+`g_<feature>(x)` placeholders for everything else. `symbolic_summary()`
+instead ranks by `amplitude` — how much a feature's term actually moves
+the prediction, which is the metric [the warning above](#r-alone-doesnt-mean-a-term-matters)
+says to check, not raw importance — and by default fits candidates for
+*every* feature, so `full_formula` only gets a placeholder for a
+feature whose best candidate genuinely falls below `min_r2` (check each
+term's `"kind"`), not for every feature outside some top-N cutoff:
+
+```python
+from kanboost.symbolic import symbolic_summary
+
+result = symbolic_summary(model, min_r2=0.8)  # top_n=None -> every feature
+
+for term in result["ranked_terms"]:  # most-amplitude-first
+    print(term["feature"], term["candidate"], term["amplitude"], term["formula"])
+
+print(result["full_formula"])   # sympy expression, the whole model
+print(result["full_latex"])     # ready to paste into a paper
+result["model"].predict(X_test) # the underlying SymbolicModel, same API as export_symbolic()'s
+```
+
+Pass `top_n=k` to restrict both the ranking *and* the candidate search
+to the `k` most important features (by `feature_importances_dict()`) —
+useful when the full per-feature candidate search is too slow for a
+model with many features. With `top_n` set, `full_formula` goes back to
+having a `g_<feature>(x)` placeholder for every feature outside that
+cutoff, same as `explain()`. Multiclass: uses `model.classes_[0]`'s chain,
+same convention as `explain()`.

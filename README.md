@@ -79,7 +79,9 @@ implementation of the same general idea, plus:
   a real, executable symbolic formula: `sympy` expression, LaTeX,
   standalone numpy predict function, and a per-feature fidelity report
   (closed-form R^2 + amplitude, with a numeric fallback for features no
-  candidate fits well). See
+  candidate fits well). **`symbolic_summary(model)`** is the one-call
+  version: amplitude-ranked terms, each feature's individual equation,
+  and the full model's combined equation, in one dict. See
   [Symbolic formula export](#symbolic-formula-export-optional-additive)
   below.
 - **`kanboost.calibration.calibrate(model, X_cal, y_cal)`** — post-hoc

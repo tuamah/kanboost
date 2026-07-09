@@ -116,6 +116,75 @@ def explain(model, top_features: int = 5, symbolic: bool = True, simplify: bool 
     return report
 
 
+def symbolic_summary(model, min_r2: float = 0.8, top_n: int | None = None) -> dict:
+    """One-call convenience report: the model's most valuable features
+    (ranked by `amplitude` -- how much each feature's term actually
+    moves the prediction, not just how well a candidate happened to fit
+    it), each one's individual closed-form equation, and finally the
+    whole model's combined equation.
+
+    Unlike `explain()` (which only fits candidates for its
+    `top_features` count, for speed, leaving the rest as opaque
+    `g_<feature>(x)` placeholders in the full formula), this defaults to
+    running the candidate search over *every* feature, so `full_formula`
+    only has a placeholder for a feature whose best candidate genuinely
+    falls below `min_r2` (check `ranked_terms[i]["kind"]`), not for
+    every feature outside some top-N cutoff. Pass `top_n` to restrict
+    both the ranking and the candidate search to that many features (by
+    `model.feature_importances_dict()`) if the full search is too slow
+    for your model -- with `top_n` set, `full_formula` goes back to
+    having placeholders for every feature outside that cutoff, same as
+    `explain()`.
+
+    Returns
+    -------
+    dict with:
+        "ranked_terms": list of dicts, most-amplitude-first --
+            `{"feature", "kind", "r2", "candidate", "amplitude", "formula"}`
+            (`"formula"` is a `sympy` expression for that one feature's term)
+        "full_formula": `sympy` expression, `intercept + sum_j term_j(x_j)`
+        "full_latex": str, `sym.to_latex()`
+        "model": the underlying `SymbolicModel` (for `.predict()`/`.save()`/etc.)
+
+    For a multiclass classifier, uses `model.classes_[0]`'s chain (same
+    convention as `explain()`) -- call `export_symbolic(model)` directly
+    and index by class for a per-class summary.
+    """
+    features = None
+    if top_n is not None:
+        if top_n < 1:
+            raise ValueError(f"top_n must be >= 1 (or None for every feature); got {top_n}")
+        importances = model.feature_importances_dict()
+        features = list(importances.keys())[:top_n]
+
+    sym = export_symbolic(model, min_r2=min_r2, features=features)
+    if isinstance(sym, dict):
+        sym = sym[model.classes_[0]]
+
+    fidelity = sym.fidelity_report()
+    candidate_names = features if features is not None else list(fidelity.keys())
+    ranked_names = sorted(candidate_names, key=lambda name: fidelity[name]["amplitude"], reverse=True)
+
+    ranked_terms = [
+        {
+            "feature": name,
+            "kind": fidelity[name]["kind"],
+            "r2": fidelity[name]["r2"],
+            "candidate": fidelity[name]["candidate"],
+            "amplitude": fidelity[name]["amplitude"],
+            "formula": sym.term_sympy(name),
+        }
+        for name in ranked_names
+    ]
+
+    return {
+        "ranked_terms": ranked_terms,
+        "full_formula": sym.to_sympy(),
+        "full_latex": sym.to_latex(),
+        "model": sym,
+    }
+
+
 class SymbolicModel:
     """A fitted, fidelity-aware symbolic export. Build one via
     `export_symbolic(model)`, not directly."""
