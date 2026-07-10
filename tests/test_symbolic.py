@@ -11,7 +11,10 @@ import sympy
 from sklearn.datasets import make_classification
 
 from kanboost import KANBoostClassifier, KANBoostRegressor
-from kanboost.symbolic import export_symbolic, explain, symbolic_summary, SymbolicModel
+from kanboost.symbolic import (
+    export_symbolic, explain, symbolic_summary, SymbolicModel,
+    refit_constants, refit_constants_from_model, formula_fidelity, stability_across_seeds,
+)
 
 
 def _known_function_data(n=800, seed=0):
@@ -282,6 +285,197 @@ def test_symbolic_summary_rejects_non_positive_top_n():
             pass
 
 
+def test_parsimony_margin_prefers_simpler_candidate():
+    X, y = _known_function_data()
+    model = KANBoostRegressor(
+        n_estimators=30, kan_steps=15, kan_hidden=1, gam=True,
+        early_stopping_rounds=None, random_state=0,
+    )
+    model.fit(X, y)
+
+    sym_default = export_symbolic(model, min_r2=0.8, parsimony_margin=0.0)
+    sym_parsimonious = export_symbolic(model, min_r2=0.8, parsimony_margin=0.2)
+
+    from kanboost.symbolic import _CANDIDATE_COMPLEXITY
+
+    for name, term in sym_parsimonious.terms.items():
+        if term["kind"] != "symbolic" or sym_default.terms[name]["kind"] != "symbolic":
+            continue
+        default_complexity = _CANDIDATE_COMPLEXITY[sym_default.terms[name]["candidate"]]
+        parsimonious_complexity = _CANDIDATE_COMPLEXITY[term["candidate"]]
+        # A large margin should never end up with a *more* complex
+        # candidate than the unmargined default chose for the same term.
+        assert parsimonious_complexity <= default_complexity
+
+
+def test_min_amplitude_prunes_ranked_terms_and_full_formula():
+    X, y = _known_function_data()
+    model = KANBoostRegressor(
+        n_estimators=30, kan_steps=15, kan_hidden=1, gam=True,
+        early_stopping_rounds=None, random_state=0,
+    )
+    model.fit(X, y)
+
+    full = symbolic_summary(model, min_r2=0.85)
+    amplitudes = sorted((t["amplitude"] for t in full["ranked_terms"]), reverse=True)
+    threshold = amplitudes[1]  # keep only the single largest-amplitude term
+
+    pruned = symbolic_summary(model, min_r2=0.85, min_amplitude=threshold)
+    assert len(pruned["ranked_terms"]) < len(full["ranked_terms"])
+    assert all(t["amplitude"] >= threshold for t in pruned["ranked_terms"])
+    # the pruned formula must not just be filtered in ranked_terms --
+    # it must actually drop the term from the equation itself.
+    assert len(pruned["full_formula"].free_symbols) == len(pruned["ranked_terms"])
+
+
+def test_refit_constants_improves_or_preserves_fidelity():
+    X, y = _known_function_data()
+    y_bin = (y > np.median(y)).astype(int)
+    X_train, X_test = X.iloc[:600], X.iloc[600:]
+    y_train, y_test = y_bin[:600], y_bin[600:]
+
+    model = KANBoostClassifier(
+        n_estimators=20, kan_steps=12, kan_hidden=1, gam=True,
+        early_stopping_rounds=None, random_state=0,
+    )
+    model.fit(X_train, y_train)
+
+    sym = export_symbolic(model, min_r2=0.8)
+    fid_before = formula_fidelity(model, sym, X_test, y_test)
+
+    sym_refit = refit_constants_from_model(model, sym, X_train)
+    fid_after = formula_fidelity(model, sym_refit, X_test, y_test)
+
+    # Refitting jointly against the real target should not make the
+    # held-out fit meaningfully worse.
+    assert fid_after["mean_abs_error"] <= fid_before["mean_abs_error"] + 1e-6
+    assert isinstance(sym_refit, SymbolicModel)
+    assert sym_refit is not sym  # returns a new object, doesn't mutate
+
+
+def test_refit_constants_from_model_rejects_multiclass():
+    Xm, ym = make_classification(
+        n_samples=300, n_features=4, n_informative=4, n_redundant=0,
+        n_classes=3, n_clusters_per_class=1, random_state=1,
+    )
+    X_df = pd.DataFrame(Xm, columns=[f"f{i}" for i in range(4)])
+    model = KANBoostClassifier(
+        n_estimators=10, kan_steps=8, kan_hidden=1, gam=True,
+        early_stopping_rounds=None, random_state=0,
+    )
+    model.fit(X_df, ym)
+    sym = export_symbolic(model, min_r2=0.8)[model.classes_[0]]
+    try:
+        refit_constants_from_model(model, sym, X_df)
+        raise AssertionError("multiclass model was not rejected")
+    except ValueError:
+        pass
+
+
+def test_formula_fidelity_reports_auc_only_for_binary_with_labels():
+    X, y = _known_function_data()
+    y_bin = (y > np.median(y)).astype(int)
+    model = KANBoostClassifier(
+        n_estimators=15, kan_steps=10, kan_hidden=1, gam=True,
+        early_stopping_rounds=None, random_state=0,
+    )
+    model.fit(X, y_bin)
+    sym = export_symbolic(model, min_r2=0.8)
+
+    fid_no_y = formula_fidelity(model, sym, X)
+    assert "auc_model" not in fid_no_y
+    assert "max_abs_error" in fid_no_y
+
+    fid_with_y = formula_fidelity(model, sym, X, y_bin)
+    assert 0.0 <= fid_with_y["auc_model"] <= 1.0
+    assert 0.0 <= fid_with_y["auc_equation"] <= 1.0
+
+    # regressor: never reports AUC, with or without a "y" passed
+    reg = KANBoostRegressor(
+        n_estimators=15, kan_steps=10, kan_hidden=1, gam=True,
+        early_stopping_rounds=None, random_state=0,
+    )
+    reg.fit(X, y)
+    reg_sym = export_symbolic(reg, min_r2=0.8)
+    fid_reg = formula_fidelity(reg, reg_sym, X, y)
+    assert "auc_model" not in fid_reg
+
+
+def test_stability_across_seeds_reports_candidate_agreement():
+    X, y = _known_function_data()
+    y_bin = (y > np.median(y)).astype(int)
+
+    def build_and_fit(X_train, y_train, seed):
+        m = KANBoostClassifier(
+            n_estimators=15, kan_steps=10, kan_hidden=1, gam=True,
+            early_stopping_rounds=None, random_state=seed,
+        )
+        m.fit(X_train, y_train)
+        return m
+
+    report = stability_across_seeds(build_and_fit, X, y_bin, n_seeds=3, min_r2=0.8, top_n=2)
+
+    assert set(report.keys()) == {"candidate_stability", "fidelity_per_seed"}
+    assert len(report["fidelity_per_seed"]) == 3
+    assert set(report["fidelity_per_seed"].columns) >= {
+        "seed", "max_abs_error", "mean_abs_error", "auc_model", "auc_equation",
+    }
+    assert (report["candidate_stability"]["modal_agreement"] <= 1.0).all()
+    assert (report["candidate_stability"]["modal_agreement"] > 0.0).all()
+
+
+def test_stability_across_seeds_handles_numeric_fallback_feature():
+    # `candidate=None` in a "numeric"-kind term happens when every
+    # candidate's fit_params() call raises (e.g. a NaN curve -- verified
+    # separately: fit_params raises ValueError on any candidate given an
+    # all-NaN y) -- reachable even with top_n=None (so the term isn't
+    # structurally excluded from ranked_terms). Reproducing that
+    # end-to-end from real training data is not reliably constructible
+    # (fit_params turns out to fit *something* with near-1.0 R^2 even
+    # for a genuinely unrelated feature, since sin/cos/tanh have enough
+    # free parameters to track small wiggles in a 200-point curve), so
+    # this monkeypatches symbolic_summary() to return that exact shape
+    # directly, isolating the test to stability_across_seeds' own
+    # candidate-recording logic. A real bug this guards against:
+    # pandas' value_counts() silently drops None, which either crashed
+    # the modal-agreement lookup (empty value_counts -> IndexError) or,
+    # for a feature numeric in most seeds and symbolic in one, reported
+    # a false modal_agreement of 1.0 (the None rows vanished from the
+    # denominator) -- exactly backwards for a stability check.
+    from unittest.mock import patch
+
+    def fake_symbolic_summary(model, min_r2=0.8, top_n=None):
+        return {
+            "ranked_terms": [
+                {"feature": "x1", "kind": "numeric", "r2": float("nan"),
+                 "candidate": None, "amplitude": 0.1, "formula": sympy.Symbol("x1")},
+            ],
+            "full_formula": sympy.Symbol("x1"),
+            "full_latex": "x1",
+            "model": None,
+        }
+
+    X, y = _known_function_data()
+    y_bin = (y > np.median(y)).astype(int)
+
+    def build_and_fit(X_train, y_train, seed):
+        m = KANBoostClassifier(
+            n_estimators=10, kan_steps=8, kan_hidden=1, gam=True,
+            early_stopping_rounds=None, random_state=seed,
+        )
+        m.fit(X_train, y_train)
+        return m
+
+    with patch("kanboost.symbolic.symbolic_summary", side_effect=fake_symbolic_summary), \
+         patch("kanboost.symbolic.formula_fidelity", return_value={"max_abs_error": 0.0, "mean_abs_error": 0.0}):
+        report = stability_across_seeds(build_and_fit, X, y_bin, n_seeds=3, min_r2=0.8)
+
+    stability = report["candidate_stability"]
+    assert len(stability) == 1
+    assert stability.iloc[0]["modal_candidate"] == "numeric"
+    assert stability.iloc[0]["modal_agreement"] == 1.0
+
+
 def test_symbolic_summary_multiclass_uses_first_class_chain():
     X, y = make_classification(
         n_samples=300, n_features=4, n_informative=4, n_redundant=0,
@@ -319,4 +513,11 @@ if __name__ == "__main__":
     test_symbolic_summary_top_n_restricts_ranked_terms_not_just_candidate_search()
     test_symbolic_summary_rejects_non_positive_top_n()
     test_symbolic_summary_multiclass_uses_first_class_chain()
+    test_parsimony_margin_prefers_simpler_candidate()
+    test_min_amplitude_prunes_ranked_terms_and_full_formula()
+    test_refit_constants_improves_or_preserves_fidelity()
+    test_refit_constants_from_model_rejects_multiclass()
+    test_formula_fidelity_reports_auc_only_for_binary_with_labels()
+    test_stability_across_seeds_reports_candidate_agreement()
+    test_stability_across_seeds_handles_numeric_fallback_feature()
     print("All symbolic tests passed.")

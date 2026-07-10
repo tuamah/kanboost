@@ -38,8 +38,18 @@ from .editing import consolidate
 
 _CANDIDATES = ["x", "x^2", "x^3", "sin", "cos", "exp", "log", "sqrt", "tanh", "abs"]
 
+# Rough complexity ranking used by `parsimony_margin` (export_symbolic()):
+# affine < power/abs < bounded-sigmoidal < periodic/root < unbounded-singular.
+# Order-independent of _CANDIDATES' own list order -- only relative rank
+# between any two candidates matters.
+_CANDIDATE_COMPLEXITY = {
+    "x": 1, "abs": 2, "x^2": 2, "x^3": 3, "tanh": 3,
+    "sqrt": 4, "sin": 4, "cos": 4, "log": 5, "exp": 5,
+}
 
-def export_symbolic(model, min_r2: float = 0.8, resolution: int = 200, grid: int = 10, k: int = 3, features=None):
+
+def export_symbolic(model, min_r2: float = 0.8, resolution: int = 200, grid: int = 10, k: int = 3,
+                     features=None, parsimony_margin: float = 0.0):
     """Fit one closed-form symbolic term per feature (falling back to a
     numeric spline term where no candidate reaches `min_r2`) and combine
     them into a `SymbolicModel`: `intercept + sum_j term_j(x_j)`.
@@ -58,6 +68,16 @@ def export_symbolic(model, min_r2: float = 0.8, resolution: int = 200, grid: int
     tried. Useful when only a handful of features' formulas are
     actually needed (see `explain()`, which uses this to avoid fitting
     candidates for features outside `top_features`).
+
+    `parsimony_margin` (default 0.0, i.e. off -- pure best-R^2 selection,
+    the original behavior): when > 0, a more complex candidate (by the
+    fixed ranking `x < abs/x^2 < x^3/tanh < sqrt/sin/cos < log/exp`) only
+    replaces a simpler one already found if it improves R^2 by more than
+    this margin. Guards against, e.g., `sin` or `cos` being selected over
+    a plain `x`/`tanh` term purely because it fits an extra 0.001 R^2 by
+    matching noise -- see the `min_r2`-vs-`amplitude` warning in
+    `fidelity_report()`'s docstring for the same class of pitfall this
+    addresses from a different angle.
     """
     from kan.utils import fit_params, SYMBOLIC_LIB
 
@@ -66,8 +86,11 @@ def export_symbolic(model, min_r2: float = 0.8, resolution: int = 200, grid: int
 
     consolidated = consolidate(model, resolution=resolution, grid=grid, k=k)
     if isinstance(consolidated, dict):
-        return {c: SymbolicModel._from_editable(gam, candidates, min_r2, feature_set) for c, gam in consolidated.items()}
-    return SymbolicModel._from_editable(consolidated, candidates, min_r2, feature_set)
+        return {
+            c: SymbolicModel._from_editable(gam, candidates, min_r2, feature_set, parsimony_margin)
+            for c, gam in consolidated.items()
+        }
+    return SymbolicModel._from_editable(consolidated, candidates, min_r2, feature_set, parsimony_margin)
 
 
 def explain(model, top_features: int = 5, symbolic: bool = True, simplify: bool = True, min_r2: float = 0.8) -> list:
@@ -116,7 +139,8 @@ def explain(model, top_features: int = 5, symbolic: bool = True, simplify: bool 
     return report
 
 
-def symbolic_summary(model, min_r2: float = 0.8, top_n: int | None = None) -> dict:
+def symbolic_summary(model, min_r2: float = 0.8, top_n: int | None = None,
+                      min_amplitude: float | None = None) -> dict:
     """One-call convenience report: the model's most valuable features
     (ranked by `amplitude` -- how much each feature's term actually
     moves the prediction, not just how well a candidate happened to fit
@@ -135,6 +159,14 @@ def symbolic_summary(model, min_r2: float = 0.8, top_n: int | None = None) -> di
     for your model -- with `top_n` set, `full_formula` goes back to
     having placeholders for every feature outside that cutoff, same as
     `explain()`.
+
+    `min_amplitude`, if given, drops any term whose `amplitude` falls
+    below it from *both* `ranked_terms` and `full_formula` -- a
+    low-amplitude term barely moves the prediction regardless of its
+    R^2 (see the warning in `fidelity_report()`'s docstring), so leaving
+    it in the final equation adds length without adding real signal.
+    `full_formula` in that case is rebuilt as `intercept + sum` over only
+    the retained terms, not `sym.to_sympy()`'s full model.
 
     Returns
     -------
@@ -163,6 +195,8 @@ def symbolic_summary(model, min_r2: float = 0.8, top_n: int | None = None) -> di
 
     fidelity = sym.fidelity_report()
     candidate_names = features if features is not None else list(fidelity.keys())
+    if min_amplitude is not None:
+        candidate_names = [n for n in candidate_names if fidelity[n]["amplitude"] >= min_amplitude]
     ranked_names = sorted(candidate_names, key=lambda name: fidelity[name]["amplitude"], reverse=True)
 
     ranked_terms = [
@@ -177,11 +211,242 @@ def symbolic_summary(model, min_r2: float = 0.8, top_n: int | None = None) -> di
         for name in ranked_names
     ]
 
+    if min_amplitude is not None:
+        full_formula = sympy.Float(sym.intercept)
+        for name in ranked_names:
+            full_formula += sym.term_sympy(name)
+    else:
+        full_formula = sym.to_sympy()
+
     return {
         "ranked_terms": ranked_terms,
-        "full_formula": sym.to_sympy(),
-        "full_latex": sym.to_latex(),
+        "full_formula": full_formula,
+        "full_latex": sympy.latex(full_formula),
         "model": sym,
+    }
+
+
+def refit_constants(sym: "SymbolicModel", X_scaled, target) -> "SymbolicModel":
+    """Jointly re-optimize every symbolic term's `(a, b, c, d)` and the
+    intercept against a real target array (e.g. the trained ensemble's
+    own raw score -- not the 0/1 label), instead of each term's default
+    fit: independently, to that one feature's *isolated* marginal curve
+    from `consolidate()`.
+
+    This addresses a real limitation of the default export: two terms
+    that each fit their own curve well can still combine into a worse
+    joint approximation than a joint refit would give, since nothing
+    about the default fit ever looks at more than one feature at a time.
+    Only "symbolic" (closed-form) terms are refit; "numeric" (spline
+    fallback) terms have no closed-form parameters and are left as-is,
+    their fixed contribution held constant during optimization.
+
+    `X_scaled` : array of shape (n_samples, n_features), already through
+        `sym.preprocessor.transform(X)` -- see `refit_constants_from_model()`
+        for a convenience wrapper that does this (and derives `target`)
+        for you from a fitted binary classifier or regressor.
+    `target` : array of shape (n_samples,), the value the *combined*
+        equation should approximate.
+
+    Returns a new `SymbolicModel` (does not mutate `sym`). Each term's
+    `r2`/`amplitude` fields are left as the *original* per-curve fit's
+    values -- they describe how well the term matched its own isolated
+    curve, not the post-refit joint fit, and are kept only as
+    provenance. Compare `formula_fidelity()` before/after refitting to
+    judge whether it actually helped.
+    """
+    from scipy.optimize import minimize
+    import copy
+
+    X_scaled = np.asarray(X_scaled, dtype=np.float64)
+    target = np.asarray(target, dtype=np.float64)
+
+    symbolic_names = [n for n, t in sym.terms.items() if t["kind"] == "symbolic"]
+    if not symbolic_names:
+        return sym  # nothing with free parameters to refit
+
+    col_idx = {name: sym.feature_names.index(name) for name in symbolic_names}
+    funcs = {name: _NUMPY_FUN[sym.terms[name]["candidate"]] for name in symbolic_names}
+
+    # Numeric terms have no free parameters -- precompute their fixed
+    # contribution once, held constant throughout the optimization.
+    numeric_contrib = np.zeros(len(X_scaled))
+    for name, term in sym.terms.items():
+        if term["kind"] != "symbolic":
+            j = sym.feature_names.index(name)
+            numeric_contrib += np.interp(X_scaled[:, j], term["x_grid"], term["y_grid"])
+
+    x0 = [sym.intercept]
+    for name in symbolic_names:
+        p = sym.terms[name]["params"]
+        x0 += [p["a"], p["b"], p["c"], p["d"]]
+    x0 = np.array(x0, dtype=np.float64)
+
+    def predict(params):
+        pred = np.full(len(X_scaled), params[0]) + numeric_contrib
+        for i, name in enumerate(symbolic_names):
+            a, b, c, d = params[1 + 4 * i: 5 + 4 * i]
+            x = X_scaled[:, col_idx[name]]
+            pred += c * funcs[name](a * x + b) + d
+        return pred
+
+    def objective(params):
+        return float(np.mean((predict(params) - target) ** 2))
+
+    result = minimize(objective, x0, method="L-BFGS-B")
+
+    new_terms = copy.deepcopy(sym.terms)
+    for i, name in enumerate(symbolic_names):
+        a, b, c, d = result.x[1 + 4 * i: 5 + 4 * i]
+        new_terms[name]["params"] = {"a": float(a), "b": float(b), "c": float(c), "d": float(d)}
+
+    return SymbolicModel(
+        sym.feature_names, float(result.x[0]), new_terms,
+        preprocessor=sym.preprocessor, feature_names_in_=sym.feature_names_in_,
+    )
+
+
+def refit_constants_from_model(model, sym: "SymbolicModel", X) -> "SymbolicModel":
+    """Convenience wrapper around `refit_constants()`: derives the
+    target raw score and scaled feature matrix directly from a fitted
+    binary `KANBoostClassifier` (target = `logit(predict_proba)`) or a
+    `KANBoostRegressor` (target = `predict(X)`), from `X` (raw, unscaled
+    input matching what `model.fit()` was called with).
+
+    Not supported for multiclass classifiers here -- `sym` is already
+    one class chain's `SymbolicModel` by the time you have it (from
+    `export_symbolic(model)[class_label]`), so compute that chain's own
+    raw score (`log(p / (1 - p))` for that one-vs-rest probability) and
+    call `refit_constants()` directly instead.
+    """
+    if hasattr(model, "classes_") and len(model.classes_) != 2:
+        raise ValueError(
+            "refit_constants_from_model() only supports binary classifiers "
+            "or regressors -- for a multiclass one-vs-rest chain, compute "
+            "that chain's raw score yourself and call refit_constants() directly."
+        )
+
+    X_scaled = sym.preprocessor.transform(X)
+    if hasattr(model, "classes_"):
+        proba = np.clip(model.predict_proba(X)[:, 1], 1e-7, 1 - 1e-7)
+        target = np.log(proba / (1 - proba))
+    else:
+        target = model.predict(X)
+    return refit_constants(sym, X_scaled, target)
+
+
+def formula_fidelity(model, sym: "SymbolicModel", X, y=None) -> dict:
+    """How closely the extracted symbolic formula tracks the real
+    trained ensemble on `X`.
+
+    Returns `{"max_abs_error", "mean_abs_error"}` always (comparing the
+    equation's raw score against the model's own raw score -- `logit`
+    of `predict_proba` for a binary classifier, `predict()` otherwise),
+    plus `{"auc_model", "auc_equation"}` when `model` is a binary
+    classifier *and* `y` (the true labels for `X`) is given -- these let
+    you check the equation retains the model's ranking quality, e.g.
+    `auc_equation >= auc_model - 0.005`, not just that its raw scores
+    are numerically close.
+    """
+    from sklearn.metrics import roc_auc_score
+
+    X_scaled = sym.preprocessor.transform(X)
+    equation_score = sym.predict_scaled(X_scaled)
+
+    is_binary_clf = hasattr(model, "classes_") and len(model.classes_) == 2
+    if is_binary_clf:
+        proba = np.clip(model.predict_proba(X)[:, 1], 1e-7, 1 - 1e-7)
+        model_score = np.log(proba / (1 - proba))
+    else:
+        model_score = model.predict(X)
+
+    abs_error = np.abs(np.asarray(model_score) - equation_score)
+    result = {
+        "max_abs_error": float(abs_error.max()),
+        "mean_abs_error": float(abs_error.mean()),
+    }
+    if is_binary_clf and y is not None:
+        y_bin = (np.asarray(y) == model.classes_[1]).astype(int)
+        result["auc_model"] = float(roc_auc_score(y_bin, model_score))
+        result["auc_equation"] = float(roc_auc_score(y_bin, equation_score))
+    return result
+
+
+def stability_across_seeds(build_and_fit, X, y, n_seeds: int = 5, min_r2: float = 0.8,
+                            top_n: int | None = None, test_size: float = 0.2, random_state: int = 0):
+    """Train `n_seeds` independent models via `build_and_fit(X_train,
+    y_train, seed) -> fitted_model` (a factory you provide, e.g.
+    `lambda Xt, yt, s: KANBoostClassifier(gam=True, kan_hidden=1, random_state=s).fit(Xt, yt)`),
+    extract `symbolic_summary()` on each, and report two things a single
+    extraction can't show:
+
+    - **candidate-function stability**: for each feature, the fraction
+      of seeds whose extracted formula picked the *same* (modal)
+      candidate function -- a feature whose shape genuinely differs
+      run-to-run (a real property of boosting's stochastic training,
+      not a bug) shows low agreement here, rather than silently
+      presenting one seed's formula as if it were the only possible one.
+    - **fidelity per seed**: `formula_fidelity()` on each seed's own
+      held-out split, including `auc_model`/`auc_equation` for binary
+      classifiers -- so "does the equation retain ranking quality" is a
+      measured number per seed, not assumed from a single run.
+
+    Returns `{"candidate_stability": DataFrame, "fidelity_per_seed": DataFrame}`.
+    Requires `pandas`.
+    """
+    import pandas as pd
+    from sklearn.model_selection import train_test_split
+
+    candidate_records = []
+    fidelity_rows = []
+
+    for seed in range(n_seeds):
+        try:
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=test_size, random_state=random_state + seed, stratify=y,
+            )
+        except ValueError:
+            # a class too rare to stratify at this test_size -- fall
+            # back to a plain random split rather than failing the seed.
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=test_size, random_state=random_state + seed,
+            )
+
+        model = build_and_fit(X_train, y_train, random_state + seed)
+        result = symbolic_summary(model, min_r2=min_r2, top_n=top_n)
+        sym = result["model"]
+
+        for term in result["ranked_terms"]:
+            # pandas' value_counts() silently drops None, which would
+            # either crash a numeric-fallback-only feature's modal-agreement
+            # lookup (empty value_counts -> IndexError) or, worse, report
+            # perfect agreement on a feature that's numeric in most seeds
+            # and symbolic in just one (the None rows vanish from the
+            # denominator) -- the exact opposite of the instability this
+            # function exists to expose. "numeric" is a valid, meaningful
+            # candidate label in its own right.
+            candidate = term["candidate"] or "numeric"
+            candidate_records.append({"seed": seed, "feature": term["feature"], "candidate": candidate})
+
+        fid = formula_fidelity(model, sym, X_test, y_test)
+        fidelity_rows.append({"seed": seed, **fid})
+
+    candidates_df = pd.DataFrame(candidate_records)
+    modal_agreement = (
+        candidates_df.groupby("feature")["candidate"]
+        .agg(lambda s: s.value_counts(normalize=True).iloc[0])
+        .rename("modal_agreement")
+    )
+    modal_candidate = (
+        candidates_df.groupby("feature")["candidate"]
+        .agg(lambda s: s.value_counts().idxmax())
+        .rename("modal_candidate")
+    )
+    stability = pd.concat([modal_agreement, modal_candidate], axis=1).reset_index()
+
+    return {
+        "candidate_stability": stability.sort_values("modal_agreement"),
+        "fidelity_per_seed": pd.DataFrame(fidelity_rows),
     }
 
 
@@ -198,7 +463,7 @@ class SymbolicModel:
         self._symbols = _make_unique_symbols(self.feature_names)
 
     @classmethod
-    def _from_editable(cls, gam, candidates, min_r2, feature_set=None):
+    def _from_editable(cls, gam, candidates, min_r2, feature_set=None, parsimony_margin=0.0):
         from kan.utils import fit_params, SYMBOLIC_LIB
 
         terms = {}
@@ -226,8 +491,15 @@ class SymbolicModel:
                 except Exception:
                     continue
                 r2 = float(r2)
-                if best is None or r2 > best[1]:
-                    best = (cand, r2, [float(p) for p in params])
+                params_list = [float(p) for p in params]
+                if best is None:
+                    best = (cand, r2, params_list)
+                elif (parsimony_margin > 0
+                        and _CANDIDATE_COMPLEXITY.get(cand, 0) > _CANDIDATE_COMPLEXITY.get(best[0], 0)):
+                    if r2 > best[1] + parsimony_margin:
+                        best = (cand, r2, params_list)
+                elif r2 > best[1]:
+                    best = (cand, r2, params_list)
 
             if best is not None and best[1] >= min_r2:
                 cand, r2, (a, b, c, d) = best

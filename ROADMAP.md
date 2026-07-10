@@ -493,6 +493,81 @@ inspectable per-feature spline shape functions.
   changes to `_base.py`/`classifier.py`/`regressor.py` -- purely
   additive to the existing `kanboost/symbolic.py` module.
 
+**v0.0.20 -- leaner, jointly-optimized, verified-stable symbolic equations**
+- Motivated by a hands-on critique (this session) of `symbolic_summary()`'s
+  output: too many terms, disproportionate `sin`/`cos` selection,
+  over-trusting R^2 alone when choosing a candidate, low-amplitude
+  features left in the final equation, constants fit independently per
+  term rather than jointly, no measured guarantee the equation retains
+  the model's ranking quality, and no visibility into whether a formula
+  is stable across random seeds. Four additive fixes, one per concern:
+  - **`export_symbolic(..., parsimony_margin=0.0)`**: a more complex
+    candidate (fixed ranking, roughly
+    `x < abs/x^2 < x^3/tanh < sqrt/sin/cos < log/exp`) only replaces a
+    simpler one already found if it improves R^2 by more than the
+    margin -- default `0.0` preserves the exact prior behavior.
+    Empirically, `parsimony_margin=0.05` changed the selected candidate
+    on 27 of 30 breast-cancer terms versus the unmargined default,
+    confirming most default R^2 "wins" from a more complex candidate
+    were marginal.
+  - **`symbolic_summary(..., min_amplitude=None)`**: drops any term
+    below the given amplitude from *both* `ranked_terms` and
+    `full_formula` (rebuilt from only the retained terms, not
+    `sym.to_sympy()`'s full model) -- a low-amplitude term barely moves
+    the prediction regardless of its R^2.
+  - **`refit_constants(sym, X_scaled, target)` /
+    `refit_constants_from_model(model, sym, X)`**: jointly re-optimizes
+    every symbolic term's `(a, b, c, d)` and the intercept (via
+    `scipy.optimize.minimize`, L-BFGS-B) against the real trained
+    model's own raw score, instead of each term's default fit --
+    independently, to that one feature's isolated marginal curve from
+    `consolidate()`. Numeric (spline-fallback) terms have no closed-form
+    parameters and are left as-is. Verified on real data (Breast
+    Cancer): mean absolute fidelity error dropped from 0.0054 to 0.0047
+    after refitting, with AUC unchanged (0.9917), on a held-out split.
+  - **`formula_fidelity(model, sym, X, y=None)` /
+    `stability_across_seeds(build_and_fit, X, y, n_seeds=5, ...)`**: the
+    first reports `max_abs_error`/`mean_abs_error` always, plus
+    `auc_model`/`auc_equation` for a binary classifier when `y` is
+    given, so "does the equation retain ranking quality" is a measured
+    number, not an assumption; the second trains several independent
+    models and reports each feature's modal-candidate agreement rate
+    across seeds alongside per-seed fidelity, since boosting's
+    stochastic training means a different seed can genuinely pick a
+    different candidate function for the same feature -- a single
+    extraction was never "the" formula to begin with.
+- A structurally impossible request was caught and declined during
+  scoping, not built: a proposed target equation included a genuine
+  feature-interaction term (`C3 * A3`). `gam=True`'s additive
+  decomposition (`F(x) = c + sum_j g_j(x_j)`) cannot represent a
+  cross-feature term by construction -- that constraint is exactly what
+  makes `monotone_constraints` and `consolidate()`'s exact centering
+  possible in the first place. Getting a genuine interaction term would
+  require either abandoning pure `gam=True` (`kan_hidden > 1`, losing
+  the additive separation the current extraction depends on) or a
+  wholly separate black-box symbolic-regression distiller (e.g.
+  PySR/genetic programming against the ensemble's raw predictions) --
+  flagged as a candidate future experiment, not folded into this
+  release.
+- Independent review (this session) caught a real blocking bug before
+  shipping: `stability_across_seeds()` recorded a numeric-fallback
+  term's `candidate` as `None`, and pandas' `value_counts()` silently
+  drops `None` -- a feature that's numeric-fallback in *every* seed
+  crashed (`IndexError`, empty `value_counts()`), and a feature numeric
+  in most seeds but symbolic in one reported a false `modal_agreement`
+  of 1.0 (the `None` rows vanished from the denominator) -- the exact
+  opposite of the instability the function exists to expose. `candidate`
+  is `None` only when every candidate's `fit_params()` call raises (an
+  all-NaN curve, verified separately) -- deliberately fitting a
+  min-R^2-forced numeric fallback in the regression test still leaves a
+  real (if rejected) `candidate` name, not `None`, so
+  `test_stability_across_seeds_handles_numeric_fallback_feature` instead
+  monkeypatches `symbolic_summary()` to isolate the test to
+  `stability_across_seeds()`'s own candidate-recording logic. Fixed by
+  recording `"numeric"` instead of `None`.
+- 7 new tests. Zero changes to `_base.py`/`classifier.py`/`regressor.py`
+  -- purely additive to the existing `kanboost/symbolic.py` module.
+
 ## Deferred (with reasons)
 
 - **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`

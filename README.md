@@ -81,7 +81,15 @@ implementation of the same general idea, plus:
   (closed-form R^2 + amplitude, with a numeric fallback for features no
   candidate fits well). **`symbolic_summary(model)`** is the one-call
   version: amplitude-ranked terms, each feature's individual equation,
-  and the full model's combined equation, in one dict. See
+  and the full model's combined equation, in one dict. Leaner, more
+  honest equations: `parsimony_margin=` prefers simpler candidate
+  functions unless a more complex one clears a real R^2 margin,
+  `min_amplitude=` drops low-impact terms from the final equation,
+  `refit_constants_from_model()` jointly re-optimizes every term's
+  constants against the real model instead of each in isolation, and
+  `formula_fidelity()`/`stability_across_seeds()` measure whether the
+  equation actually retains the model's ranking quality (and whether
+  that holds across random seeds) rather than assuming it. See
   [Symbolic formula export](#symbolic-formula-export-optional-additive)
   below.
 - **`kanboost.calibration.calibrate(model, X_cal, y_cal)`** — post-hoc

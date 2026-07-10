@@ -118,3 +118,76 @@ model with many features. With `top_n` set, `full_formula` goes back to
 having a `g_<feature>(x)` placeholder for every feature outside that
 cutoff, same as `explain()`. Multiclass: uses `model.classes_[0]`'s chain,
 same convention as `explain()`.
+
+Pass `min_amplitude=t` to drop any term whose `amplitude` falls below
+`t` from *both* `ranked_terms` and `full_formula` — a low-amplitude term
+barely moves the prediction regardless of its R², so leaving it in the
+final equation adds length without adding real signal:
+
+```python
+result = symbolic_summary(model, min_r2=0.8, min_amplitude=0.05)
+len(result["ranked_terms"])  # fewer terms than an unpruned call
+```
+
+## Leaner, more honest equations: parsimony, joint refitting, and stability
+
+Four sharp, real limitations of the default export, and what addresses each:
+
+**1. Candidate selection over-trusts R² alone.** Two candidates that fit
+almost equally well (say `x^3` at R²=0.94 and `sin` at R²=0.95) pick the
+higher-R² one even when it's periodic/more complex for a negligible
+gain. `parsimony_margin` (default `0.0`, i.e. off) makes `export_symbolic()`
+only prefer a more complex candidate (by a fixed ranking, roughly
+`x < abs/x² < x³/tanh < sqrt/sin/cos < log/exp`) when it improves R² by
+more than the margin:
+
+```python
+sym = export_symbolic(model, min_r2=0.8, parsimony_margin=0.02)
+```
+
+**2. Each term's constants are fit in isolation, never jointly.**
+`export_symbolic()`'s default fits each feature's `(a, b, c, d)` to that
+one feature's own isolated marginal curve — nothing about the default
+fit ever looks at more than one feature at a time, so the *combined*
+equation can be a worse joint approximation than a joint refit would
+give. `refit_constants_from_model()` re-optimizes every symbolic term's
+constants together against the real trained model's own raw score:
+
+```python
+from kanboost.symbolic import refit_constants_from_model, formula_fidelity
+
+sym = symbolic_summary(model, min_r2=0.8)["model"]
+sym_refit = refit_constants_from_model(model, sym, X_train)  # new SymbolicModel, doesn't mutate sym
+
+formula_fidelity(model, sym, X_test, y_test)        # before
+formula_fidelity(model, sym_refit, X_test, y_test)  # after -- compare
+```
+
+Only supports binary classifiers and regressors directly (a multiclass
+one-vs-rest chain needs its own raw score computed by hand and passed
+to the lower-level `refit_constants(sym, X_scaled, target)`).
+
+**3. "Does the equation still rank like the model?" was never measured.**
+`formula_fidelity(model, sym, X, y=None)` returns `max_abs_error`/
+`mean_abs_error` always, plus `auc_model`/`auc_equation` when `model` is
+a binary classifier and `y` is given — so `auc_equation >= auc_model - 0.005`
+is a number you can check, not an assumption.
+
+**4. A formula from one seed isn't *the* formula.** Boosting is
+stochastic — a different seed can genuinely pick a different candidate
+function for the same feature. `stability_across_seeds()` trains several
+independent models and reports how often each feature's modal candidate
+was chosen, alongside per-seed `formula_fidelity()`:
+
+```python
+from kanboost.symbolic import stability_across_seeds
+
+def build_and_fit(X_train, y_train, seed):
+    m = KANBoostClassifier(gam=True, kan_hidden=1, random_state=seed)
+    m.fit(X_train, y_train)
+    return m
+
+report = stability_across_seeds(build_and_fit, X, y, n_seeds=5, top_n=5)
+report["candidate_stability"]   # per-feature modal_candidate + modal_agreement
+report["fidelity_per_seed"]     # auc_model/auc_equation per seed
+```
