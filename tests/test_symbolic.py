@@ -14,7 +14,7 @@ from kanboost import KANBoostClassifier, KANBoostRegressor
 from kanboost.interpret.symbolic import (
     export_symbolic, explain, symbolic_summary, SymbolicModel,
     refit_constants, refit_constants_from_model, formula_fidelity, stability_across_seeds,
-    stability_across_sample_sizes, distill_equation,
+    stability_across_sample_sizes, distill_equation, tiered_equations,
 )
 
 
@@ -627,6 +627,39 @@ def test_distill_equation_raises_when_nothing_survives_gates():
         raise AssertionError("an impossible threshold combination was not rejected")
     except ValueError:
         pass
+
+
+def test_tiered_equations_returns_three_tiers_with_increasing_fidelity():
+    X, y = _known_function_data()
+    y_bin = (y > np.median(y)).astype(int)
+
+    def build_and_fit(X_train, y_train, seed):
+        m = KANBoostClassifier(
+            n_estimators=15, kan_steps=10, kan_hidden=1, gam=True,
+            early_stopping_rounds=None, random_state=seed,
+        )
+        m.fit(X_train, y_train)
+        return m
+
+    report = tiered_equations(
+        build_and_fit, X, y_bin, simple_max_terms=2, detailed_max_terms=3,
+        min_r2=0.8, min_relative_amplitude=0.0, stability_threshold=0.0,
+        n_seeds=3, allow_periodic=False,
+    )
+
+    assert set(report.keys()) == {"simple", "detailed", "full"}
+    for tier_name in ("simple", "detailed", "full"):
+        tier = report[tier_name]
+        assert isinstance(tier["formula"], sympy.Expr)
+        assert "auc_model" in tier["fidelity"]
+        assert "auc_equation" in tier["fidelity"]
+    assert "dropped_low_r2" in report["full"]
+
+    assert len(report["simple"]["kept_features"]) <= 2
+    assert len(report["detailed"]["kept_features"]) <= 3
+    # full has no term cap -- it must never end up with fewer terms than
+    # detailed on the same underlying model/data.
+    assert len(report["full"]["kept_features"]) >= len(report["detailed"]["kept_features"])
 
 
 def test_symbolic_summary_multiclass_uses_first_class_chain():

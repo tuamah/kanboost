@@ -6,6 +6,7 @@ from .symbolic import (
     export_symbolic, explain, symbolic_summary, SymbolicModel,
     refit_constants, refit_constants_from_model, formula_fidelity,
     stability_across_seeds, stability_across_sample_sizes, distill_equation,
+    tiered_equations,
 )
 from .editing import consolidate, EditableGAM
 from .interactions import friedman_h, check_additive_sufficiency

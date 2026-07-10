@@ -732,6 +732,100 @@ def distill_equation(build_and_fit, X, y, top_n: int = 6, min_r2: float = 0.98,
     }
 
 
+def tiered_equations(build_and_fit, X, y, simple_max_terms: int = 6, detailed_max_terms: int = 12,
+                      min_r2: float = 0.9, min_relative_amplitude: float = 0.03,
+                      stability_threshold: float = 0.6, n_seeds: int = 8,
+                      allow_periodic: bool = True, test_size: float = 0.2,
+                      random_state: int = 0) -> dict:
+    """Three-tier symbolic report at increasing complexity, instead of
+    picking one fixed formula length:
+
+    - **"simple"**: at most `simple_max_terms` terms, pruned via
+      `distill_equation()`'s amplitude+stability gates -- a short,
+      general, at-a-glance explanation.
+    - **"detailed"**: at most `detailed_max_terms` terms, same gates but
+      over a wider (`detailed_max_terms`-sized) candidate pool -- more
+      accurate, still short enough to read.
+    - **"full"**: every feature that clears `min_r2`, no amplitude/
+      stability pruning at all -- the most accurate symbolic
+      approximation of the model this module can produce.
+
+    Each tier reports its own `formula` plus `formula_fidelity()` against
+    the model, so the accuracy/simplicity trade-off across the three is a
+    measured set of numbers, not an assumption -- "full" isn't
+    automatically better for every purpose just because it's more
+    accurate; it's also less readable and, like any of this module's
+    exports, still only as stable as `stability_across_seeds()` says a
+    single seed's terms are (the "full" tier doesn't run a stability
+    check at all -- see the caveat below).
+
+    `build_and_fit`/`min_r2`/`min_relative_amplitude`/`stability_threshold`/
+    `n_seeds`/`allow_periodic`/`test_size`/`random_state` are passed
+    straight through to two `distill_equation()` calls (for "simple" and
+    "detailed") -- see its docstring for what each threshold does.
+    "full" reuses "simple"'s already-fitted `reference_model` (same
+    `test_size`/`random_state` split) rather than fitting a third
+    reference model.
+
+    Not supported for multiclass classifiers -- `distill_equation()`
+    raises `ValueError` immediately in that case, same as its own
+    restriction.
+
+    Returns
+    -------
+    dict with "simple", "detailed", "full", each a dict with "formula"
+    (`sympy` expression), "latex", "kept_features", "fidelity" (from
+    `formula_fidelity()`); "full" additionally has "dropped_low_r2" --
+    features whose best candidate never cleared `min_r2` at all (kept as
+    numeric/spline terms in "full"'s formula rather than a named
+    closed-form function).
+    """
+    from sklearn.model_selection import train_test_split
+
+    simple = distill_equation(
+        build_and_fit, X, y, top_n=simple_max_terms, min_r2=min_r2,
+        min_relative_amplitude=min_relative_amplitude, stability_threshold=stability_threshold,
+        n_seeds=n_seeds, allow_periodic=allow_periodic, test_size=test_size,
+        random_state=random_state, max_terms=simple_max_terms,
+    )
+    detailed = distill_equation(
+        build_and_fit, X, y, top_n=detailed_max_terms, min_r2=min_r2,
+        min_relative_amplitude=min_relative_amplitude, stability_threshold=stability_threshold,
+        n_seeds=n_seeds, allow_periodic=allow_periodic, test_size=test_size,
+        random_state=random_state, max_terms=detailed_max_terms,
+    )
+
+    try:
+        _, X_test, _, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=random_state, stratify=y,
+        )
+    except ValueError:
+        _, X_test, _, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=random_state,
+        )
+
+    reference_model = simple["reference_model"]
+    full_summary = symbolic_summary(reference_model, min_r2=min_r2, top_n=None, allow_periodic=allow_periodic)
+    full_fidelity = formula_fidelity(reference_model, full_summary["model"], X_test, y_test)
+    dropped_low_r2 = [t["feature"] for t in full_summary["ranked_terms"] if t["kind"] != "symbolic"]
+
+    def _pack(result):
+        return {
+            "formula": result["formula"], "latex": result["latex"],
+            "kept_features": result["kept_features"], "fidelity": result["fidelity"],
+        }
+
+    return {
+        "simple": _pack(simple),
+        "detailed": _pack(detailed),
+        "full": {
+            "formula": full_summary["full_formula"], "latex": full_summary["full_latex"],
+            "kept_features": [t["feature"] for t in full_summary["ranked_terms"]],
+            "fidelity": full_fidelity, "dropped_low_r2": dropped_low_r2,
+        },
+    }
+
+
 class SymbolicModel:
     """A fitted, fidelity-aware symbolic export. Build one via
     `export_symbolic(model)`, not directly."""
