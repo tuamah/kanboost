@@ -14,14 +14,24 @@ from kanboost import KANBoostClassifier
 from kanboost.interpret.interactions import friedman_h, check_additive_sufficiency
 
 
-class _FakeInteractionModel(BaseEstimator, RegressorMixin):
+class _FakeInteractionModel(RegressorMixin, BaseEstimator):
     """predict() = a*b + 0.1*c -- an exact, known interaction between a
     and b, and none between a/c or b/c. Used to sanity-check the
     H-statistic formula itself, independent of any real model's own
     fitting noise (verified during development: a real RandomForest
     showed a spuriously elevated H of 0.5+ for genuinely non-interacting
     pairs, purely from partial-dependence estimation noise -- this
-    fake, exact model has no such noise)."""
+    fake, exact model has no such noise).
+
+    `RegressorMixin` before `BaseEstimator` (not the reverse) is
+    required, not stylistic: scikit-learn >= 1.6's cooperative
+    `__sklearn_tags__()` MRO chain needs the mixin first, or
+    `is_regressor()`/`partial_dependence()`'s own fitted-estimator-type
+    check silently returns `estimator_type=None` and rejects this class
+    with `ValueError: 'estimator' must be a fitted regressor or
+    classifier` -- caught by CI running a newer scikit-learn than this
+    was developed against locally; kanboost's own
+    `KANBoostClassifier`/`Regressor` already use the correct order."""
 
     def fit(self, X, y=None):
         self.is_fitted_ = True
