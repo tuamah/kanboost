@@ -29,6 +29,19 @@ from sklearn.base import BaseEstimator
 
 from .encoders import TabularPreprocessor
 
+# Flat module paths kanboost used before its v1.0.0 package restructure
+# (core/interpret/train/ops/registry subpackages) -- a model saved with
+# an older kanboost pickles `self.preprocessor_` (a raw
+# `TabularPreprocessor`, not converted by `save()`'s `_freeze()`) by
+# whichever of these was current at save time. See `load()`.
+_OLD_MODULE_ALIASES = {
+    "kanboost._base": "kanboost.core.base",
+    "kanboost.classifier": "kanboost.core.classifier",
+    "kanboost.regressor": "kanboost.core.regressor",
+    "kanboost.losses": "kanboost.core.losses",
+    "kanboost.encoders": "kanboost.core.encoders",
+}
+
 
 @contextlib.contextmanager
 def _suppress_pykan_noise():
@@ -133,6 +146,17 @@ class _BaseKANBoost(BaseEstimator):
         self.feature_names_in_ = None
         self.device_ = None
         self.monotone_signs_ = None
+
+        # Optional extension hooks (not sklearn hyperparameters -- not
+        # constructor params, so get_params()/clone() never see them).
+        # kanboost.train.accel.fast_fit() sets these instead of
+        # monkey-patching _new_learner/_boost_chain wholesale, so warm
+        # starting stays correct if this method's internals ever change
+        # shape. Both must be None (the default) outside of an active
+        # fast_fit() call, or model.save()'s pickling of self.__dict__
+        # would try to pickle a closure.
+        self._learner_init_hook = None       # callable(learner) -> None, called right after _new_learner builds one
+        self._boost_chain_start_hook = None  # callable() -> None, called at the start of each one-vs-rest chain
 
     # ------------------------------------------------------------------
     # NOTE: get_params/set_params/__sklearn_tags__ come from BaseEstimator.
@@ -266,6 +290,8 @@ class _BaseKANBoost(BaseEstimator):
                 # shape functions: F(x) = sum_j g_j(x_j). Required for both
                 # exact GAM-mode attribution and sound monotonic constraints.
                 learner.fix_symbolic(1, 0, 0, "x", fit_params_bool=False, verbose=False, log_history=False)
+            if self._learner_init_hook is not None:
+                self._learner_init_hook(learner)
             return learner
 
     def _apply_monotone_projection(self, learner: KAN) -> None:
@@ -395,6 +421,9 @@ class _BaseKANBoost(BaseEstimator):
         (one chain per one-vs-rest class). Returns (learners, init_pred,
         best_iteration).
         """
+        if self._boost_chain_start_hook is not None:
+            self._boost_chain_start_hook()
+
         init_pred = loss.init_pred(y, sample_weight)
         F = np.full(len(y), init_pred)
         F_val = np.full(len(y_val), init_pred) if X_val_t is not None else None
@@ -490,7 +519,9 @@ class _BaseKANBoost(BaseEstimator):
             return obj
 
         payload = {
-            "format_version": 1,
+            "format_version": 2,  # v2: kanboost's v1.0.0 package restructure moved
+            # every core/train/interpret/ops module under a subpackage --
+            # see _OLD_MODULE_ALIASES below for what changes for load().
             "class_name": type(self).__name__,
             "params": self.get_params(),
             "kan_arch": {
@@ -509,8 +540,28 @@ class _BaseKANBoost(BaseEstimator):
         `device` overrides the device the model is restored onto (default:
         auto-detect cuda, else cpu -- independent of what device it was
         trained/saved on).
+
+        Transparently loads a file saved before kanboost's v1.0.0 package
+        restructure (format_version 1): `self.preprocessor_` -- a raw
+        `TabularPreprocessor` instance, not converted by `save()`'s own
+        `_freeze()` (which only special-cases `KAN`/`list`/`dict`) -- is
+        pickled by its *module path*, which was `kanboost.encoders`
+        before the restructure and is `kanboost.core.encoders` now.
+        `torch.load()` fails with `ModuleNotFoundError` trying to resolve
+        the old path before this method ever gets a chance to inspect
+        `format_version` in the payload -- caught below, and retried once
+        with the old flat paths aliased to their new locations.
         """
-        payload = torch.load(path, map_location="cpu", weights_only=False)
+        try:
+            payload = torch.load(path, map_location="cpu", weights_only=False)
+        except ModuleNotFoundError:
+            import sys
+            import importlib
+            for old_name, new_name in _OLD_MODULE_ALIASES.items():
+                if old_name not in sys.modules:
+                    sys.modules[old_name] = importlib.import_module(new_name)
+            payload = torch.load(path, map_location="cpu", weights_only=False)
+
         if payload.get("class_name") != cls.__name__:
             raise ValueError(
                 f"{path!r} was saved from {payload.get('class_name')!r}, "

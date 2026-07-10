@@ -150,6 +150,41 @@ def test_save_load_roundtrip(tmp_path):
         pass
 
 
+def test_load_migrates_pre_v1_package_restructure_saved_files(tmp_path):
+    # A model saved before kanboost's v1.0.0 package restructure pickles
+    # self.preprocessor_ (a raw TabularPreprocessor, not converted by
+    # save()'s own _freeze()) under the old flat module path
+    # ("kanboost.encoders", not "kanboost.core.encoders"). Simulate that
+    # exact scenario: temporarily rename the class's own __module__ (what
+    # actually changes what torch.save's pickler records) AND alias
+    # sys.modules["kanboost.encoders"] to the real module (pickle's
+    # pickler itself verifies the class is importable under the recorded
+    # name before writing it -- without the alias, save() itself would
+    # fail, not just a later load()). Both are undone before load() runs,
+    # so load()'s own ModuleNotFoundError fallback is what's actually
+    # under test, not a lingering alias from this test.
+    import kanboost.core.encoders as encoders_module
+    from kanboost.core.encoders import TabularPreprocessor
+
+    X, y = make_regression(n_samples=80, n_features=3, random_state=0)
+    X_df = pd.DataFrame(X, columns=["a", "b", "c"])
+    model = KANBoostRegressor(n_estimators=5, kan_steps=5, early_stopping_rounds=None, random_state=0)
+    model.fit(X_df, y)
+
+    original_module = TabularPreprocessor.__module__
+    path = str(tmp_path / "pre_restructure_model.pt")
+    try:
+        TabularPreprocessor.__module__ = "kanboost.encoders"
+        sys.modules["kanboost.encoders"] = encoders_module
+        model.save(path)
+    finally:
+        TabularPreprocessor.__module__ = original_module
+        sys.modules.pop("kanboost.encoders", None)
+
+    loaded = KANBoostRegressor.load(path)
+    assert np.allclose(loaded.predict(X_df), model.predict(X_df))
+
+
 def test_multiclass_classification():
     X, y = make_classification(
         n_samples=300, n_features=6, n_informative=4, n_redundant=0,
@@ -551,6 +586,8 @@ if __name__ == "__main__":
         test_save_load_roundtrip(Path(d))
     with tempfile.TemporaryDirectory() as d:
         test_save_load_multiclass_with_missing_values(Path(d))
+    with tempfile.TemporaryDirectory() as d:
+        test_load_migrates_pre_v1_package_restructure_saved_files(Path(d))
     test_multiclass_classification()
     test_missing_values_are_imputed_not_rejected()
     test_plot_feature_returns_axes()

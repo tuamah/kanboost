@@ -696,6 +696,78 @@ inspectable per-feature spline shape functions.
   fits already ran -- added an early `ValueError` right after the
   reference model is fit.
 
+**v1.0.0 -- ML System Design restructure: Config/Pipeline/Registry layers, a deliberate breaking release**
+
+Requested explicitly as a full architectural redesign, not another
+additive module -- the additive-only policy every prior release
+followed is deliberately set aside for this one release. Executed as
+5 sequential, independently-tested PRs (each run against the full
+suite before the next started):
+
+- **PR1 -- `kanboost.config`**: `KANConfig`/`BoostConfig`/`KANBoostConfig`,
+  stdlib dataclasses grouping the ~19 flat constructor kwargs by
+  concern, with the same validation `_validate_hyperparams()` already
+  did, moved to construction time. `from_flat()`/`to_flat()` keep the
+  existing flat kwarg constructor working unchanged for sklearn's
+  `clone()`/`get_params()` and kantun's `KantunSearch` -- config is the
+  internal source of truth, not a rewrite of the public constructor.
+- **PR2 -- package restructure**: `kanboost/core` (base, classifier,
+  regressor, losses, encoders, config), `kanboost/interpret` (symbolic,
+  editing, interactions, experimental), `kanboost/train` (accel,
+  calibration, imbalance, metrics), `kanboost/ops` (serving, dashboard,
+  observability, logging_utils, mlflow_utils), `kanboost/registry`
+  (mlhub). `from kanboost import KANBoostClassifier/Regressor` unchanged
+  (verified kantun's own source never imports a deeper kanboost path).
+  Several lazy (function-body) relative imports crossing the new
+  package boundaries were missed on the first pass -- invisible to a
+  top-of-file import grep, only surfaced by actually running the full
+  suite (save/load, `evaluate()`, serving, dashboard app, a
+  `mock.patch()` string target, and one direct `import kanboost._base`
+  in a test). Added `[tool.setuptools.packages.find]` to pyproject.toml
+  (previously relied on implicit flat-layout discovery).
+- **PR3 -- `kanboost.pipeline`**: `KANBoostPipeline` sequences
+  train -> optional calibrate -> optional symbolic export as one call,
+  composing the existing `kanboost.train`/`kanboost.interpret` functions
+  unchanged -- a thin coordinator, not a new abstraction hierarchy.
+  Caught before shipping: building a classifier from
+  `config.to_flat()` failed, since `KANBoostConfig` always carries the
+  regressor-only `objective`/`alpha` fields (needed to round-trip a
+  regressor's config) but `KANBoostClassifier.__init__` doesn't accept
+  them.
+- **PR4 -- `kanboost.registry.local.LocalRegistry`**: a thin local model
+  registry (`register()`/`get()`/`list()`/`push()`) -- storage is just
+  `save()` files plus a JSON manifest per name, `push()` delegates to
+  the existing `mlhub.push_model`. Explicitly not a rebuild of mlhub or
+  mlflow_utils; no staging/production aliases, lineage graphs, or
+  artifact stores.
+- **PR5 -- explicit accel hook + a real save/load compatibility fix**:
+  replaced `kanboost.train.accel.fast_fit()`'s monkey-patching of
+  `_new_learner`/`_fit_learner`/`_boost_chain` wholesale with two
+  small, documented extension points on `_BaseKANBoost` itself
+  (`_learner_init_hook`, `_boost_chain_start_hook`) -- correctness
+  verified identical (31/31 `test_accel.py` + `test_kanboost.py` pass).
+  Separately, a genuine backward-compatibility break was found and
+  fixed: `save()` pickles `self.preprocessor_` (a raw
+  `TabularPreprocessor`, not converted by `_freeze()`, which only
+  special-cases `KAN`/`list`/`dict`) by its *module path* -- a file
+  saved before this restructure records `kanboost.encoders`, which no
+  longer exists, so `load()` would fail with a bare `ModuleNotFoundError`
+  raised by `torch.load()` itself, before any of our own code even got
+  to inspect `format_version` in the payload (ruling out the originally
+  planned "check format_version, tell the user to run a converter"
+  approach -- unpickling fails before that check can run). Fixed
+  instead with a transparent retry: `load()` catches the
+  `ModuleNotFoundError`, registers `sys.modules` aliases for the five
+  old flat paths pointing at their new subpackage locations, and
+  retries once. Verified with a test that reproduces the exact old-file
+  shape (temporarily renaming `TabularPreprocessor.__module__` before
+  saving -- pickle's own picklability check requires the aliased module
+  to already be importable at save time too, not just at load time).
+  `format_version` bumped to 2 for new saves.
+- 150/150 tests pass after PR5 (full suite, including a new
+  `test_load_migrates_pre_v1_package_restructure_saved_files`
+  regression test).
+
 ## Deferred (with reasons)
 
 - **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`

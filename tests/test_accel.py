@@ -48,21 +48,21 @@ def test_fast_fit_is_faster_and_preserves_accuracy():
     assert auc_fast > auc_normal - 0.02
 
 
-def test_fast_fit_restores_kan_steps_and_methods():
+def test_fast_fit_restores_kan_steps_and_hooks():
     X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
     model = KANBoostClassifier(
         n_estimators=10, kan_steps=12, early_stopping_rounds=None, random_state=0, verbose=False,
     )
-    original_new_learner = model._new_learner
-    original_fit_learner = model._fit_learner
-    original_boost_chain = model._boost_chain
+    assert model._learner_init_hook is None
+    assert model._boost_chain_start_hook is None
 
     fast_fit(model, X_tr, y_tr)
 
     assert model.kan_steps == 12
-    assert model._new_learner == original_new_learner
-    assert model._fit_learner == original_fit_learner
-    assert model._boost_chain == original_boost_chain
+    # fast_fit() must clear its hooks after fit() returns -- leaving a
+    # closure behind would break model.save()'s pickling later.
+    assert model._learner_init_hook is None
+    assert model._boost_chain_start_hook is None
 
 
 def test_fast_fit_respects_monotone_constraints():
@@ -104,12 +104,13 @@ def test_fast_fit_then_save_load_roundtrip(tmp_path):
     )
     fast_fit(model, X_tr, y_tr)
 
-    # fast_fit temporarily shadows _new_learner/_fit_learner/_boost_chain
-    # on the instance; save() must not still find them in __dict__ after
-    # it returns, or pickling the raw pykan learners fails.
-    assert "_new_learner" not in model.__dict__
-    assert "_fit_learner" not in model.__dict__
-    assert "_boost_chain" not in model.__dict__
+    # fast_fit() sets _learner_init_hook/_boost_chain_start_hook to
+    # closures for the duration of one fit() call; save() must not still
+    # find a closure there afterward, or pickling self.__dict__ (which
+    # includes these two hook attributes, always present with a None
+    # default -- see core/base.py) fails.
+    assert model._learner_init_hook is None
+    assert model._boost_chain_start_hook is None
 
     path = str(tmp_path / "model.pt")
     model.save(path)
@@ -132,7 +133,7 @@ def test_fast_fit_custom_warm_start_steps():
 
 if __name__ == "__main__":
     test_fast_fit_is_faster_and_preserves_accuracy()
-    test_fast_fit_restores_kan_steps_and_methods()
+    test_fast_fit_restores_kan_steps_and_hooks()
     test_fast_fit_respects_monotone_constraints()
     test_fast_fit_multiclass_chains_stay_isolated()
     import tempfile

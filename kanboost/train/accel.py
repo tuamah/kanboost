@@ -14,14 +14,16 @@ always match) and only spends the model's full `kan_steps` budget on the
 very first round of each boosting chain; every later round gets
 `warm_start_steps` (default: a quarter of `kan_steps`, floor 3).
 
-This is implemented by temporarily monkey-patching the *instance's*
-`_new_learner`/`_fit_learner`/`_boost_chain` bound methods for the
-duration of one `fit()` call, then restoring the originals -- so it goes
-through the exact same `_fit_learner` / `_fit_learner_custom_loop` /
-`_apply_monotone_projection` machinery as a normal `fit()` (monotone
-constraints are enforced identically; only how each learner's weights are
-*initialized* changes), with zero edits to `_base.py`, `classifier.py`, or
-`regressor.py`.
+Implemented via the explicit `_learner_init_hook`/`_boost_chain_start_hook`
+extension points on `_BaseKANBoost` (see `kanboost/core/base.py`) -- an
+earlier version of this module monkey-patched the *instance's*
+`_new_learner`/`_fit_learner`/`_boost_chain` bound methods wholesale for
+the duration of one `fit()` call, which was fragile to any future change
+in those methods' internals; these two hooks are a small, documented
+contract instead. Either way, training still goes through the exact same
+`_fit_learner`/`_fit_learner_custom_loop`/`_apply_monotone_projection`
+machinery as a normal `fit()` (monotone constraints are enforced
+identically; only how each learner's weights are *initialized* changes).
 """
 
 from __future__ import annotations
@@ -55,52 +57,37 @@ def fast_fit(model, X, y, eval_set: tuple | None = None, sample_weight=None,
         warm_start_steps = max(warm_start_steps, 1)
 
     full_kan_steps = model.kan_steps
-    original_new_learner = model._new_learner
-    original_fit_learner = model._fit_learner
-    original_boost_chain = model._boost_chain
-
     state = {"round": 0, "prev": None}
 
-    def warm_new_learner(n_features, seed_offset):
-        learner = original_new_learner(n_features, seed_offset)
+    def learner_init_hook(learner):
         if state["prev"] is not None:
             with torch.no_grad():
                 learner.load_state_dict(state["prev"].state_dict())
         state["round"] += 1
         model.kan_steps = full_kan_steps if state["round"] <= 1 else warm_start_steps
-        return learner
-
-    def warm_fit_learner(learner, X_t, residual, sample_weight=None, seed_offset=0):
-        update = original_fit_learner(
-            learner, X_t, residual, sample_weight=sample_weight, seed_offset=seed_offset
-        )
+        # `learner` is the same mutable nn.Module object `_fit_learner`
+        # will go on to train in place -- capturing the reference here
+        # (not after training) is equivalent, since by the time the next
+        # round's hook call reads `state["prev"]`, this round's
+        # `_fit_learner` call has already mutated its parameters in place.
         state["prev"] = learner
-        return update
 
-    def warm_boost_chain(*args, **kwargs):
+    def boost_chain_start_hook():
         # Each call is a new one-vs-rest chain (multiclass) -- must not
         # warm-start one class's first learner from another class's last.
         state["round"] = 0
         state["prev"] = None
         model.kan_steps = full_kan_steps
-        try:
-            return original_boost_chain(*args, **kwargs)
-        finally:
-            model.kan_steps = full_kan_steps
 
-    model._new_learner = warm_new_learner
-    model._fit_learner = warm_fit_learner
-    model._boost_chain = warm_boost_chain
+    model._learner_init_hook = learner_init_hook
+    model._boost_chain_start_hook = boost_chain_start_hook
     try:
         model.fit(X, y, eval_set=eval_set, sample_weight=sample_weight)
     finally:
-        # Remove the shadowing instance attributes entirely (rather than
-        # reassigning the originals) so attribute lookup falls back to the
-        # class's own bound methods -- leaving *any* callable in
-        # `model.__dict__` breaks `model.save()`, which pickles
-        # `self.__dict__` wholesale (`_base.py`'s `_freeze`) and can't
-        # pickle a closure-holding local function.
-        for name in ("_new_learner", "_fit_learner", "_boost_chain"):
-            model.__dict__.pop(name, None)
+        # Reset to None (the required default -- see core/base.py) rather
+        # than leaving a closure behind: model.save() pickles
+        # self.__dict__ wholesale, and a closure isn't picklable.
+        model._learner_init_hook = None
+        model._boost_chain_start_hook = None
         model.kan_steps = full_kan_steps
     return model
