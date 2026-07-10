@@ -8,12 +8,19 @@ of decision trees.
 
 from .core.classifier import KANBoostClassifier
 from .core.regressor import KANBoostRegressor
+from .core.config import KANBoostConfig, KANConfig, BoostConfig
 from .train.metrics import classification_report_dict, print_classification_report
+from .pipeline import KANBoostPipeline, PipelineResult
 
 __version__ = "1.0.0"
 __all__ = [
     "KANBoostClassifier",
     "KANBoostRegressor",
+    "KANBoostConfig",
+    "KANConfig",
+    "BoostConfig",
+    "KANBoostPipeline",
+    "PipelineResult",
     "classification_report_dict",
     "print_classification_report",
 ]
