@@ -4,7 +4,7 @@ Two small, independent modules for pushing a trained model or its
 metrics somewhere other than the local filesystem. Neither is required
 by, or imports, the other.
 
-## `kanboost.mlhub`
+## `kanboost.registry.mlhub`
 
 Push/pull a saved model (`model.save(path)`'s output) to/from a
 MinIO-backed object store behind a FastAPI gateway (the shape this
@@ -40,7 +40,7 @@ own docstring in `kanboost/mlhub.py` explains what to check and adjust
 -- this was itself discovered by iterating against a real 401 then a
 real 422, not guessed once and assumed correct.
 
-## `kanboost.mlflow_utils`
+## `kanboost.ops.mlflow_utils`
 
 Log a training run's hyperparameters (`model.get_params()`, since
 KANBoost estimators are already scikit-learn `BaseEstimator`s),

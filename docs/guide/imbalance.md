@@ -20,7 +20,7 @@ residuals. `predict()`'s default `threshold=0.5` then reads every one
 of those sub-0.5 scores as "negative" — F1 = 0 despite a genuinely
 useful ranking underneath.
 
-`kanboost.imbalance` gives two independent, composable fixes — neither
+`kanboost.train.imbalance` gives two independent, composable fixes — neither
 touches `LogisticLoss` itself, since it isn't wrong.
 
 ## `find_threshold` — fix the decision boundary, not the model

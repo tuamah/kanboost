@@ -1,5 +1,5 @@
 """
-kanboost.config -- typed configuration for KANBoostClassifier/Regressor,
+kanboost.core.config -- typed configuration for KANBoostClassifier/Regressor,
 built on stdlib dataclasses (no new dependency).
 
 Internal source of truth for a model's hyperparameters, grouped by

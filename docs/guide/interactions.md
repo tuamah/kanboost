@@ -1,4 +1,4 @@
-# Checking the additive assumption: `kanboost.interactions`
+# Checking the additive assumption: `kanboost.interpret.interactions`
 
 `gam=True` fits an exact additive model, `F(x) = c + sum_j g_j(x_j)` —
 one shape function per feature, with no term for how two features
@@ -9,7 +9,7 @@ genuinely needs a cross-feature term (say, risk depends on `age * bmi`,
 not `age` and `bmi` separately), `gam=True` cannot represent that,
 no matter how well it's tuned.
 
-`kanboost.interactions` answers *is that assumption actually true for
+`kanboost.interpret.interactions` answers *is that assumption actually true for
 my data* with a real number, instead of leaving it as an unverified
 assumption.
 

@@ -91,7 +91,7 @@ model = KANBoostRegressor(lamb=0.01, lamb_l1=1.0, lamb_coefdiff=0.0)
 Tunable smoothness/sparsity regularization on the learned splines
 (pykan's own regularizers). Full-batch path only.
 
-## Advisory tooling: `kanboost.experimental`
+## Advisory tooling: `kanboost.interpret.experimental`
 
 Convenience functions built entirely on the public methods above:
 

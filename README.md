@@ -185,7 +185,7 @@ These live in their own modules and never modify or depend on private
 training/inference internals beyond `model.verbose`/`model._fit_learner`
 existing -- nothing here changes how `fit`/`predict` behave.
 
-**Observability** (`kanboost.observability`, no extra install needed):
+**Observability** (`kanboost.ops.observability`, no extra install needed):
 
 ```python
 from kanboost.ops.observability import (
@@ -204,7 +204,7 @@ for r in rounds:
     print(r.round, r.elapsed_seconds, r.loss, r.gpu_allocated_mb)
 ```
 
-**Logging** (`kanboost.logging_utils`, stdlib only):
+**Logging** (`kanboost.ops.logging_utils`, stdlib only):
 
 ```python
 from kanboost.ops.logging_utils import get_logger, log_boosting_rounds
@@ -213,7 +213,7 @@ logger = get_logger("my_experiment")  # respects KANBOOST_LOG_LEVEL env var
 log_boosting_rounds(rounds, logger=logger, model_name="churn_v3")
 ```
 
-**Serving** (`kanboost.serving`, needs `pip install kanboost[api]`):
+**Serving** (`kanboost.ops.serving`, needs `pip install kanboost[api]`):
 
 ```python
 from kanboost.ops.serving import create_app
@@ -225,7 +225,7 @@ app = create_app("model.pt")  # auto-detects classifier vs. regressor
 or as a uvicorn target directly:
 
 ```bash
-KANBOOST_MODEL_PATH=model.pt uvicorn kanboost.serving:app
+KANBOOST_MODEL_PATH=model.pt uvicorn kanboost.ops.serving:app
 ```
 
 Endpoints: `GET /health`, `POST /predict` (`{"records": [{"col": val, ...}]}`),
@@ -342,7 +342,7 @@ same pattern: KANBoost's `predict_proba` *ranking* (ROC AUC/PR AUC) is
 competitive with or ahead of tuned tree ensembles, but its raw
 probability *values* are comparatively miscalibrated -- worst Brier
 score and log-loss in all three runs, with the F1-optimal decision
-threshold sitting around 0.40-0.42 rather than 0.5. `kanboost.calibration`
+threshold sitting around 0.40-0.42 rather than 0.5. `kanboost.train.calibration`
 fixes this post-hoc, without retraining:
 
 ```python
@@ -369,14 +369,14 @@ overfitting. On a held-out Breast Cancer split: Brier score
 0.090 -> 0.030, log-loss 0.344 -> 0.119, ROC AUC unchanged, with Platt.
 
 Multiclass: each one-vs-rest chain is calibrated independently, then
-rows are renormalized to sum to 1. If you also use `kanboost.editing`,
+rows are renormalized to sum to 1. If you also use `kanboost.interpret.editing`,
 calibrate *after* finalizing any `EditableGAM` edits, not before -- an
 edit changes the model's raw scores and would silently stale an
 already-fitted calibration map.
 
 ## Experimental utilities (optional, additive)
 
-`kanboost.experimental` is a small toolkit of convenience functions
+`kanboost.interpret.experimental` is a small toolkit of convenience functions
 built entirely on the public methods above -- nothing here needs core
 changes, and `suggest_constraints` in particular is a heuristic, not a
 guarantee: always confirm with `audit_monotonicity` on a model actually
@@ -406,7 +406,7 @@ dashboard_html(model, X_test, y_test, path="report.html")  # one static HTML rep
 ## Interactive dashboard (optional, additive)
 
 `dashboard_html` above is a zero-dependency static snapshot -- good for
-sharing or archiving in CI. `kanboost.dashboard` is a live, local
+sharing or archiving in CI. `kanboost.ops.dashboard` is a live, local
 Streamlit app for actually exploring one of your own fitted models:
 feature importances, `plot_feature` curves, `symbolic_report` (GAM
 mode), `feature_interaction`, per-row `explain_row`, and -- for a
@@ -423,7 +423,7 @@ launch("model.pt")                      # opens a local browser tab
 launch("model.pt", data_path="X.csv")   # preload a dataset to explore
 ```
 
-or from the command line: `python -m kanboost.dashboard model.pt X.csv`
+or from the command line: `python -m kanboost.ops.dashboard model.pt X.csv`
 
 This runs a local server for one person exploring one model, not a
 hosted multi-tenant service -- see [Serving](#serving--observability-optional-additive)
@@ -435,7 +435,7 @@ Two small, independent modules for pushing a trained model/its metrics
 somewhere other than the local filesystem. Neither is required by, or
 imports, the other.
 
-**`kanboost.mlhub`** -- push/pull a saved model (`model.save(path)`'s
+**`kanboost.registry.mlhub`** -- push/pull a saved model (`model.save(path)`'s
 output) to/from a MinIO-backed object store behind a FastAPI gateway
 (the shape this targets: `POST /api/minio/buckets/{bucket}/upload`,
 `GET .../download/{key}`, `GET .../objects`). Verified end-to-end
@@ -462,7 +462,7 @@ a different deployment -- if your platform's endpoint shapes differ
 (field names, response format), the module docstring explains exactly
 what to adjust.
 
-**`kanboost.mlflow_utils`** -- log a training run's hyperparameters
+**`kanboost.ops.mlflow_utils`** -- log a training run's hyperparameters
 (`model.get_params()`), evaluation metrics (`model.evaluate()`), and
 optionally the saved model file, to an MLflow tracking server, via the
 standard `mlflow` client (not a platform's own read-only REST wrapper --

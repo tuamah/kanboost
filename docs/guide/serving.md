@@ -6,7 +6,7 @@ existing — nothing here changes how `fit`/`predict` behave.
 
 ## Observability
 
-`kanboost.observability` — no extra install needed:
+`kanboost.ops.observability` — no extra install needed:
 
 ```python
 from kanboost.ops.observability import (
@@ -27,7 +27,7 @@ for r in rounds:
 
 ## Logging
 
-`kanboost.logging_utils` — stdlib only:
+`kanboost.ops.logging_utils` — stdlib only:
 
 ```python
 from kanboost.ops.logging_utils import get_logger, log_boosting_rounds
@@ -38,7 +38,7 @@ log_boosting_rounds(rounds, logger=logger, model_name="churn_v3")
 
 ## Serving
 
-`kanboost.serving` — needs `pip install kanboost[api]`:
+`kanboost.ops.serving` — needs `pip install kanboost[api]`:
 
 ```python
 from kanboost.ops.serving import create_app
@@ -50,7 +50,7 @@ app = create_app("model.pt")  # auto-detects classifier vs. regressor
 or as a uvicorn target directly:
 
 ```bash
-KANBOOST_MODEL_PATH=model.pt uvicorn kanboost.serving:app
+KANBOOST_MODEL_PATH=model.pt uvicorn kanboost.ops.serving:app
 ```
 
 Endpoints: `GET /health`, `POST /predict` (`{"records": [{"col": val, ...}]}`),

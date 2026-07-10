@@ -78,7 +78,7 @@ loading exactly as before.
 
 ## What's new (not a migration, additive)
 
-- **`kanboost.config`** — `KANBoostConfig`/`KANConfig`/`BoostConfig`,
+- **`kanboost.core.config`** (re-exported at the top level) — `KANBoostConfig`/`KANConfig`/`BoostConfig`,
   typed dataclasses grouping the ~19 constructor kwargs by concern.
   The flat kwarg constructor (`KANBoostClassifier(n_estimators=..., kan_hidden=..., ...)`)
   is unaffected and still the primary way to build a model; config

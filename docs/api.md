@@ -55,7 +55,7 @@ own contents one level flat.
 | `kanboost.train.accel` | none | `fast_fit()` — warm-started, ~3x faster opt-in training |
 | `kanboost.interpret.interactions` | `scikit-learn`, `scipy` (both core dependencies) | `friedman_h()` / `check_additive_sufficiency()` — verify whether `gam=True`'s additive assumption actually holds for your data |
 | `kanboost.pipeline` | none | `KANBoostPipeline` — train -> optional calibrate -> optional symbolic export as one call |
-| `kanboost.config` | none | `KANBoostConfig`/`KANConfig`/`BoostConfig` — typed, grouped hyperparameters |
+| `kanboost.core.config` | none | `KANBoostConfig`/`KANConfig`/`BoostConfig` — typed, grouped hyperparameters |
 
 See the [Guide](guide/interpretability.md) for each module's full API
 with examples.

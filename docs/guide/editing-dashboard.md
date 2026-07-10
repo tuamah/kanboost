@@ -52,7 +52,7 @@ gam.save("edited_model.pt")
 
 `kanboost.interpret.experimental.dashboard_html` (see [Interpretability](interpretability.md))
 is a zero-dependency static snapshot — good for sharing or archiving in
-CI. `kanboost.dashboard` is a live, local Streamlit app for actually
+CI. `kanboost.ops.dashboard` is a live, local Streamlit app for actually
 exploring one of your own fitted models: feature importances,
 `plot_feature` curves, `symbolic_report` (GAM mode), `feature_interaction`,
 per-row `explain_row`, and — for a single-chain `gam=True` model
@@ -73,7 +73,7 @@ launch("model.pt", data_path="X.csv")   # preload a dataset to explore
 or from the command line:
 
 ```bash
-python -m kanboost.dashboard model.pt X.csv
+python -m kanboost.ops.dashboard model.pt X.csv
 ```
 
 This runs a local server for one person exploring one model, not a

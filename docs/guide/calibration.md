@@ -7,7 +7,7 @@ its raw probability *values* are comparatively miscalibrated — worst
 Brier score and log-loss in all three runs, with the F1-optimal
 decision threshold sitting around 0.40–0.42 rather than 0.5.
 
-`kanboost.calibration` fixes this post-hoc, without retraining:
+`kanboost.train.calibration` fixes this post-hoc, without retraining:
 
 ```python
 from kanboost.train.calibration import calibrate, CalibratedKANBoost
@@ -53,7 +53,7 @@ doesn't meaningfully degrade, but it isn't guaranteed to only improve.
 
 ## Interacting with editable models
 
-If you also use [`kanboost.editing`](editing-dashboard.md), calibrate
+If you also use [`kanboost.interpret.editing`](editing-dashboard.md), calibrate
 *after* finalizing any `EditableGAM` edits, not before — an edit changes
 the model's raw scores and would silently stale an already-fitted
 calibration map. There's no code-level coupling between the two
