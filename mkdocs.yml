@@ -43,6 +43,7 @@ nav:
       - Interpretability (GAM, monotone, symbolic, derivatives): guide/interpretability.md
       - Editable models & dashboard: guide/editing-dashboard.md
       - Symbolic formula export: guide/symbolic-export.md
+      - Checking the additive assumption: guide/interactions.md
       - Calibration: guide/calibration.md
       - Imbalanced classification: guide/imbalance.md
       - Training speed: guide/training-speed.md

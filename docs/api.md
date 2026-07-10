@@ -46,6 +46,7 @@ Key constructor parameters: `n_estimators`, `learning_rate`, `kan_hidden`,
 | `kanboost.mlflow_utils` | `kanboost[mlflow]` | Log a training run to MLflow |
 | `kanboost.imbalance` | none | `balanced_weights()` / `find_threshold()` for imbalanced targets |
 | `kanboost.accel` | none | `fast_fit()` — warm-started, ~3x faster opt-in training |
+| `kanboost.interactions` | `scikit-learn`, `scipy` (both core dependencies) | `friedman_h()` / `check_additive_sufficiency()` — verify whether `gam=True`'s additive assumption actually holds for your data |
 
 See the [Guide](guide/interpretability.md) for each module's full API
 with examples.

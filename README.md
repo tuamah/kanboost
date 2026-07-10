@@ -92,6 +92,15 @@ implementation of the same general idea, plus:
   that holds across random seeds) rather than assuming it. See
   [Symbolic formula export](#symbolic-formula-export-optional-additive)
   below.
+- **`kanboost.interactions.check_additive_sufficiency(model, X, y)`**
+  (requires `gam=True`) — verifies `gam=True`'s additive assumption
+  actually holds for *your* data, instead of leaving it unverified:
+  refits a `gam=False` counterpart internally and compares Friedman's
+  H-statistic (interaction strength) between the two, returning a clear
+  `"additive_sufficient"` / `"interactions_detected"` verdict per
+  feature pair. `kanboost.interactions.friedman_h()` is the underlying,
+  model-agnostic statistic on its own. See
+  [Checking the additive assumption](docs/guide/interactions.md).
 - **`kanboost.calibration.calibrate(model, X_cal, y_cal)`** — post-hoc
   Platt/isotonic probability calibration for `KANBoostClassifier`; fixes
   a real, benchmark-confirmed miscalibration gap without retraining. See

@@ -568,6 +568,69 @@ inspectable per-feature spline shape functions.
 - 7 new tests. Zero changes to `_base.py`/`classifier.py`/`regressor.py`
   -- purely additive to the existing `kanboost/symbolic.py` module.
 
+**v0.0.21 -- `kanboost.interactions`: verify the additive assumption instead of trusting it**
+
+- Motivated by a hands-on critique of `gam=True`'s core assumption
+  (`F(x) = c + sum_j g_j(x_j)`, no cross-feature term): does the data
+  actually have interactions `gam=True` can't represent, or is the
+  additive model genuinely sufficient? Nobody had measured it -- it was
+  just assumed either way.
+- **`kanboost.interactions.friedman_h(model, X, features=None, ...)`**:
+  Friedman & Popescu's (2008) H-statistic for every feature pair, from
+  partial dependence (`sklearn.inspection.partial_dependence`).
+  Model-agnostic by design (works on any `predict`/`predict_proba`
+  estimator, not just KANBoost) -- the point is measuring the
+  data/target relationship, not one architecture's own limits.
+  Verified against a hand-written function with an exact interaction
+  (`a*b + 0.1*c`): `H(a,b) = 0.9996`, `H(a,c) = H(b,c) ~ 0.02`,
+  confirming the formula and interpolation are correct independent of
+  any real model's fitting noise. Caveat also found during
+  verification: RandomForest/XGBoost can show a spuriously elevated H
+  (0.5+) on genuinely non-interacting pairs from partial-dependence
+  estimation noise alone -- documented explicitly rather than left as
+  a silent trap.
+- **`kanboost.interactions.check_additive_sufficiency(model, X, y, top_n=6, threshold=0.1, ...)`**:
+  the practical, one-call version. Running `friedman_h()` on a
+  `gam=True` model directly always comes back near zero -- not
+  evidence the data lacks interactions, just that the architecture is
+  *forced* additive and can't express one regardless. This refits a
+  `gam=False` counterpart internally (same hyperparameters, same data)
+  and compares H between the two, returning a verdict
+  (`"additive_sufficient"` / `"interactions_detected"`) per top-`n`
+  feature pair. Raises `ValueError` on a `gam=False` input model --
+  there's nothing being "left out" to check otherwise.
+- Verified end-to-end on real data (Breast Cancer, top features by
+  importance): `gam=True` sat at H=0.01-0.05 across multiple feature
+  subsets (the noise floor, confirmed by the synthetic check above,
+  not evidence of "no interactions"); the `gam=False` counterpart
+  consistently measured 2-3x higher (H=0.06-0.10) -- a real, modest
+  interaction signal `gam=True` is leaving on the table, but far below
+  the 0.9996 a genuine strong interaction produces. Conclusion reached
+  *from this measurement*, not assumed: building a GA2M-style
+  interaction-aware training architecture is not currently justified
+  by this data -- the potential gain (H<0.1) doesn't clear the
+  engineering risk of modifying the core boosting loop. `threshold=0.1`
+  in `check_additive_sufficiency()`'s default is calibrated against
+  this exact measurement.
+- Independent review (this session) before shipping: APPROVE WITH NITS,
+  all addressed -- `feature_importances_dict()` can return transformed
+  names (e.g. a `"<col>_missing"` indicator) not present as raw `X`
+  columns, which crashed `check_additive_sufficiency()` with a bare
+  `KeyError` inside `partial_dependence()`; now filtered to real `X`
+  columns first, with a clear `ValueError` if fewer than 2 survive.
+  `RegularGridInterpolator`'s linear extrapolation (`fill_value=None`)
+  disagreed with `np.interp`'s clamping at the 1-way/2-way PD boundary
+  for the ~10% of sample values outside sklearn's default `(0.05, 0.95)`
+  percentile grid, injecting spurious "interaction" at the edges --
+  fixed by clipping to the grid range before the 2-way interpolation,
+  matching `np.interp`'s own behavior. Documented (not changed, by
+  design) that a multiclass classifier's H is measured against class
+  0 specifically, not a meaningful "positive class". Added `top_n < 2`
+  validation to `check_additive_sufficiency()`.
+- 7 new tests (`tests/test_interactions.py`, 5 initial + 2 from
+  review). Zero changes to `_base.py`/`classifier.py`/`regressor.py`
+  -- a new, fully additive module.
+
 ## Deferred (with reasons)
 
 - **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`
