@@ -14,7 +14,7 @@ from kanboost import KANBoostClassifier, KANBoostRegressor
 from kanboost.interpret.symbolic import (
     export_symbolic, explain, symbolic_summary, SymbolicModel,
     refit_constants, refit_constants_from_model, formula_fidelity, stability_across_seeds,
-    distill_equation,
+    stability_across_sample_sizes, distill_equation,
 )
 
 
@@ -425,6 +425,55 @@ def test_stability_across_seeds_reports_candidate_agreement():
     assert (report["candidate_stability"]["modal_agreement"] > 0.0).all()
 
 
+def test_stability_across_sample_sizes_reports_agreement_and_stabilized_at():
+    X, y = _known_function_data(n=1000)
+    y_bin = (y > np.median(y)).astype(int)
+
+    def build_and_fit(X_train, y_train, seed):
+        m = KANBoostClassifier(
+            n_estimators=15, kan_steps=10, kan_hidden=1, gam=True,
+            early_stopping_rounds=None, random_state=seed,
+        )
+        m.fit(X_train, y_train)
+        return m
+
+    report = stability_across_sample_sizes(
+        build_and_fit, X, y_bin, sample_sizes=[100, 300, 600], min_r2=0.8, top_n=2,
+    )
+
+    assert set(report.keys()) == {
+        "candidates_by_size", "agreement_with_largest", "fidelity_by_size", "stabilized_at",
+    }
+    assert set(report["candidates_by_size"].keys()) == {100, 300, 600}
+    assert set(report["agreement_with_largest"].keys()) == {100, 300, 600}
+    assert report["agreement_with_largest"][600] == 1.0  # the largest always agrees with itself
+    assert all(0.0 <= v <= 1.0 for v in report["agreement_with_largest"].values())
+    assert len(report["fidelity_by_size"]) == 3
+    assert set(report["fidelity_by_size"].columns) >= {
+        "sample_size", "max_abs_error", "mean_abs_error", "auc_model", "auc_equation",
+    }
+    assert report["stabilized_at"] in (100, 300, 600)
+
+
+def test_stability_across_sample_sizes_rejects_unsorted_sizes():
+    X, y = _known_function_data()
+    y_bin = (y > np.median(y)).astype(int)
+
+    def build_and_fit(X_train, y_train, seed):
+        m = KANBoostClassifier(
+            n_estimators=5, kan_steps=5, kan_hidden=1, gam=True,
+            early_stopping_rounds=None, random_state=seed,
+        )
+        m.fit(X_train, y_train)
+        return m
+
+    try:
+        stability_across_sample_sizes(build_and_fit, X, y_bin, sample_sizes=[300, 100])
+        raise AssertionError("unsorted sample_sizes was not rejected")
+    except ValueError:
+        pass
+
+
 def test_stability_across_seeds_handles_numeric_fallback_feature():
     # `candidate=None` in a "numeric"-kind term happens when every
     # candidate's fit_params() call raises (e.g. a NaN curve -- verified
@@ -528,6 +577,32 @@ def test_distill_equation_returns_well_formed_report():
     assert "sin" not in formula_funcs and "cos" not in formula_funcs
     assert "auc_model" in result["fidelity"]
     assert result["reference_symbolic_model"].feature_names == result["kept_features"]
+
+
+def test_distill_equation_max_terms_caps_and_keeps_highest_amplitude():
+    X, y = _known_function_data()
+    y_bin = (y > np.median(y)).astype(int)
+
+    def build_and_fit(X_train, y_train, seed):
+        m = KANBoostClassifier(
+            n_estimators=15, kan_steps=10, kan_hidden=1, gam=True,
+            early_stopping_rounds=None, random_state=seed,
+        )
+        m.fit(X_train, y_train)
+        return m
+
+    kwargs = dict(
+        top_n=4, min_r2=0.8, min_relative_amplitude=0.0,
+        stability_threshold=0.0, n_seeds=3, allow_periodic=False,
+    )
+    uncapped = distill_equation(build_and_fit, X, y_bin, **kwargs)
+    assert len(uncapped["kept_features"]) > 2  # sanity: the cap below is real
+
+    capped = distill_equation(build_and_fit, X, y_bin, max_terms=2, **kwargs)
+    assert len(capped["kept_features"]) == 2
+    # the two kept are the two highest-amplitude of the uncapped result,
+    # in the same (amplitude-descending) order.
+    assert capped["kept_features"] == uncapped["kept_features"][:2]
 
 
 def test_distill_equation_raises_when_nothing_survives_gates():

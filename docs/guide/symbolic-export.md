@@ -192,6 +192,37 @@ report["candidate_stability"]   # per-feature modal_candidate + modal_agreement
 report["fidelity_per_seed"]     # auc_model/auc_equation per seed
 ```
 
+## How much data does the formula actually need? `stability_across_sample_sizes()`
+
+`stability_across_seeds()` (above) holds the training sample size fixed
+and varies the random seed. `stability_across_sample_sizes()` does the
+opposite: same `build_and_fit` factory (same hyperparameters/depth every
+call), increasing training sample *sizes*, one common held-out test
+split shared across all sizes for a fair comparison:
+
+```python
+from kanboost.interpret.symbolic import stability_across_sample_sizes
+
+def build_and_fit(X_train, y_train, seed):
+    m = KANBoostClassifier(gam=True, kan_hidden=1, random_state=seed)
+    m.fit(X_train, y_train)
+    return m
+
+report = stability_across_sample_sizes(
+    build_and_fit, X, y, sample_sizes=[200, 1000, 5000],
+)
+report["agreement_with_largest"]  # {size: fraction of features matching the largest size's formula}
+report["stabilized_at"]           # smallest size whose formula already matches the largest size's
+report["fidelity_by_size"]        # formula_fidelity() per size, same held-out split
+```
+
+Useful for checking whether a small, quickly and deeply trained sample
+already gives the same formula as a much larger one — if
+`stabilized_at` is small relative to your full dataset, you don't need
+to refit on the full data just to get the same equation. Matching
+candidate *functions* across sizes doesn't guarantee matching refit
+constants — check `fidelity_by_size` too, not `stabilized_at` alone.
+
 ## Disabling periodic candidates: `allow_periodic`
 
 `sin`/`tanh`/`cos` can look nearly identical over the model's fitted

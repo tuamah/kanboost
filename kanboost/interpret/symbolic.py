@@ -472,10 +472,111 @@ def stability_across_seeds(build_and_fit, X, y, n_seeds: int = 5, min_r2: float 
     }
 
 
+def stability_across_sample_sizes(build_and_fit, X, y, sample_sizes, min_r2: float = 0.8,
+                                   top_n: int | None = None, test_size: float = 0.2,
+                                   random_state: int = 0, allow_periodic: bool = True) -> dict:
+    """Train the same `build_and_fit(X_train, y_train, seed) -> fitted_model`
+    factory (same hyperparameters/depth every call -- only the training
+    sample *size* changes) on increasingly large random subsamples of a
+    common training pool, extract `symbolic_summary()` on each, and
+    report at what sample size the extracted formula stops changing.
+
+    Complements `stability_across_seeds()`: that holds the sample size
+    fixed and varies the seed to test whether repeated fitting on
+    (roughly) the same amount of data keeps picking the same formula.
+    This holds the seed fixed and varies the sample *size*, to answer
+    "how much data does this formula actually need before it stops
+    changing" -- e.g. checking whether a small, quickly and deeply
+    trained sample already gives the same answer as a much larger one.
+
+    `sample_sizes` must be given smallest-to-largest. Each size is drawn
+    (without replacement, from a fixed `random_state`-seeded generator)
+    from one common training pool, itself held out once via `test_size`
+    -- so every size is evaluated with `formula_fidelity()` on the same
+    held-out test split, for a fair comparison.
+
+    Returns
+    -------
+    dict with:
+        "candidates_by_size": {sample_size: {feature: candidate}}
+        "agreement_with_largest": {sample_size: fraction of features
+            whose candidate matches the largest sample size's candidate
+            -- 1.0 means this size's formula already looks like the
+            largest size's}
+        "fidelity_by_size": DataFrame, one row per sample_size
+            (`formula_fidelity()`'s columns plus `"sample_size"`)
+        "stabilized_at": the smallest sample_size whose candidates match
+            the largest size's exactly, or `None` if none do -- take
+            this with the fidelity numbers in mind, since two sizes can
+            agree on every feature's candidate *function* while their
+            refit constants (and hence prediction fidelity) still
+            differ.
+
+    Requires `pandas`.
+    """
+    import pandas as pd
+    from sklearn.model_selection import train_test_split
+
+    sizes = list(sample_sizes)
+    if sizes != sorted(sizes):
+        raise ValueError("sample_sizes must be given smallest-to-largest")
+
+    try:
+        X_pool, X_test, y_pool, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=random_state, stratify=y,
+        )
+    except ValueError:
+        X_pool, X_test, y_pool, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=random_state,
+        )
+
+    pool_len = len(X_pool)
+    y_pool_arr = np.asarray(y_pool)
+    rng = np.random.RandomState(random_state)
+
+    candidates_by_size = {}
+    fidelity_rows = []
+    for size in sizes:
+        if size > pool_len:
+            raise ValueError(
+                f"sample_size {size} exceeds the available training pool "
+                f"of {pool_len} rows (after test_size={test_size} held out)"
+            )
+        idx = rng.choice(pool_len, size=size, replace=False)
+        X_sub = X_pool.iloc[idx] if hasattr(X_pool, "iloc") else X_pool[idx]
+        y_sub = y_pool.iloc[idx] if hasattr(y_pool, "iloc") else y_pool_arr[idx]
+
+        model = build_and_fit(X_sub, y_sub, random_state)
+        summary = symbolic_summary(model, min_r2=min_r2, top_n=top_n, allow_periodic=allow_periodic)
+        candidates_by_size[size] = {
+            term["feature"]: (term["candidate"] or "numeric") for term in summary["ranked_terms"]
+        }
+        fid = formula_fidelity(model, summary["model"], X_test, y_test)
+        fidelity_rows.append({"sample_size": size, **fid})
+
+    largest = candidates_by_size[sizes[-1]]
+    agreement_with_largest = {}
+    for size in sizes:
+        this = candidates_by_size[size]
+        features = set(this) | set(largest)
+        matches = sum(1 for f in features if this.get(f) == largest.get(f))
+        agreement_with_largest[size] = matches / len(features) if features else 1.0
+
+    stabilized_at = next((size for size in sizes if agreement_with_largest[size] == 1.0), None)
+
+    return {
+        "candidates_by_size": candidates_by_size,
+        "agreement_with_largest": agreement_with_largest,
+        "fidelity_by_size": pd.DataFrame(fidelity_rows),
+        "stabilized_at": stabilized_at,
+    }
+
+
 def distill_equation(build_and_fit, X, y, top_n: int = 6, min_r2: float = 0.98,
                       min_relative_amplitude: float = 0.03, stability_threshold: float = 0.7,
                       n_seeds: int = 10, allow_periodic: bool = False,
-                      test_size: float = 0.2, random_state: int = 0) -> dict:
+                      test_size: float = 0.2, random_state: int = 0,
+                      max_terms: int = None) -> dict:
     """One-call pipeline combining every symbolic-quality safeguard in
     this module into a single distilled equation, instead of running
     `symbolic_summary()`, amplitude pruning, `stability_across_seeds()`,
@@ -539,6 +640,12 @@ def distill_equation(build_and_fit, X, y, top_n: int = 6, min_r2: float = 0.98,
     Raises `ValueError` if no feature survives all three gates -- there's
     no equation to return in that case, and silently returning an
     empty/intercept-only formula would be misleading.
+
+    `max_terms`, if given, caps the final term count by keeping only the
+    `max_terms` highest-amplitude survivors of the three gates above
+    (`kept_features` is already amplitude-ranked, so this is a plain
+    truncation). It never adds a term back that the gates dropped, so
+    the result can still have fewer than `max_terms` terms.
     """
     import copy
     from sklearn.model_selection import train_test_split
@@ -601,6 +708,9 @@ def distill_equation(build_and_fit, X, y, top_n: int = 6, min_r2: float = 0.98,
             f"stability_threshold={stability_threshold} together -- "
             f"dropped: {dropped}. Loosen one of these thresholds."
         )
+
+    if max_terms is not None and len(kept_features) > max_terms:
+        kept_features = kept_features[:max_terms]
 
     pruned_terms = {name: copy.deepcopy(sym.terms[name]) for name in kept_features}
     pruned_sym = SymbolicModel(

@@ -44,7 +44,7 @@ own contents one level flat.
 | `kanboost.ops.logging_utils` | none | stdlib logging wrapper |
 | `kanboost.ops.serving` | `kanboost[api]` | FastAPI serving layer |
 | `kanboost.interpret.editing` | none | `consolidate()` / `EditableGAM` |
-| `kanboost.interpret.symbolic` | `sympy`, `scipy` (both core dependencies) | `export_symbolic()` / `explain()` / `symbolic_summary()` / `refit_constants()` / `refit_constants_from_model()` / `formula_fidelity()` / `stability_across_seeds()` / `distill_equation()` / `SymbolicModel` |
+| `kanboost.interpret.symbolic` | `sympy`, `scipy` (both core dependencies) | `export_symbolic()` / `explain()` / `symbolic_summary()` / `refit_constants()` / `refit_constants_from_model()` / `formula_fidelity()` / `stability_across_seeds()` / `stability_across_sample_sizes()` / `distill_equation()` / `SymbolicModel` |
 | `kanboost.train.calibration` | none | `calibrate()` / `CalibratedKANBoost` (Platt/isotonic) |
 | `kanboost.interpret.experimental` | none (needs `scipy`) | `suggest_constraints`, `audit_monotonicity`, `symbolic_export`, `predict_interval`, `explain_row`, `dashboard_html` |
 | `kanboost.ops.dashboard` | `kanboost[dashboard]` | Interactive Streamlit app |
