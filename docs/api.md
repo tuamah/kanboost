@@ -38,7 +38,7 @@ Key constructor parameters: `n_estimators`, `learning_rate`, `kan_hidden`,
 | `kanboost.logging_utils` | none | stdlib logging wrapper |
 | `kanboost.serving` | `kanboost[api]` | FastAPI serving layer |
 | `kanboost.editing` | none | `consolidate()` / `EditableGAM` |
-| `kanboost.symbolic` | `sympy`, `scipy` (both core dependencies) | `export_symbolic()` / `explain()` / `symbolic_summary()` / `refit_constants()` / `refit_constants_from_model()` / `formula_fidelity()` / `stability_across_seeds()` / `SymbolicModel` |
+| `kanboost.symbolic` | `sympy`, `scipy` (both core dependencies) | `export_symbolic()` / `explain()` / `symbolic_summary()` / `refit_constants()` / `refit_constants_from_model()` / `formula_fidelity()` / `stability_across_seeds()` / `distill_equation()` / `SymbolicModel` |
 | `kanboost.calibration` | none | `calibrate()` / `CalibratedKANBoost` (Platt/isotonic) |
 | `kanboost.experimental` | none (needs `scipy`) | `suggest_constraints`, `audit_monotonicity`, `symbolic_export`, `predict_interval`, `explain_row`, `dashboard_html` |
 | `kanboost.dashboard` | `kanboost[dashboard]` | Interactive Streamlit app |

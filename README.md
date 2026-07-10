@@ -89,7 +89,14 @@ implementation of the same general idea, plus:
   constants against the real model instead of each in isolation, and
   `formula_fidelity()`/`stability_across_seeds()` measure whether the
   equation actually retains the model's ranking quality (and whether
-  that holds across random seeds) rather than assuming it. See
+  that holds across random seeds) rather than assuming it,
+  `allow_periodic=False` drops `sin`/`cos` from the candidate library
+  entirely for domains where a periodic term is implausible, and
+  **`distill_equation()`** is the one-call pipeline combining all of the
+  above: a feature survives into the final equation only if it clears
+  `min_r2`, carries a real share of the model's total amplitude, and is
+  stable across `n_seeds` refits, then every surviving term's constants
+  are jointly refit together. See
   [Symbolic formula export](#symbolic-formula-export-optional-additive)
   below.
 - **`kanboost.interactions.check_additive_sufficiency(model, X, y)`**

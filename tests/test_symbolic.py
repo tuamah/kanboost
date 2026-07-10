@@ -14,6 +14,7 @@ from kanboost import KANBoostClassifier, KANBoostRegressor
 from kanboost.symbolic import (
     export_symbolic, explain, symbolic_summary, SymbolicModel,
     refit_constants, refit_constants_from_model, formula_fidelity, stability_across_seeds,
+    distill_equation,
 )
 
 
@@ -444,7 +445,7 @@ def test_stability_across_seeds_handles_numeric_fallback_feature():
     # denominator) -- exactly backwards for a stability check.
     from unittest.mock import patch
 
-    def fake_symbolic_summary(model, min_r2=0.8, top_n=None):
+    def fake_symbolic_summary(model, min_r2=0.8, top_n=None, allow_periodic=True):
         return {
             "ranked_terms": [
                 {"feature": "x1", "kind": "numeric", "r2": float("nan"),
@@ -474,6 +475,83 @@ def test_stability_across_seeds_handles_numeric_fallback_feature():
     assert len(stability) == 1
     assert stability.iloc[0]["modal_candidate"] == "numeric"
     assert stability.iloc[0]["modal_agreement"] == 1.0
+
+
+def test_allow_periodic_false_excludes_sin_and_cos():
+    # sin/tanh/cos can look nearly identical over the fitted [-1, 1]
+    # domain (documented elsewhere in this module), so which one wins
+    # the unconstrained R^2 race isn't guaranteed to be literally "sin"
+    # even when sin is the true generator -- only that *some* feature
+    # picks a periodic candidate by default is asserted here, not which
+    # specific feature.
+    X, y = _known_function_data()  # y = 3*sin(2*x1) + 2*x2^2 + noise
+    model = KANBoostRegressor(
+        n_estimators=30, kan_steps=15, kan_hidden=1, gam=True,
+        early_stopping_rounds=None, random_state=0,
+    )
+    model.fit(X, y)
+
+    sym_default = export_symbolic(model, min_r2=0.8)
+    default_candidates = {t["candidate"] for t in sym_default.terms.values() if t["kind"] == "symbolic"}
+    assert default_candidates & {"sin", "cos"}  # sanity: periodic really is preferred by default here
+
+    sym_no_periodic = export_symbolic(model, min_r2=0.8, allow_periodic=False)
+    candidates = {t["candidate"] for t in sym_no_periodic.terms.values() if t["kind"] == "symbolic"}
+    assert "sin" not in candidates and "cos" not in candidates
+
+
+def test_distill_equation_returns_well_formed_report():
+    X, y = _known_function_data()
+    y_bin = (y > np.median(y)).astype(int)
+
+    def build_and_fit(X_train, y_train, seed):
+        m = KANBoostClassifier(
+            n_estimators=15, kan_steps=10, kan_hidden=1, gam=True,
+            early_stopping_rounds=None, random_state=seed,
+        )
+        m.fit(X_train, y_train)
+        return m
+
+    result = distill_equation(
+        build_and_fit, X, y_bin, top_n=3, min_r2=0.8, min_relative_amplitude=0.0,
+        stability_threshold=0.0, n_seeds=3, allow_periodic=False,
+    )
+
+    assert set(result.keys()) == {
+        "formula", "latex", "kept_features", "dropped_features",
+        "candidate_stability", "fidelity", "reference_model", "reference_symbolic_model",
+    }
+    assert len(result["kept_features"]) >= 1
+    assert isinstance(result["formula"], sympy.Expr)
+    # with allow_periodic=False, the final refit formula must not contain sin/cos
+    formula_funcs = {str(f.func) for f in result["formula"].atoms(sympy.Function)}
+    assert "sin" not in formula_funcs and "cos" not in formula_funcs
+    assert "auc_model" in result["fidelity"]
+    assert result["reference_symbolic_model"].feature_names == result["kept_features"]
+
+
+def test_distill_equation_raises_when_nothing_survives_gates():
+    X, y = _known_function_data()
+    y_bin = (y > np.median(y)).astype(int)
+
+    def build_and_fit(X_train, y_train, seed):
+        m = KANBoostClassifier(
+            n_estimators=10, kan_steps=8, kan_hidden=1, gam=True,
+            early_stopping_rounds=None, random_state=seed,
+        )
+        m.fit(X_train, y_train)
+        return m
+
+    try:
+        # an impossible relative-amplitude bar -- no term can carry more
+        # than 100% of the total amplitude budget.
+        distill_equation(
+            build_and_fit, X, y_bin, top_n=3, min_r2=0.8,
+            min_relative_amplitude=1.5, n_seeds=2,
+        )
+        raise AssertionError("an impossible threshold combination was not rejected")
+    except ValueError:
+        pass
 
 
 def test_symbolic_summary_multiclass_uses_first_class_chain():
@@ -520,4 +598,7 @@ if __name__ == "__main__":
     test_formula_fidelity_reports_auc_only_for_binary_with_labels()
     test_stability_across_seeds_reports_candidate_agreement()
     test_stability_across_seeds_handles_numeric_fallback_feature()
+    test_allow_periodic_false_excludes_sin_and_cos()
+    test_distill_equation_returns_well_formed_report()
+    test_distill_equation_raises_when_nothing_survives_gates()
     print("All symbolic tests passed.")

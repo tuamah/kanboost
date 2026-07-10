@@ -121,8 +121,17 @@ class EditableGAM:
 
         # Evaluate the shared baseline at the exact all-zero input, rather
         # than reading it off the nearest grid point (which may not be
-        # exactly 0 for an even `resolution`).
-        baseline = float(_score(torch.zeros((1, n_features), dtype=torch.float32, device=device))[0])
+        # exactly 0 for an even `resolution`). A batch of exactly 1 row
+        # makes pykan's own internal activation-scale bookkeeping compute
+        # torch.std() over a size-1 dimension, which warns ("degrees of
+        # freedom <= 0") on every single call site in this module and
+        # everywhere else a KANBoost model is probed one row at a time --
+        # verified this doesn't change the value at all (only the warning):
+        # duplicating the all-zero row so the batch has 2 identical rows
+        # keeps the result numerically identical (confirmed to full float
+        # precision) while giving torch.std() something with nonzero
+        # degrees of freedom to compute over.
+        baseline = float(_score(torch.zeros((2, n_features), dtype=torch.float32, device=device))[0])
 
         curves = {}
         for j, name in enumerate(names):

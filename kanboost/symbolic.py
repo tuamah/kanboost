@@ -49,7 +49,7 @@ _CANDIDATE_COMPLEXITY = {
 
 
 def export_symbolic(model, min_r2: float = 0.8, resolution: int = 200, grid: int = 10, k: int = 3,
-                     features=None, parsimony_margin: float = 0.0):
+                     features=None, parsimony_margin: float = 0.0, allow_periodic: bool = True):
     """Fit one closed-form symbolic term per feature (falling back to a
     numeric spline term where no candidate reaches `min_r2`) and combine
     them into a `SymbolicModel`: `intercept + sum_j term_j(x_j)`.
@@ -78,10 +78,22 @@ def export_symbolic(model, min_r2: float = 0.8, resolution: int = 200, grid: int
     matching noise -- see the `min_r2`-vs-`amplitude` warning in
     `fidelity_report()`'s docstring for the same class of pitfall this
     addresses from a different angle.
+
+    `allow_periodic` (default True): set False to drop `sin`/`cos` from
+    the candidate library entirely, rather than merely deprioritizing
+    them via `parsimony_margin`. Useful for domains (e.g. clinical risk
+    scores) where a periodic term is implausible on its face regardless
+    of how well it happens to fit a bounded [-1, 1] curve -- `sin`/`cos`/
+    `tanh` can look visually near-identical over that narrow a domain
+    (observed directly on real data this project benchmarked), so a
+    high R^2 for `sin` there is not evidence of a genuinely periodic
+    relationship.
     """
     from kan.utils import fit_params, SYMBOLIC_LIB
 
     candidates = [c for c in _CANDIDATES if c in SYMBOLIC_LIB]
+    if not allow_periodic:
+        candidates = [c for c in candidates if c not in ("sin", "cos")]
     feature_set = set(features) if features is not None else None
 
     consolidated = consolidate(model, resolution=resolution, grid=grid, k=k)
@@ -140,7 +152,7 @@ def explain(model, top_features: int = 5, symbolic: bool = True, simplify: bool 
 
 
 def symbolic_summary(model, min_r2: float = 0.8, top_n: int | None = None,
-                      min_amplitude: float | None = None) -> dict:
+                      min_amplitude: float | None = None, allow_periodic: bool = True) -> dict:
     """One-call convenience report: the model's most valuable features
     (ranked by `amplitude` -- how much each feature's term actually
     moves the prediction, not just how well a candidate happened to fit
@@ -168,6 +180,9 @@ def symbolic_summary(model, min_r2: float = 0.8, top_n: int | None = None,
     `full_formula` in that case is rebuilt as `intercept + sum` over only
     the retained terms, not `sym.to_sympy()`'s full model.
 
+    `allow_periodic=False` drops `sin`/`cos` from the candidate library
+    entirely -- see `export_symbolic()`'s docstring for why.
+
     Returns
     -------
     dict with:
@@ -189,7 +204,7 @@ def symbolic_summary(model, min_r2: float = 0.8, top_n: int | None = None,
         importances = model.feature_importances_dict()
         features = list(importances.keys())[:top_n]
 
-    sym = export_symbolic(model, min_r2=min_r2, features=features)
+    sym = export_symbolic(model, min_r2=min_r2, features=features, allow_periodic=allow_periodic)
     if isinstance(sym, dict):
         sym = sym[model.classes_[0]]
 
@@ -373,7 +388,8 @@ def formula_fidelity(model, sym: "SymbolicModel", X, y=None) -> dict:
 
 
 def stability_across_seeds(build_and_fit, X, y, n_seeds: int = 5, min_r2: float = 0.8,
-                            top_n: int | None = None, test_size: float = 0.2, random_state: int = 0):
+                            top_n: int | None = None, test_size: float = 0.2, random_state: int = 0,
+                            allow_periodic: bool = True):
     """Train `n_seeds` independent models via `build_and_fit(X_train,
     y_train, seed) -> fitted_model` (a factory you provide, e.g.
     `lambda Xt, yt, s: KANBoostClassifier(gam=True, kan_hidden=1, random_state=s).fit(Xt, yt)`),
@@ -413,7 +429,7 @@ def stability_across_seeds(build_and_fit, X, y, n_seeds: int = 5, min_r2: float 
             )
 
         model = build_and_fit(X_train, y_train, random_state + seed)
-        result = symbolic_summary(model, min_r2=min_r2, top_n=top_n)
+        result = symbolic_summary(model, min_r2=min_r2, top_n=top_n, allow_periodic=allow_periodic)
         sym = result["model"]
 
         for term in result["ranked_terms"]:
@@ -432,9 +448,15 @@ def stability_across_seeds(build_and_fit, X, y, n_seeds: int = 5, min_r2: float 
         fidelity_rows.append({"seed": seed, **fid})
 
     candidates_df = pd.DataFrame(candidate_records)
+    # Divide by n_seeds, not by how many seeds a feature happened to
+    # appear in (candidates_df.groupby(...).size(), which can be < n_seeds
+    # when top_n restricts the ranking and a feature's importance rank
+    # shifts seed to seed) -- otherwise a feature that only ever made the
+    # top_n cut once, and picked the same candidate that one time, scores
+    # a false 1.0 "agreement" instead of the 1/n_seeds it actually earned.
     modal_agreement = (
         candidates_df.groupby("feature")["candidate"]
-        .agg(lambda s: s.value_counts(normalize=True).iloc[0])
+        .agg(lambda s: s.value_counts().iloc[0] / n_seeds)
         .rename("modal_agreement")
     )
     modal_candidate = (
@@ -447,6 +469,156 @@ def stability_across_seeds(build_and_fit, X, y, n_seeds: int = 5, min_r2: float 
     return {
         "candidate_stability": stability.sort_values("modal_agreement"),
         "fidelity_per_seed": pd.DataFrame(fidelity_rows),
+    }
+
+
+def distill_equation(build_and_fit, X, y, top_n: int = 6, min_r2: float = 0.98,
+                      min_relative_amplitude: float = 0.03, stability_threshold: float = 0.7,
+                      n_seeds: int = 10, allow_periodic: bool = False,
+                      test_size: float = 0.2, random_state: int = 0) -> dict:
+    """One-call pipeline combining every symbolic-quality safeguard in
+    this module into a single distilled equation, instead of running
+    `symbolic_summary()`, amplitude pruning, `stability_across_seeds()`,
+    and `refit_constants_from_model()` separately and reconciling them
+    by hand.
+
+    `build_and_fit(X_train, y_train, seed) -> fitted_model` is a
+    factory you provide (must produce a `gam=True` model -- e.g.
+    `lambda Xt, yt, s: KANBoostClassifier(gam=True, kan_hidden=1, random_state=s).fit(Xt, yt)`).
+
+    Pipeline, in order:
+
+    1. Fit a *reference* model on one held-out 80/20 (`test_size`)
+       split and extract its `symbolic_summary()` (`min_r2`,
+       `allow_periodic`, restricted to the `top_n` most important
+       features).
+    2. Run `stability_across_seeds()` (`n_seeds` independent refits) to
+       get each feature's modal-candidate agreement rate.
+    3. Keep a feature only if **all three** hold: it got a genuine
+       closed-form term (not a numeric fallback -- i.e. it already
+       cleared `min_r2`), its `amplitude` is at least
+       `min_relative_amplitude` of the *total* amplitude across all
+       `top_n` terms (a term contributing a negligible share of the
+       model's total additive range, regardless of its own R^2), and
+       its modal-candidate agreement across seeds is at least
+       `stability_threshold`.
+    4. Jointly refit the surviving terms' constants
+       (`refit_constants_from_model()`) against the reference model's
+       real raw score -- the intercept and every kept term's `(a,b,c,d)`
+       are re-optimized together, not copied from step 1's per-term fit.
+    5. Report fidelity (`formula_fidelity()`) of the *final, pruned,
+       refit* equation against the reference model on its own held-out
+       test split, including `auc_model`/`auc_equation` for a binary
+       classifier.
+
+    Not supported for multiclass classifiers -- raises `ValueError`
+    immediately (before any of the `n_seeds + 1` model fits below) for
+    the same reason `refit_constants_from_model()` doesn't support them:
+    `sym` would already be one class chain, not the whole model.
+
+    **Scope note**: step 3's per-term criteria are independent filters,
+    not a causal per-term ablation test (removing one term and
+    re-measuring the actual AUC drop it alone causes) -- that would need
+    re-fitting/re-evaluating once per surviving term per seed, which
+    this does not do. `min_relative_amplitude` is a fast, correlational
+    proxy for "does this term matter enough to keep", not a substitute
+    for a true leave-one-term-out significance test.
+
+    Returns
+    -------
+    dict with:
+        "formula": final `sympy` expression (pruned + jointly refit)
+        "latex": str
+        "kept_features": list of feature names that survived all three gates
+        "dropped_features": {"numeric_fallback": [...], "low_relative_amplitude": [...], "unstable": [...]}
+        "candidate_stability": DataFrame from `stability_across_seeds()`
+        "fidelity": dict from `formula_fidelity()` on the reference model's held-out split
+        "reference_model": the model fit on the reference train split
+        "reference_symbolic_model": the final, pruned + refit `SymbolicModel`
+
+    Raises `ValueError` if no feature survives all three gates -- there's
+    no equation to return in that case, and silently returning an
+    empty/intercept-only formula would be misleading.
+    """
+    import copy
+    from sklearn.model_selection import train_test_split
+
+    try:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=random_state, stratify=y,
+        )
+    except ValueError:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=random_state,
+        )
+
+    reference_model = build_and_fit(X_train, y_train, random_state)
+    if hasattr(reference_model, "classes_") and len(reference_model.classes_) > 2:
+        raise ValueError(
+            "distill_equation() only supports binary classifiers or regressors -- "
+            "for a multiclass one-vs-rest chain, call export_symbolic(model) directly "
+            "and distill each class's chain by hand."
+        )
+
+    summary = symbolic_summary(reference_model, min_r2=min_r2, top_n=top_n, allow_periodic=allow_periodic)
+    sym = summary["model"]
+
+    total_amplitude = sum(t["amplitude"] for t in summary["ranked_terms"])
+    relative_amplitude = {
+        t["feature"]: (t["amplitude"] / total_amplitude if total_amplitude > 1e-12 else 0.0)
+        for t in summary["ranked_terms"]
+    }
+
+    # random_state + 1 (not random_state) for the stability sweep -- the
+    # reference model above already used random_state, and
+    # stability_across_seeds' own seed loop starts at its random_state +
+    # 0, so reusing random_state here would silently refit the exact
+    # same split+seed as the reference (wasted work, and that model's
+    # own candidate choice would vote in its own agreement score).
+    stability = stability_across_seeds(
+        build_and_fit, X, y, n_seeds=n_seeds, min_r2=min_r2, top_n=top_n,
+        test_size=test_size, random_state=random_state + 1, allow_periodic=allow_periodic,
+    )
+    agreement = dict(zip(stability["candidate_stability"]["feature"], stability["candidate_stability"]["modal_agreement"]))
+
+    kept_features = []
+    dropped = {"numeric_fallback": [], "low_relative_amplitude": [], "unstable": []}
+    for term in summary["ranked_terms"]:
+        name = term["feature"]
+        if term["kind"] != "symbolic":
+            dropped["numeric_fallback"].append(name)
+        elif relative_amplitude[name] < min_relative_amplitude:
+            dropped["low_relative_amplitude"].append(name)
+        elif agreement.get(name, 0.0) < stability_threshold:
+            dropped["unstable"].append(name)
+        else:
+            kept_features.append(name)
+
+    if not kept_features:
+        raise ValueError(
+            "distill_equation() found no feature that survived min_r2, "
+            f"min_relative_amplitude={min_relative_amplitude}, and "
+            f"stability_threshold={stability_threshold} together -- "
+            f"dropped: {dropped}. Loosen one of these thresholds."
+        )
+
+    pruned_terms = {name: copy.deepcopy(sym.terms[name]) for name in kept_features}
+    pruned_sym = SymbolicModel(
+        kept_features, sym.intercept, pruned_terms,
+        preprocessor=sym.preprocessor, feature_names_in_=sym.feature_names_in_,
+    )
+    refit_sym = refit_constants_from_model(reference_model, pruned_sym, X_train)
+    fidelity = formula_fidelity(reference_model, refit_sym, X_test, y_test)
+
+    return {
+        "formula": refit_sym.to_sympy(),
+        "latex": refit_sym.to_latex(),
+        "kept_features": kept_features,
+        "dropped_features": dropped,
+        "candidate_stability": stability["candidate_stability"],
+        "fidelity": fidelity,
+        "reference_model": reference_model,
+        "reference_symbolic_model": refit_sym,
     }
 
 

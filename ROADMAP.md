@@ -631,6 +631,71 @@ inspectable per-feature spline shape functions.
   review). Zero changes to `_base.py`/`classifier.py`/`regressor.py`
   -- a new, fully additive module.
 
+**v0.0.22 -- `allow_periodic`, `distill_equation()`, and a real `std()` warning fix**
+
+- Motivated by three concrete asks after v0.0.21: a way to rule out
+  periodic candidates entirely (not just deprioritize them), a single
+  pipeline combining the existing symbolic-quality safeguards instead
+  of composing them by hand each time, and finally investigating (not
+  just suppressing) the `UserWarning: std(): degrees of freedom is <= 0`
+  seen on every KANBoost training run this project has done.
+- **`allow_periodic: bool = True`** on `export_symbolic()`,
+  `symbolic_summary()`, and `stability_across_seeds()`: `False` drops
+  `sin`/`cos` from the candidate library entirely, for domains (e.g.
+  clinical risk scores) where a periodic term is implausible on its
+  face regardless of how well it happens to fit a bounded [-1, 1]
+  curve. Verified on real data: the default run picked a periodic
+  candidate for at least one feature, and the `allow_periodic=False`
+  run had none.
+- **`distill_equation(build_and_fit, X, y, top_n=6, min_r2=0.98, min_relative_amplitude=0.03, stability_threshold=0.7, n_seeds=10, allow_periodic=False, ...)`**:
+  one-call pipeline combining `symbolic_summary()`, amplitude-share
+  pruning, `stability_across_seeds()`, and `refit_constants_from_model()`.
+  A feature survives into the final equation only if it cleared
+  `min_r2` (genuine closed form, not numeric fallback), its amplitude
+  is at least `min_relative_amplitude` of the *total* amplitude across
+  the `top_n` terms, and its modal-candidate agreement across `n_seeds`
+  refits is at least `stability_threshold` -- then every surviving
+  term's constants are jointly refit together against the reference
+  model's real raw score. Raises `ValueError` if nothing survives all
+  three gates. Documented explicitly as a scope limitation: the three
+  criteria are independent filters, not a causal per-term ablation test
+  (leave-one-term-out AUC measurement) -- `min_relative_amplitude` is a
+  fast, correlational proxy, not a substitute for one.
+- **Root-caused (not just silenced) the `std()` warning**: traced to
+  `kanboost/editing.py`'s `consolidate()` evaluating its baseline probe
+  with a batch of exactly 1 row (`torch.zeros((1, n_features))`), which
+  makes pykan's own internal activation-scale bookkeeping compute
+  `torch.std()` over a size-1 dimension. Verified duplicating the
+  all-zero row to a batch of 2 leaves the computed value bit-for-bit
+  identical (confirmed via a direct forward-pass comparison) while the
+  warning disappears entirely -- fixed at the single root call site,
+  which was the source of the warning across every function built on
+  `consolidate()` (all of `kanboost.symbolic`, the dashboard, etc.), not
+  a per-module patch.
+- 6 new tests (3 in `tests/test_symbolic.py` for `allow_periodic`/
+  `distill_equation`, 1 in `tests/test_editing.py` asserting zero
+  `degrees of freedom` warnings from `consolidate()`, plus fixing 2
+  pre-existing tests whose mocks/assumptions the new parameter and
+  fitting-noise reality broke). Zero changes to `_base.py`/`classifier.py`/
+  `regressor.py`.
+- Independent review (this session) before shipping: APPROVE WITH NITS,
+  all addressed -- `stability_across_seeds()`'s `modal_agreement`
+  divided by how many seeds a feature happened to appear in (which can
+  be less than `n_seeds` when `top_n` restricts the ranking and a
+  feature's importance rank shifts seed to seed), not by `n_seeds`
+  itself -- a feature that made the `top_n` cut only once, picking the
+  same candidate that one time, scored a false `1.0` "agreement"
+  instead of the `1/n_seeds` it actually earned; fixed to divide by
+  `n_seeds`. `distill_equation()`'s reference model and
+  `stability_across_seeds()`'s seed-0 refit were bit-identical (same
+  split, same `random_state`) -- one call's worth of fitting wasted,
+  and that model's own candidate choice silently voted in its own
+  agreement score; fixed by offsetting the stability sweep's
+  `random_state` by 1. Multiclass classifiers previously failed only at
+  the final `refit_constants_from_model()` call, after all `n_seeds + 1`
+  fits already ran -- added an early `ValueError` right after the
+  reference model is fit.
+
 ## Deferred (with reasons)
 
 - **`torch.compile` / ONNX export / FastKAN backend** — pykan's `KAN`

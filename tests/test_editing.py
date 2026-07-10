@@ -25,6 +25,33 @@ def test_consolidate_requires_gam():
         pass
 
 
+def test_consolidate_does_not_trigger_std_degrees_of_freedom_warning():
+    # Real bug this guards against: the baseline probe used to be
+    # evaluated with a batch of exactly 1 row (torch.zeros((1, n))),
+    # which made pykan's own internal activation-scale bookkeeping
+    # compute torch.std() over a size-1 dimension -- warning on every
+    # single consolidate() call (and everything built on it: symbolic
+    # export, the dashboard, etc.). Verified separately that duplicating
+    # the all-zero row to a batch of 2 leaves the actual value bit-for-bit
+    # identical; only the warning disappears.
+    import warnings
+
+    X, y = make_regression(n_samples=80, n_features=3, random_state=0)
+    X_df = pd.DataFrame(X, columns=["a", "b", "c"])
+    model = KANBoostRegressor(
+        n_estimators=5, kan_steps=8, kan_hidden=1, gam=True,
+        early_stopping_rounds=None, random_state=0,
+    )
+    model.fit(X_df, y)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        consolidate(model)
+
+    dof_warnings = [w for w in caught if "degrees of freedom" in str(w.message)]
+    assert not dof_warnings
+
+
 def test_consolidate_regressor_parity():
     X, y = make_regression(n_samples=200, n_features=4, noise=0.1, random_state=0)
     X_df = pd.DataFrame(X, columns=["a", "b", "c", "d"])
@@ -235,6 +262,7 @@ if __name__ == "__main__":
     from pathlib import Path
 
     test_consolidate_requires_gam()
+    test_consolidate_does_not_trigger_std_degrees_of_freedom_warning()
     test_consolidate_regressor_parity()
     test_consolidate_binary_classifier_parity()
     test_consolidate_multiclass_returns_dict()

@@ -191,3 +191,62 @@ report = stability_across_seeds(build_and_fit, X, y, n_seeds=5, top_n=5)
 report["candidate_stability"]   # per-feature modal_candidate + modal_agreement
 report["fidelity_per_seed"]     # auc_model/auc_equation per seed
 ```
+
+## Disabling periodic candidates: `allow_periodic`
+
+`sin`/`tanh`/`cos` can look nearly identical over the model's fitted
+[-1, 1] domain — a real pattern observed on real data this project
+benchmarked, not a hypothetical. In a domain where a periodic
+relationship is implausible on its face (e.g. a clinical risk score),
+`allow_periodic=False` drops `sin`/`cos` from the candidate library
+entirely, rather than merely deprioritizing them via `parsimony_margin`:
+
+```python
+sym = export_symbolic(model, min_r2=0.8, allow_periodic=False)
+```
+
+Also accepted by `symbolic_summary()` and `stability_across_seeds()`.
+
+## One-call distillation: `distill_equation()`
+
+Combines every safeguard above into a single pipeline, instead of
+running `symbolic_summary()`, amplitude pruning, `stability_across_seeds()`,
+and `refit_constants_from_model()` separately and reconciling them by
+hand:
+
+```python
+from kanboost.symbolic import distill_equation
+
+def build_and_fit(X_train, y_train, seed):
+    m = KANBoostClassifier(gam=True, kan_hidden=1, random_state=seed)
+    m.fit(X_train, y_train)
+    return m
+
+result = distill_equation(
+    build_and_fit, X, y,
+    top_n=6, min_r2=0.98, min_relative_amplitude=0.03,
+    stability_threshold=0.7, n_seeds=10, allow_periodic=False,
+)
+
+print(result["formula"])            # final, pruned, jointly-refit sympy expression
+print(result["latex"])
+print(result["kept_features"])
+print(result["dropped_features"])   # {"numeric_fallback", "low_relative_amplitude", "unstable": [...]}
+print(result["fidelity"])           # auc_model/auc_equation on a held-out split
+```
+
+A feature only survives into the final equation if **all three** hold:
+it cleared `min_r2` (a genuine closed-form term, not a numeric
+fallback), its amplitude is at least `min_relative_amplitude` of the
+*total* amplitude across the `top_n` terms (not just its own R^2), and
+its modal-candidate agreement across `n_seeds` independent refits is at
+least `stability_threshold`. The surviving terms' constants are then
+jointly refit (`refit_constants_from_model()`) against the reference
+model's real raw score — raises `ValueError` if nothing survives all
+three gates, rather than silently returning an intercept-only formula.
+
+**Scope note**: the three per-term criteria are independent filters,
+not a causal per-term ablation test (removing one term and measuring
+the actual AUC drop it alone causes) — `min_relative_amplitude` is a
+fast, correlational proxy for "does this term matter enough to keep",
+not a substitute for a true leave-one-term-out significance test.
