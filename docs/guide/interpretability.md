@@ -96,7 +96,7 @@ Tunable smoothness/sparsity regularization on the learned splines
 Convenience functions built entirely on the public methods above:
 
 ```python
-from kanboost.experimental import (
+from kanboost.interpret.experimental import (
     suggest_constraints, audit_monotonicity, symbolic_export,
     predict_interval, explain_row, dashboard_html,
 )

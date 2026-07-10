@@ -1,13 +1,13 @@
 # Symbolic formula export
 
-`model.symbolic_report(X)` and `kanboost.experimental.symbolic_export`
+`model.symbolic_report(X)` and `kanboost.interpret.experimental.symbolic_export`
 (see [Interpretability](interpretability.md)) give a human-readable
 summary of each feature's best-fitting named function.
-`kanboost.symbolic.export_symbolic` goes further: an actual executable
+`kanboost.interpret.symbolic.export_symbolic` goes further: an actual executable
 formula.
 
 ```python
-from kanboost.symbolic import export_symbolic
+from kanboost.interpret.symbolic import export_symbolic
 
 model = KANBoostRegressor(gam=True, kan_hidden=1, n_estimators=50)
 model.fit(X_train, y_train)
@@ -27,7 +27,7 @@ sym.save("formula.pt")
 
 Each feature's exact aggregated shape function — the same one
 `plot_feature`/`symbolic_report` use, and reusing
-[`kanboost.editing.consolidate()`](editing-dashboard.md)'s already-correct,
+[`kanboost.interpret.editing.consolidate()`](editing-dashboard.md)'s already-correct,
 already-tested per-feature centering rather than re-deriving curve
 sampling from scratch — gets one closed-form candidate fit
 (`c * fun(a*x + b) + d`, pykan's own `SYMBOLIC_LIB`: `x`, `x^2`, `x^3`,
@@ -70,7 +70,7 @@ matching `consolidate()`'s own convention.
 For a top-`N` feature report instead of the full formula:
 
 ```python
-from kanboost.symbolic import explain
+from kanboost.interpret.symbolic import explain
 
 for entry in explain(model, top_features=5, symbolic=True, simplify=True):
     print(entry["feature"], entry["importance"], entry["formula"])
@@ -99,7 +99,7 @@ feature whose best candidate genuinely falls below `min_r2` (check each
 term's `"kind"`), not for every feature outside some top-N cutoff:
 
 ```python
-from kanboost.symbolic import symbolic_summary
+from kanboost.interpret.symbolic import symbolic_summary
 
 result = symbolic_summary(model, min_r2=0.8)  # top_n=None -> every feature
 
@@ -154,7 +154,7 @@ give. `refit_constants_from_model()` re-optimizes every symbolic term's
 constants together against the real trained model's own raw score:
 
 ```python
-from kanboost.symbolic import refit_constants_from_model, formula_fidelity
+from kanboost.interpret.symbolic import refit_constants_from_model, formula_fidelity
 
 sym = symbolic_summary(model, min_r2=0.8)["model"]
 sym_refit = refit_constants_from_model(model, sym, X_train)  # new SymbolicModel, doesn't mutate sym
@@ -180,7 +180,7 @@ independent models and reports how often each feature's modal candidate
 was chosen, alongside per-seed `formula_fidelity()`:
 
 ```python
-from kanboost.symbolic import stability_across_seeds
+from kanboost.interpret.symbolic import stability_across_seeds
 
 def build_and_fit(X_train, y_train, seed):
     m = KANBoostClassifier(gam=True, kan_hidden=1, random_state=seed)
@@ -215,7 +215,7 @@ and `refit_constants_from_model()` separately and reconciling them by
 hand:
 
 ```python
-from kanboost.symbolic import distill_equation
+from kanboost.interpret.symbolic import distill_equation
 
 def build_and_fit(X_train, y_train, seed):
     m = KANBoostClassifier(gam=True, kan_hidden=1, random_state=seed)

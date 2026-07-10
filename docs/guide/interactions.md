@@ -32,7 +32,7 @@ you automatically.
 
 ```python
 from kanboost import KANBoostClassifier
-from kanboost.interactions import check_additive_sufficiency
+from kanboost.interpret.interactions import check_additive_sufficiency
 
 model = KANBoostClassifier(gam=True, kan_hidden=1, random_state=0)
 model.fit(X_train, y_train)
@@ -78,7 +78,7 @@ H_jk^2 = sum_i [PD_jk(x_j^i, x_k^i) - PD_j(x_j^i) - PD_k(x_k^i)]^2
 additive; close to 1 means it's almost entirely interaction.
 
 ```python
-from kanboost.interactions import friedman_h
+from kanboost.interpret.interactions import friedman_h
 
 result = friedman_h(flexible_model, X, features=["age", "bmi"])
 result["pairwise"]   # {(f_j, f_k): H_jk}

@@ -22,7 +22,7 @@ guess (`bucket`) was wrong. A model pushed, pulled back under a new
 name, and reloaded produced byte-identical predictions to the original.
 
 ```python
-from kanboost.mlhub import push_model, pull_model, list_models, ensure_bucket
+from kanboost.registry.mlhub import push_model, pull_model, list_models, ensure_bucket
 
 model.save("model.pt")
 ensure_bucket("kanboost-models", api_key="...")   # or set MLHUB_API_KEY
@@ -53,13 +53,13 @@ logging has to go through MLflow's own client talking to the tracking
 server directly.
 
 ```python
-from kanboost.mlflow_utils import log_training_run
+from kanboost.ops.mlflow_utils import log_training_run
 
 run_id = log_training_run(
     model, X_test, y_test,
     tracking_uri="https://mlflow.your-host.example/",  # or MLFLOW_TRACKING_URI
     experiment_name="kanboost",
-    extra_metrics={"brier": 0.03},  # e.g. from kanboost.calibration
+    extra_metrics={"brier": 0.03},  # e.g. from kanboost.train.calibration
     extra_params={"dataset": "breast_cancer"},
     save_model_path="model.pt",
 )

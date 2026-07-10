@@ -10,7 +10,7 @@ decision threshold sitting around 0.40–0.42 rather than 0.5.
 `kanboost.calibration` fixes this post-hoc, without retraining:
 
 ```python
-from kanboost.calibration import calibrate, CalibratedKANBoost
+from kanboost.train.calibration import calibrate, CalibratedKANBoost
 
 model = KANBoostClassifier(n_estimators=100)
 model.fit(X_train, y_train)
@@ -63,6 +63,6 @@ modules; this is an ordering discipline you need to maintain yourself.
 
 Calibration doesn't address KANBoost's prediction-*speed* gap against
 tree ensembles (a separate, also benchmark-confirmed issue). For
-`gam=True` models specifically, [`kanboost.editing.consolidate()`](editing-dashboard.md)
+`gam=True` models specifically, [`kanboost.interpret.editing.consolidate()`](editing-dashboard.md)
 is the fix for that — see its docs for the ~50x measured speedup. For
-*training*-time speed, see [`kanboost.accel.fast_fit()`](training-speed.md).
+*training*-time speed, see [`kanboost.train.accel.fast_fit()`](training-speed.md).

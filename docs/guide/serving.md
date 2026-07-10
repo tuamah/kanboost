@@ -9,7 +9,7 @@ existing — nothing here changes how `fit`/`predict` behave.
 `kanboost.observability` — no extra install needed:
 
 ```python
-from kanboost.observability import (
+from kanboost.ops.observability import (
     time_predict, memory_snapshot, gpu_utilization_flag, capture_boosting_rounds,
 )
 
@@ -30,7 +30,7 @@ for r in rounds:
 `kanboost.logging_utils` — stdlib only:
 
 ```python
-from kanboost.logging_utils import get_logger, log_boosting_rounds
+from kanboost.ops.logging_utils import get_logger, log_boosting_rounds
 
 logger = get_logger("my_experiment")  # respects KANBOOST_LOG_LEVEL env var
 log_boosting_rounds(rounds, logger=logger, model_name="churn_v3")
@@ -41,7 +41,7 @@ log_boosting_rounds(rounds, logger=logger, model_name="churn_v3")
 `kanboost.serving` — needs `pip install kanboost[api]`:
 
 ```python
-from kanboost.serving import create_app
+from kanboost.ops.serving import create_app
 
 app = create_app("model.pt")  # auto-detects classifier vs. regressor
 # uvicorn.run(app, host="0.0.0.0", port=8000)

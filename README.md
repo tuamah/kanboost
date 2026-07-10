@@ -17,6 +17,11 @@ closer to a Generalized Additive Model than a black box.
 > [Benchmarks](#benchmarks) and [Honest limitations](#honest-limitations)
 > below before using this for anything important.
 
+> **Upgrading from < v1.0.0?** v1.0.0 is a deliberate breaking release
+> (a full package restructure). `from kanboost import KANBoostClassifier,
+> KANBoostRegressor` is unchanged; every deeper import path moved. See
+> [MIGRATION.md](MIGRATION.md).
+
 ## Why this exists
 
 As of mid-2026, there is no widely-used, pip-installable library that
@@ -67,7 +72,7 @@ implementation of the same general idea, plus:
   scores read off the trained weights (`kan_hidden > 1`)
 - **`lamb`/`lamb_l1`/`lamb_coefdiff`** — tunable smoothness/sparsity
   regularization on the learned splines (pykan's own regularizers)
-- **`kanboost.editing.consolidate(model)`** (requires `gam=True`) — collapse
+- **`kanboost.interpret.editing.consolidate(model)`** (requires `gam=True`) — collapse
   a fitted ensemble's per-feature shape functions (each currently a sum of
   splines across every boosting round) into one editable spline per
   feature, wrapped in an `EditableGAM`: shift/pin a region
@@ -75,7 +80,7 @@ implementation of the same general idea, plus:
   (`enforce_monotone`, same guarantee as `monotone_constraints`), inspect
   the effect (`diff`), and predict/save/load exactly like the original
   model. See [Editable models](#editable-models-human-in-the-loop) below.
-- **`kanboost.symbolic.export_symbolic(model)`** (requires `gam=True`) —
+- **`kanboost.interpret.symbolic.export_symbolic(model)`** (requires `gam=True`) —
   a real, executable symbolic formula: `sympy` expression, LaTeX,
   standalone numpy predict function, and a per-feature fidelity report
   (closed-form R^2 + amplitude, with a numeric fallback for features no
@@ -99,26 +104,26 @@ implementation of the same general idea, plus:
   are jointly refit together. See
   [Symbolic formula export](#symbolic-formula-export-optional-additive)
   below.
-- **`kanboost.interactions.check_additive_sufficiency(model, X, y)`**
+- **`kanboost.interpret.interactions.check_additive_sufficiency(model, X, y)`**
   (requires `gam=True`) — verifies `gam=True`'s additive assumption
   actually holds for *your* data, instead of leaving it unverified:
   refits a `gam=False` counterpart internally and compares Friedman's
   H-statistic (interaction strength) between the two, returning a clear
   `"additive_sufficient"` / `"interactions_detected"` verdict per
-  feature pair. `kanboost.interactions.friedman_h()` is the underlying,
+  feature pair. `kanboost.interpret.interactions.friedman_h()` is the underlying,
   model-agnostic statistic on its own. See
   [Checking the additive assumption](docs/guide/interactions.md).
-- **`kanboost.calibration.calibrate(model, X_cal, y_cal)`** — post-hoc
+- **`kanboost.train.calibration.calibrate(model, X_cal, y_cal)`** — post-hoc
   Platt/isotonic probability calibration for `KANBoostClassifier`; fixes
   a real, benchmark-confirmed miscalibration gap without retraining. See
   [Calibration](#calibration-optional-additive) below.
-- **`kanboost.imbalance.find_threshold(model, X_val, y_val)`** /
+- **`kanboost.train.imbalance.find_threshold(model, X_val, y_val)`** /
   **`balanced_weights(y)`** — fix the degenerate always-majority-class
   predictions a default `threshold=0.5` can produce on heavily
   imbalanced targets, without retraining (`find_threshold`) or via
   reweighted training (`balanced_weights`). See
   [Imbalanced classification](docs/guide/imbalance.md).
-- **`kanboost.accel.fast_fit(model, X, y)`** — opt-in, warm-started
+- **`kanboost.train.accel.fast_fit(model, X, y)`** — opt-in, warm-started
   training that's ~3x faster with essentially unchanged accuracy. See
   [Training speed](docs/guide/training-speed.md).
 - Automatic categorical encoding and missing-value handling, no manual
@@ -183,7 +188,7 @@ existing -- nothing here changes how `fit`/`predict` behave.
 **Observability** (`kanboost.observability`, no extra install needed):
 
 ```python
-from kanboost.observability import (
+from kanboost.ops.observability import (
     time_predict, memory_snapshot, gpu_utilization_flag, capture_boosting_rounds,
 )
 
@@ -202,7 +207,7 @@ for r in rounds:
 **Logging** (`kanboost.logging_utils`, stdlib only):
 
 ```python
-from kanboost.logging_utils import get_logger, log_boosting_rounds
+from kanboost.ops.logging_utils import get_logger, log_boosting_rounds
 
 logger = get_logger("my_experiment")  # respects KANBOOST_LOG_LEVEL env var
 log_boosting_rounds(rounds, logger=logger, model_name="churn_v3")
@@ -211,7 +216,7 @@ log_boosting_rounds(rounds, logger=logger, model_name="churn_v3")
 **Serving** (`kanboost.serving`, needs `pip install kanboost[api]`):
 
 ```python
-from kanboost.serving import create_app
+from kanboost.ops.serving import create_app
 
 app = create_app("model.pt")  # auto-detects classifier vs. regressor
 # uvicorn.run(app, host="0.0.0.0", port=8000)
@@ -228,7 +233,7 @@ and `POST /predict_proba` (classifiers only).
 
 ## Editable models (human-in-the-loop)
 
-`kanboost.editing.consolidate(model)` collapses a fitted `gam=True`
+`kanboost.interpret.editing.consolidate(model)` collapses a fitted `gam=True`
 ensemble's per-feature shape function -- currently a sum of splines
 across every boosting round -- into one editable spline per feature.
 This is conceptually similar to Microsoft's [GAM Changer](https://github.com/interpretml/gam-changer),
@@ -246,7 +251,7 @@ same variation-diminishing projection `monotone_constraints` uses
 during training, not a best-effort correction.
 
 ```python
-from kanboost.editing import consolidate
+from kanboost.interpret.editing import consolidate
 
 model = KANBoostRegressor(gam=True, kan_hidden=1, n_estimators=50)
 model.fit(X_train, y_train)
@@ -275,13 +280,13 @@ models specifically.
 
 ## Symbolic formula export (optional, additive)
 
-`model.symbolic_report(X)` / `kanboost.experimental.symbolic_export`
+`model.symbolic_report(X)` / `kanboost.interpret.experimental.symbolic_export`
 give a human-readable summary of each feature's best-fitting named
-function. `kanboost.symbolic.export_symbolic` goes further: an actual
+function. `kanboost.interpret.symbolic.export_symbolic` goes further: an actual
 executable formula.
 
 ```python
-from kanboost.symbolic import export_symbolic
+from kanboost.interpret.symbolic import export_symbolic
 
 model = KANBoostRegressor(gam=True, kan_hidden=1, n_estimators=50)
 model.fit(X_train, y_train)
@@ -314,7 +319,7 @@ tells you how lossy, per feature.
 For a quick, ranked summary instead of the full formula:
 
 ```python
-from kanboost.symbolic import explain
+from kanboost.interpret.symbolic import explain
 
 for entry in explain(model, top_features=5, symbolic=True, simplify=True):
     print(entry["feature"], entry["importance"], entry["formula"])
@@ -341,7 +346,7 @@ threshold sitting around 0.40-0.42 rather than 0.5. `kanboost.calibration`
 fixes this post-hoc, without retraining:
 
 ```python
-from kanboost.calibration import calibrate
+from kanboost.train.calibration import calibrate
 
 model = KANBoostClassifier(n_estimators=100)
 model.fit(X_train, y_train)
@@ -378,7 +383,7 @@ guarantee: always confirm with `audit_monotonicity` on a model actually
 fit with the suggested constraints.
 
 ```python
-from kanboost.experimental import (
+from kanboost.interpret.experimental import (
     suggest_constraints, audit_monotonicity, symbolic_export,
     predict_interval, explain_row, dashboard_html,
 )
@@ -407,12 +412,12 @@ feature importances, `plot_feature` curves, `symbolic_report` (GAM
 mode), `feature_interaction`, per-row `explain_row`, and -- for a
 single-chain `gam=True` model (regressor or binary classifier; not yet
 multiclass) -- a panel to live-edit shape functions via
-`kanboost.editing.EditableGAM` (`set_offset`, `enforce_monotone`, `diff`,
+`kanboost.interpret.editing.EditableGAM` (`set_offset`, `enforce_monotone`, `diff`,
 `save`), with the before/after curve redrawn immediately. Requires
 `pip install kanboost[dashboard]`.
 
 ```python
-from kanboost.dashboard import launch
+from kanboost.ops.dashboard import launch
 
 launch("model.pt")                      # opens a local browser tab
 launch("model.pt", data_path="X.csv")   # preload a dataset to explore
@@ -441,7 +446,7 @@ back under a new name, and reloaded produced byte-identical predictions
 to the original.
 
 ```python
-from kanboost.mlhub import push_model, pull_model, list_models, ensure_bucket
+from kanboost.registry.mlhub import push_model, pull_model, list_models, ensure_bucket
 
 model.save("model.pt")
 ensure_bucket("kanboost-models", api_key="...")   # or set MLHUB_API_KEY
@@ -466,13 +471,13 @@ experiments/runs through their own API, with no way to *create* a run
 that way).
 
 ```python
-from kanboost.mlflow_utils import log_training_run
+from kanboost.ops.mlflow_utils import log_training_run
 
 run_id = log_training_run(
     model, X_test, y_test,
     tracking_uri="https://mlflow.your-host.example/",  # or MLFLOW_TRACKING_URI
     experiment_name="kanboost",
-    extra_metrics={"brier": 0.03},  # e.g. from kanboost.calibration
+    extra_metrics={"brier": 0.03},  # e.g. from kanboost.train.calibration
     save_model_path="model.pt",
 )
 ```
@@ -675,12 +680,12 @@ can't provide even in principle — not raw predictive performance.
   probability *values* are comparatively miscalibrated out of the box
   (worst Brier score in the Breast Cancer benchmark above, with the
   per-fold F1-optimal threshold sitting well below the default 0.5).
-  Use `kanboost.calibration.calibrate()` (see
+  Use `kanboost.train.calibration.calibrate()` (see
   [Calibration](#calibration-optional-additive) above) or tune the
   decision threshold yourself before relying on classification metrics
   at the default cutoff.
 - **Prediction speed for `gam=True` models specifically has a fix**:
-  `kanboost.editing.consolidate()` (see
+  `kanboost.interpret.editing.consolidate()` (see
   [Editable models](#editable-models-human-in-the-loop) above) is also
   a ~30-50x-faster predict path for GAM-mode models, at negligible fidelity
   cost -- it doesn't help non-GAM models or training speed.

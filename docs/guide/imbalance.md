@@ -30,7 +30,7 @@ threshold that maximizes F1 (or Youden's J), then use it with
 `predict(threshold=...)`/`evaluate(threshold=...)`:
 
 ```python
-from kanboost.imbalance import find_threshold
+from kanboost.train.imbalance import find_threshold
 
 model = KANBoostClassifier(gam=True, kan_hidden=1, early_stopping_rounds=10)
 model.fit(X_train, y_train, eval_set=(X_val, y_val))
@@ -54,7 +54,7 @@ Inverse-frequency sample weights, analogous to scikit-learn's
 parameter — no core changes:
 
 ```python
-from kanboost.imbalance import balanced_weights
+from kanboost.train.imbalance import balanced_weights
 
 model.fit(X_train, y_train, eval_set=(X_val, y_val),
           sample_weight=balanced_weights(y_train))

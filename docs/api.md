@@ -32,21 +32,30 @@ Key constructor parameters: `n_estimators`, `learning_rate`, `kan_hidden`,
 
 ## Optional, additive modules
 
+As of v1.0.0, these live under `kanboost.core`/`kanboost.interpret`/
+`kanboost.train`/`kanboost.ops`/`kanboost.registry` (see
+[MIGRATION.md](https://github.com/tuamah/kanboost/blob/main/MIGRATION.md)
+for the full old -> new path mapping). Each subpackage re-exports its
+own contents one level flat.
+
 | Module | Extra | Purpose |
 |---|---|---|
-| `kanboost.observability` | none | Timing, memory, GPU, per-round metrics |
-| `kanboost.logging_utils` | none | stdlib logging wrapper |
-| `kanboost.serving` | `kanboost[api]` | FastAPI serving layer |
-| `kanboost.editing` | none | `consolidate()` / `EditableGAM` |
-| `kanboost.symbolic` | `sympy`, `scipy` (both core dependencies) | `export_symbolic()` / `explain()` / `symbolic_summary()` / `refit_constants()` / `refit_constants_from_model()` / `formula_fidelity()` / `stability_across_seeds()` / `distill_equation()` / `SymbolicModel` |
-| `kanboost.calibration` | none | `calibrate()` / `CalibratedKANBoost` (Platt/isotonic) |
-| `kanboost.experimental` | none (needs `scipy`) | `suggest_constraints`, `audit_monotonicity`, `symbolic_export`, `predict_interval`, `explain_row`, `dashboard_html` |
-| `kanboost.dashboard` | `kanboost[dashboard]` | Interactive Streamlit app |
-| `kanboost.mlhub` | `kanboost[mlhub]` | Push/pull a model to a MinIO-backed object store |
-| `kanboost.mlflow_utils` | `kanboost[mlflow]` | Log a training run to MLflow |
-| `kanboost.imbalance` | none | `balanced_weights()` / `find_threshold()` for imbalanced targets |
-| `kanboost.accel` | none | `fast_fit()` — warm-started, ~3x faster opt-in training |
-| `kanboost.interactions` | `scikit-learn`, `scipy` (both core dependencies) | `friedman_h()` / `check_additive_sufficiency()` — verify whether `gam=True`'s additive assumption actually holds for your data |
+| `kanboost.ops.observability` | none | Timing, memory, GPU, per-round metrics |
+| `kanboost.ops.logging_utils` | none | stdlib logging wrapper |
+| `kanboost.ops.serving` | `kanboost[api]` | FastAPI serving layer |
+| `kanboost.interpret.editing` | none | `consolidate()` / `EditableGAM` |
+| `kanboost.interpret.symbolic` | `sympy`, `scipy` (both core dependencies) | `export_symbolic()` / `explain()` / `symbolic_summary()` / `refit_constants()` / `refit_constants_from_model()` / `formula_fidelity()` / `stability_across_seeds()` / `distill_equation()` / `SymbolicModel` |
+| `kanboost.train.calibration` | none | `calibrate()` / `CalibratedKANBoost` (Platt/isotonic) |
+| `kanboost.interpret.experimental` | none (needs `scipy`) | `suggest_constraints`, `audit_monotonicity`, `symbolic_export`, `predict_interval`, `explain_row`, `dashboard_html` |
+| `kanboost.ops.dashboard` | `kanboost[dashboard]` | Interactive Streamlit app |
+| `kanboost.registry.mlhub` | `kanboost[mlhub]` | Push/pull a model to a MinIO-backed object store |
+| `kanboost.registry.local` | none | `LocalRegistry` — a local, versioned model registry |
+| `kanboost.ops.mlflow_utils` | `kanboost[mlflow]` | Log a training run to MLflow |
+| `kanboost.train.imbalance` | none | `balanced_weights()` / `find_threshold()` for imbalanced targets |
+| `kanboost.train.accel` | none | `fast_fit()` — warm-started, ~3x faster opt-in training |
+| `kanboost.interpret.interactions` | `scikit-learn`, `scipy` (both core dependencies) | `friedman_h()` / `check_additive_sufficiency()` — verify whether `gam=True`'s additive assumption actually holds for your data |
+| `kanboost.pipeline` | none | `KANBoostPipeline` — train -> optional calibrate -> optional symbolic export as one call |
+| `kanboost.config` | none | `KANBoostConfig`/`KANConfig`/`BoostConfig` — typed, grouped hyperparameters |
 
 See the [Guide](guide/interpretability.md) for each module's full API
 with examples.

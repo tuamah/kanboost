@@ -7,14 +7,14 @@ budget, even though consecutive rounds share identical architecture
 and, especially late in the ensemble, are fitting increasingly similar
 residuals.
 
-`kanboost.accel.fast_fit()` is an opt-in, drop-in replacement for
+`kanboost.train.accel.fast_fit()` is an opt-in, drop-in replacement for
 `model.fit(...)` that warm-starts each round's learner from the
 previous round's fitted weights, so only the first round of a chain
 needs the full step budget:
 
 ```python
 from kanboost import KANBoostClassifier
-from kanboost.accel import fast_fit
+from kanboost.train.accel import fast_fit
 
 model = KANBoostClassifier(n_estimators=40, kan_steps=20)
 fast_fit(model, X_train, y_train, eval_set=(X_val, y_val))

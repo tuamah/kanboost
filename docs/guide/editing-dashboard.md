@@ -2,7 +2,7 @@
 
 ## Editable models (human-in-the-loop)
 
-`kanboost.editing.consolidate(model)` collapses a fitted `gam=True`
+`kanboost.interpret.editing.consolidate(model)` collapses a fitted `gam=True`
 ensemble's per-feature shape function — currently a sum of splines
 across every boosting round — into one editable spline per feature.
 
@@ -21,7 +21,7 @@ same variation-diminishing projection `monotone_constraints` uses
 during training, not a best-effort correction.
 
 ```python
-from kanboost.editing import consolidate
+from kanboost.interpret.editing import consolidate
 
 model = KANBoostRegressor(gam=True, kan_hidden=1, n_estimators=50)
 model.fit(X_train, y_train)
@@ -50,21 +50,21 @@ gam.save("edited_model.pt")
 
 ## Interactive dashboard
 
-`kanboost.experimental.dashboard_html` (see [Interpretability](interpretability.md))
+`kanboost.interpret.experimental.dashboard_html` (see [Interpretability](interpretability.md))
 is a zero-dependency static snapshot — good for sharing or archiving in
 CI. `kanboost.dashboard` is a live, local Streamlit app for actually
 exploring one of your own fitted models: feature importances,
 `plot_feature` curves, `symbolic_report` (GAM mode), `feature_interaction`,
 per-row `explain_row`, and — for a single-chain `gam=True` model
 (regressor or binary classifier; not yet multiclass) — a panel to
-live-edit shape functions via `kanboost.editing.EditableGAM`
+live-edit shape functions via `kanboost.interpret.editing.EditableGAM`
 (`set_offset`, `enforce_monotone`, `diff`, `save`), with the before/after
 curve redrawn immediately.
 
 Requires `pip install kanboost[dashboard]`.
 
 ```python
-from kanboost.dashboard import launch
+from kanboost.ops.dashboard import launch
 
 launch("model.pt")                      # opens a local browser tab
 launch("model.pt", data_path="X.csv")   # preload a dataset to explore
