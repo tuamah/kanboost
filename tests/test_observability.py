@@ -12,7 +12,7 @@ import pandas as pd
 from sklearn.datasets import make_classification, make_regression
 
 from kanboost import KANBoostClassifier, KANBoostRegressor
-from kanboost.observability import (
+from kanboost.ops.observability import (
     time_predict,
     memory_snapshot,
     gpu_utilization_flag,

@@ -15,7 +15,7 @@ from kanboost import KANBoostClassifier, KANBoostRegressor
 fastapi_testclient = pytest.importorskip(
     "fastapi.testclient", reason="fastapi/httpx not installed -- kanboost[api] is optional"
 )
-from kanboost.serving import create_app  # noqa: E402
+from kanboost.ops.serving import create_app  # noqa: E402
 
 
 @pytest.fixture

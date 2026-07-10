@@ -328,7 +328,7 @@ def test_batch_size_uses_different_batches_per_learner():
         batch_size=16, random_state=0,
     )
 
-    import kanboost._base as _base_module
+    import kanboost.core.base as _base_module
 
     seen_indices = []
 

@@ -11,7 +11,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
 
 from kanboost import KANBoostClassifier
-from kanboost.imbalance import balanced_weights, find_threshold
+from kanboost.train.imbalance import balanced_weights, find_threshold
 
 
 def _imbalanced_splits(seed=0):

@@ -11,7 +11,7 @@ from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.datasets import load_breast_cancer
 
 from kanboost import KANBoostClassifier
-from kanboost.interactions import friedman_h, check_additive_sufficiency
+from kanboost.interpret.interactions import friedman_h, check_additive_sufficiency
 
 
 class _FakeInteractionModel(BaseEstimator, RegressorMixin):

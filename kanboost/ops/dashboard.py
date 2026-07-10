@@ -9,12 +9,12 @@ kanboost (or even this module) never requires it. Install with
 Usage
 -----
 Programmatic:
-    from kanboost.dashboard import launch
+    from kanboost.ops.dashboard import launch
     launch("model.pt")                      # opens a local browser tab
     launch("model.pt", data_path="X.csv")    # preload a dataset to explore
 
 As a script:
-    python -m kanboost.dashboard model.pt [data.csv]
+    python -m kanboost.ops.dashboard model.pt [data.csv]
 
 This launches a *local* Streamlit server for one user exploring one of
 their own fitted models -- not a hosted multi-tenant service (see
@@ -104,7 +104,7 @@ def interaction_dataframe(model, X, top_k: int = 10):
 def explain_row_dataframe(model, X, row_index: int = 0, top_k: int = 8):
     """`kanboost.experimental.explain_row` as a DataFrame."""
     import pandas as pd
-    from .experimental import explain_row
+    from ..interpret.experimental import explain_row
 
     rows = explain_row(model, X, row_index=row_index, top_k=top_k)
     return pd.DataFrame(rows)
@@ -112,7 +112,7 @@ def explain_row_dataframe(model, X, row_index: int = 0, top_k: int = 8):
 
 def _main() -> None:
     if len(sys.argv) < 2:
-        print("Usage: python -m kanboost.dashboard <model_path> [data_path]")
+        print("Usage: python -m kanboost.ops.dashboard <model_path> [data_path]")
         sys.exit(1)
     model_path = sys.argv[1]
     data_path = sys.argv[2] if len(sys.argv) > 2 else None

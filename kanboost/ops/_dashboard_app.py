@@ -15,15 +15,15 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
-from kanboost.dashboard import (
+from kanboost.ops.dashboard import (
     explain_row_dataframe,
     importances_dataframe,
     interaction_dataframe,
     model_overview,
 )
-from kanboost.editing import EditableGAM, consolidate
-from kanboost.experimental import audit_monotonicity
-from kanboost.serving import _load_any
+from kanboost.interpret.editing import EditableGAM, consolidate
+from kanboost.interpret.experimental import audit_monotonicity
+from kanboost.ops.serving import _load_any
 
 st.set_page_config(page_title="KANBoost Dashboard", layout="wide")
 

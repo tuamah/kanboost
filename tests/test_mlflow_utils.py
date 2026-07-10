@@ -15,7 +15,7 @@ from sklearn.datasets import make_classification, make_regression
 mlflow = pytest.importorskip("mlflow", reason="mlflow not installed -- kanboost.mlflow_utils is optional")
 
 from kanboost import KANBoostClassifier, KANBoostRegressor
-from kanboost.mlflow_utils import log_training_run
+from kanboost.ops.mlflow_utils import log_training_run
 
 
 @pytest.fixture

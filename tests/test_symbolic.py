@@ -11,7 +11,7 @@ import sympy
 from sklearn.datasets import make_classification
 
 from kanboost import KANBoostClassifier, KANBoostRegressor
-from kanboost.symbolic import (
+from kanboost.interpret.symbolic import (
     export_symbolic, explain, symbolic_summary, SymbolicModel,
     refit_constants, refit_constants_from_model, formula_fidelity, stability_across_seeds,
     distill_equation,
@@ -297,7 +297,7 @@ def test_parsimony_margin_prefers_simpler_candidate():
     sym_default = export_symbolic(model, min_r2=0.8, parsimony_margin=0.0)
     sym_parsimonious = export_symbolic(model, min_r2=0.8, parsimony_margin=0.2)
 
-    from kanboost.symbolic import _CANDIDATE_COMPLEXITY
+    from kanboost.interpret.symbolic import _CANDIDATE_COMPLEXITY
 
     for name, term in sym_parsimonious.terms.items():
         if term["kind"] != "symbolic" or sym_default.terms[name]["kind"] != "symbolic":
@@ -467,8 +467,8 @@ def test_stability_across_seeds_handles_numeric_fallback_feature():
         m.fit(X_train, y_train)
         return m
 
-    with patch("kanboost.symbolic.symbolic_summary", side_effect=fake_symbolic_summary), \
-         patch("kanboost.symbolic.formula_fidelity", return_value={"max_abs_error": 0.0, "mean_abs_error": 0.0}):
+    with patch("kanboost.interpret.symbolic.symbolic_summary", side_effect=fake_symbolic_summary), \
+         patch("kanboost.interpret.symbolic.formula_fidelity", return_value={"max_abs_error": 0.0, "mean_abs_error": 0.0}):
         report = stability_across_seeds(build_and_fit, X, y_bin, n_seeds=3, min_r2=0.8)
 
     stability = report["candidate_stability"]

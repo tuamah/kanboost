@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kanboost"
-version = "0.0.22"
+version = "1.0.0"
 description = "Gradient boosting with Kolmogorov-Arnold Network (KAN) learners -- an interpretable alternative to tree-based boosting (XGBoost/LightGBM/CatBoost)."
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -40,3 +40,6 @@ mlflow = ["mlflow>=2.10"]
 
 [project.urls]
 Homepage = "https://github.com/tuamah/kanboost"
+
+[tool.setuptools.packages.find]
+include = ["kanboost", "kanboost.*"]

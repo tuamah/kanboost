@@ -10,7 +10,7 @@ import pandas as pd
 from sklearn.datasets import make_classification, make_regression
 
 from kanboost import KANBoostClassifier, KANBoostRegressor
-from kanboost.editing import consolidate
+from kanboost.interpret.editing import consolidate
 
 
 def test_consolidate_requires_gam():

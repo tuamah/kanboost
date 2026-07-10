@@ -162,7 +162,7 @@ class CalibratedKANBoost:
         `save()`). Only load files your own code saved -- like the base
         model's own `load()`, this unpickles arbitrary Python objects
         (`weights_only=False`), which is unsafe for untrusted input."""
-        from .classifier import KANBoostClassifier
+        from ..core.classifier import KANBoostClassifier
 
         model = KANBoostClassifier.load(path, device=device)
         payload = torch.load(_calibration_path(path), weights_only=False)

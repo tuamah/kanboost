@@ -28,7 +28,7 @@ import torch
 
 from sklearn.base import ClassifierMixin
 
-from ._base import _BaseKANBoost, _validate_Xy, _validate_sample_weight
+from .base import _BaseKANBoost, _validate_Xy, _validate_sample_weight
 from .losses import LogisticLoss, _sigmoid
 
 
@@ -189,7 +189,7 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
 
     def evaluate(self, X, y, threshold: float = 0.5, verbose: bool = True) -> dict:
         """Predict on X and report classification metrics against y."""
-        from .metrics import classification_report_dict, print_classification_report
+        from ..train.metrics import classification_report_dict, print_classification_report
 
         proba = self.predict_proba(X)
         if len(self.classes_) == 2:

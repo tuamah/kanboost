@@ -15,7 +15,7 @@ import torch
 
 from sklearn.base import RegressorMixin
 
-from ._base import _BaseKANBoost, _validate_Xy, _validate_sample_weight
+from .base import _BaseKANBoost, _validate_Xy, _validate_sample_weight
 from .losses import SquaredLoss, QuantileLoss
 
 

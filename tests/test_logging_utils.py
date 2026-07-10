@@ -3,8 +3,8 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from kanboost.logging_utils import get_logger, log_boosting_rounds
-from kanboost.observability import RoundMetric
+from kanboost.ops.logging_utils import get_logger, log_boosting_rounds
+from kanboost.ops.observability import RoundMetric
 
 
 def test_get_logger_is_idempotent():

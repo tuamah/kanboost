@@ -10,7 +10,7 @@ import pandas as pd
 from sklearn.datasets import make_regression
 
 from kanboost import KANBoostRegressor
-from kanboost.experimental import (
+from kanboost.interpret.experimental import (
     suggest_constraints,
     audit_monotonicity,
     symbolic_export,
@@ -177,7 +177,7 @@ def test_json_safe_converts_numpy_types_directly():
     exercises a real model's output, but nothing in that pipeline
     actually happens to produce numpy scalars/arrays, so it wouldn't
     catch _json_safe being removed or broken. This does."""
-    from kanboost.experimental import _json_safe
+    from kanboost.interpret.experimental import _json_safe
 
     payload = {
         "a": np.float32(1.5),

@@ -12,7 +12,7 @@ import pytest
 from sklearn.datasets import make_classification, make_regression
 
 from kanboost import KANBoostClassifier, KANBoostRegressor
-from kanboost.dashboard import (
+from kanboost.ops.dashboard import (
     explain_row_dataframe,
     importances_dataframe,
     interaction_dataframe,
@@ -24,7 +24,7 @@ st_testing = pytest.importorskip(
     "streamlit.testing.v1", reason="streamlit not installed -- kanboost[dashboard] is optional"
 )
 
-_DASHBOARD_APP_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "kanboost", "_dashboard_app.py")
+_DASHBOARD_APP_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "kanboost", "ops", "_dashboard_app.py")
 
 
 # ------------------------------------------------------------------
@@ -128,8 +128,8 @@ def test_app_runs_gam_with_data_and_edit_tab(tmp_path, monkeypatch):
     save_btn.click().run(timeout=60)
     assert not at.exception
 
-    from kanboost.editing import EditableGAM
-    from kanboost.serving import _load_any
+    from kanboost.interpret.editing import EditableGAM
+    from kanboost.ops.serving import _load_any
 
     loaded = EditableGAM.load(save_path)
     assert loaded.feature_names == ["a", "b", "c"]

@@ -12,7 +12,7 @@ import pytest
 
 pytest.importorskip("requests", reason="requests not installed -- kanboost.mlhub is optional")
 
-from kanboost.mlhub import push_model, pull_model, list_models, ensure_bucket
+from kanboost.registry.mlhub import push_model, pull_model, list_models, ensure_bucket
 
 
 def test_resolve_api_key_requires_a_key(tmp_path, monkeypatch):

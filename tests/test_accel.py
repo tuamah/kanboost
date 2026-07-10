@@ -14,8 +14,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, accuracy_score
 
 from kanboost import KANBoostClassifier
-from kanboost.accel import fast_fit
-from kanboost.experimental import audit_monotonicity
+from kanboost.train.accel import fast_fit
+from kanboost.interpret.experimental import audit_monotonicity
 
 
 def _breast_cancer_splits(seed=0):

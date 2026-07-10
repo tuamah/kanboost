@@ -12,7 +12,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score, accuracy_score
 
 from kanboost import KANBoostClassifier
-from kanboost.calibration import calibrate, CalibratedKANBoost
+from kanboost.train.calibration import calibrate, CalibratedKANBoost
 
 
 def _breast_cancer_splits(cal_size=0.5, seed=0):

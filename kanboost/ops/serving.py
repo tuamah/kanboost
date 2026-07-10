@@ -9,13 +9,13 @@ with `pip install kanboost[api]`.
 Usage
 -----
 Programmatic:
-    from kanboost.serving import create_app
+    from kanboost.ops.serving import create_app
     app = create_app("model.pt")
     # then run with any ASGI server, e.g. uvicorn.run(app, ...)
 
 As a uvicorn target (reads the model path from an env var so the module
 is importable without arguments):
-    KANBOOST_MODEL_PATH=model.pt uvicorn kanboost.serving:app
+    KANBOOST_MODEL_PATH=model.pt uvicorn kanboost.ops.serving:app
 """
 
 import os
@@ -49,10 +49,10 @@ def _load_any(path: str, device: str | None = None):
     payload = torch.load(path, map_location="cpu", weights_only=False)
     class_name = payload.get("class_name")
     if class_name == "KANBoostClassifier":
-        from .classifier import KANBoostClassifier
+        from ..core.classifier import KANBoostClassifier
         return KANBoostClassifier.load(path, device=device)
     if class_name == "KANBoostRegressor":
-        from .regressor import KANBoostRegressor
+        from ..core.regressor import KANBoostRegressor
         return KANBoostRegressor.load(path, device=device)
     raise ValueError(
         f"{path!r} has unrecognized class_name {class_name!r}; expected "
