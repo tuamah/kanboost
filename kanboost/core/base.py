@@ -301,6 +301,7 @@ class _BaseKANBoost(BaseEstimator):
         residual: np.ndarray,
         sample_weight: np.ndarray | None = None,
         seed_offset: int = 0,
+        basis_cache: dict | None = None,
     ):
         # DeepKAN handles monotone projection and sample weights inside fit()
         # via the solver kwargs.  batch_size is a no-op (closed-form solve uses all data).
@@ -315,6 +316,7 @@ class _BaseKANBoost(BaseEstimator):
             lamb=self.lamb, lamb_l1=self.lamb_l1, lamb_coefdiff=self.lamb_coefdiff,
             sample_weight=sample_weight,
             monotone_signs=self.monotone_signs_ if self.monotone_constraints else None,
+            basis_cache=basis_cache,
         )
         return learner(X_t).cpu().numpy().flatten()
 
@@ -366,12 +368,22 @@ class _BaseKANBoost(BaseEstimator):
         learners = []
         best_iteration = None
 
+        # Every learner in this chain shares the same X_t, kan_grid/kan_k
+        # (hence the same layer-0 B-spline knots), lamb*/sample_weight -- so
+        # layer-0's design matrix and its normal-equations eigendecomposition
+        # (the non-GAM ALS solver's dominant cost) are identical across all
+        # n_estimators learners, not just within one learner's sweeps. Built
+        # once here by the first learner and reused by the rest instead of
+        # rederived from scratch every round.
+        basis_cache: dict = {}
+
         for t in range(self.n_estimators):
             residual = loss.negative_gradient(y, F)
 
             learner = self._new_learner(n_features, seed_offset=seed_base + t)
             update = self._fit_learner(
                 learner, X_t, residual, sample_weight=sample_weight, seed_offset=seed_base + t,
+                basis_cache=basis_cache,
             )
             F += self.learning_rate * update
             learners.append(learner)

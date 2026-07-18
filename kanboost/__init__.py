@@ -12,7 +12,7 @@ from .core.config import KANBoostConfig, KANConfig, BoostConfig
 from .train.metrics import classification_report_dict, print_classification_report
 from .pipeline import KANBoostPipeline, PipelineResult
 
-__version__ = "1.2.1"
+__version__ = "1.2.2"
 __all__ = [
     "KANBoostClassifier",
     "KANBoostRegressor",

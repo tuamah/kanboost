@@ -184,6 +184,28 @@ def test_gam_hidden_gt1_raises():
         kan.fix_symbolic(1, 0, 0, "x")
 
 
+def test_numba_basis_matches_scipy_fallback():
+    """Regression test for the numba-accelerated B-spline kernel (~6.5x
+    faster than scipy's design_matrix on this project's typical shapes,
+    since scipy pays sparse-matrix construction overhead for a result that's
+    immediately densified). Must match the scipy fallback to machine
+    precision across grid/order combinations, or a bug in the hand-written
+    Cox-de-Boor recursion could silently corrupt every fit."""
+    from kanboost.core.kan.bspline import _b_basis_1d, _b_basis_1d_scipy, extend_grid, build_grid, _NUMBA
+
+    if not _NUMBA:
+        pytest.skip("numba not installed -- scipy fallback path is exercised by every other test")
+
+    rng = np.random.RandomState(0)
+    for grid, k in [(2, 3), (5, 3), (8, 3), (3, 2), (10, 3)]:
+        knots = extend_grid(build_grid(grid, k), k_extend=k)[0]
+        x = rng.uniform(-1.5, 1.5, 60)
+        x_clip = np.clip(x, knots[k], knots[-k - 1])
+        got = _b_basis_1d(x, knots, k)
+        want = _b_basis_1d_scipy(x_clip, knots, k)
+        assert np.abs(got - want).max() < 1e-10, f"grid={grid} k={k}"
+
+
 def test_fit_params():
     rng = np.random.RandomState(0)
     x = np.linspace(-1, 1, 200)
