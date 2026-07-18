@@ -25,7 +25,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from kan.spline import coef2curve, curve2coef, extend_grid
+from kanboost.core.kan import coef2curve, curve2coef, extend_grid
 
 
 def _build_base_grid(n_intervals: int) -> torch.Tensor:

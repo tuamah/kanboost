@@ -45,11 +45,16 @@ def test_baseline_reproduces_degenerate_classifier():
     model = _fit_degenerate_model(X_tr, y_tr, X_val, y_val)
     report = model.evaluate(X_te, y_te, verbose=False)
 
-    # The documented bug: high AUC (real signal) but F1=0 at the default
-    # threshold, because a well-calibrated model on a 90/10 split puts
-    # p < 0.5 almost everywhere.
+    # The documented bug: high AUC (real signal) but near-zero F1 at the
+    # default threshold, because a well-calibrated model on a 90/10 split
+    # puts p < 0.5 almost everywhere. The exact F1 value is an artifact of
+    # which specific training algorithm fit the model (this was written
+    # against pykan's gradient-descent training, which landed on exactly
+    # zero; DeepKAN's closed-form solve gets 1 true positive out of ~38 --
+    # still overwhelmingly degenerate, just not bit-identical), so this
+    # checks "near-zero", not an exact value.
     assert report["auc"] > 0.75
-    assert report["f1"] == 0.0
+    assert report["f1"] < 0.1
 
 
 def test_find_threshold_recovers_nonzero_f1_without_hurting_auc():

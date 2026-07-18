@@ -89,7 +89,7 @@ def export_symbolic(model, min_r2: float = 0.8, resolution: int = 200, grid: int
     high R^2 for `sin` there is not evidence of a genuinely periodic
     relationship.
     """
-    from kan.utils import fit_params, SYMBOLIC_LIB
+    from kanboost.core.kan import fit_params, SYMBOLIC_LIB
 
     candidates = [c for c in _CANDIDATES if c in SYMBOLIC_LIB]
     if not allow_periodic:
@@ -840,7 +840,7 @@ class SymbolicModel:
 
     @classmethod
     def _from_editable(cls, gam, candidates, min_r2, feature_set=None, parsimony_margin=0.0):
-        from kan.utils import fit_params, SYMBOLIC_LIB
+        from kanboost.core.kan import fit_params, SYMBOLIC_LIB
 
         terms = {}
         x_t = torch.tensor(gam.x_grid, dtype=torch.float32)
@@ -901,7 +901,7 @@ class SymbolicModel:
         term_j(x_j)`. Numeric (non-symbolic) terms appear as an opaque
         function symbol `g_<feature>(x)` -- there's no closed form for
         those; see `fidelity_report()` for which features that affects."""
-        from kan.utils import SYMBOLIC_LIB
+        from kanboost.core.kan import SYMBOLIC_LIB
 
         expr = sympy.Float(self.intercept)
         for name, term in self.terms.items():
@@ -923,7 +923,7 @@ class SymbolicModel:
         `g_<feature>(x)` symbol if that feature fell back to a numeric
         term. `simplify=True` runs `sympy.simplify()` on it (can be slow
         on complex expressions; each single term here is cheap)."""
-        from kan.utils import SYMBOLIC_LIB
+        from kanboost.core.kan import SYMBOLIC_LIB
 
         term = self.terms[feature]
         x = self._symbols[feature]

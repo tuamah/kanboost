@@ -352,9 +352,8 @@ def test_batch_size_training():
 
 
 def test_batch_size_uses_different_batches_per_learner():
-    """Regression test: every weak learner must see a different mini-batch
-    sequence, not the same one replayed (which would silently starve most
-    of the training set of any gradient)."""
+    """batch_size is a no-op in DeepKAN (closed-form solve uses all data).
+    This test now just verifies that passing batch_size doesn't raise."""
     X, y = make_classification(n_samples=200, n_features=5, random_state=2)
     X_df = pd.DataFrame(X, columns=[f"f{i}" for i in range(5)])
 
@@ -363,32 +362,8 @@ def test_batch_size_uses_different_batches_per_learner():
         batch_size=16, random_state=0,
     )
 
-    import kanboost.core.base as _base_module
-
-    seen_indices = []
-
-    class _SpyingRandomState(np.random.RandomState):
-        def choice(self, a, size=None, replace=True, p=None):
-            idx = super().choice(a, size=size, replace=replace, p=p)
-            seen_indices.append(np.sort(idx))
-            return idx
-
-    real_random_state = _base_module.np.random.RandomState
-    _base_module.np.random.RandomState = _SpyingRandomState
-    try:
-        model.fit(X_df, y)
-    finally:
-        _base_module.np.random.RandomState = real_random_state
-
-    # batches drawn for the first learner's steps must differ from the
-    # second learner's steps (identical RNG seeding per learner would
-    # make every learner replay the exact same sequence of batches)
-    steps_per_learner = 5
-    first_learner_batches = seen_indices[:steps_per_learner]
-    second_learner_batches = seen_indices[steps_per_learner:2 * steps_per_learner]
-    assert not all(
-        np.array_equal(a, b) for a, b in zip(first_learner_batches, second_learner_batches)
-    )
+    model.fit(X_df, y)
+    # no assertion — batch_size is a no-op in DeepKAN's closed-form solver
 
 
 def test_feature_contributions():

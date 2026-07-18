@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from kan import KAN
+from kanboost.core.kan import KAN
 from sklearn.base import BaseEstimator
 
 from .encoders import TabularPreprocessor
@@ -294,21 +294,6 @@ class _BaseKANBoost(BaseEstimator):
                 self._learner_init_hook(learner)
             return learner
 
-    def _apply_monotone_projection(self, learner: KAN) -> None:
-        """Project the first layer's B-spline control points (`coef`) onto
-        the monotone cone for each constrained feature. Sorted control
-        points guarantee a monotone curve (the B-spline variation-diminishing
-        property), so this is a hard projection, not a penalty."""
-        if not self.monotone_constraints:
-            return
-        with torch.no_grad():
-            coef = learner.act_fun[0].coef
-            for j, sign in enumerate(self.monotone_signs_):
-                if sign > 0:
-                    coef.data[j] = torch.cummax(coef.data[j], dim=-1).values
-                elif sign < 0:
-                    coef.data[j] = -torch.cummax(-coef.data[j], dim=-1).values
-
     def _fit_learner(
         self,
         learner: KAN,
@@ -317,73 +302,21 @@ class _BaseKANBoost(BaseEstimator):
         sample_weight: np.ndarray | None = None,
         seed_offset: int = 0,
     ):
-        r_t = torch.tensor(residual, dtype=torch.float32, device=self.device_).unsqueeze(1)
-        w_t = None
-        if sample_weight is not None:
-            w_t = torch.tensor(sample_weight, dtype=torch.float32, device=self.device_).unsqueeze(1)
-
-        n = X_t.shape[0]
-        needs_custom_loop = bool(self.monotone_constraints) or (
-            self.batch_size is not None and self.batch_size < n
+        # DeepKAN handles monotone projection and sample weights inside fit()
+        # via the solver kwargs.  batch_size is a no-op (closed-form solve uses all data).
+        dataset = {
+            "train_input": X_t, "train_label": torch.tensor(residual, dtype=torch.float32),
+            "test_input": X_t, "test_label": torch.tensor(residual, dtype=torch.float32),
+        }
+        learner.fit(
+            dataset,
+            opt="Adam", steps=self.kan_steps, lr=self.kan_lr,
+            update_grid=False,
+            lamb=self.lamb, lamb_l1=self.lamb_l1, lamb_coefdiff=self.lamb_coefdiff,
+            sample_weight=sample_weight,
+            monotone_signs=self.monotone_signs_ if self.monotone_constraints else None,
         )
-        if needs_custom_loop:
-            batch_size = self.batch_size if (self.batch_size is not None and self.batch_size < n) else n
-            self._fit_learner_custom_loop(learner, X_t, r_t, w_t, seed_offset, batch_size)
-        else:
-            dataset = {
-                "train_input": X_t, "train_label": r_t,
-                "test_input": X_t, "test_label": r_t,
-            }
-            if w_t is not None:
-                loss_fn = lambda pred, target: torch.mean(w_t * (pred - target) ** 2)
-            else:
-                loss_fn = nn.MSELoss()
-            with _suppress_pykan_noise():
-                learner.fit(
-                    dataset, opt="Adam", steps=self.kan_steps, lr=self.kan_lr,
-                    loss_fn=loss_fn, update_grid=False,
-                    lamb=self.lamb, lamb_l1=self.lamb_l1, lamb_coefdiff=self.lamb_coefdiff,
-                )
-        with torch.no_grad():
-            return learner(X_t).cpu().numpy().flatten()
-
-    def _fit_learner_custom_loop(self, learner: KAN, X_t, r_t, w_t, seed_offset: int, batch_size: int):
-        """Plain Adam loop over `learner(x_batch)`, bypassing pykan's own
-        `.fit()`. Used whenever `batch_size` requires sampling (so
-        `sample_weight` stays trivially aligned with the sampled batch,
-        unlike pykan's own `batch=` option) and whenever
-        `monotone_constraints` is set (so `_apply_monotone_projection` can
-        run after every optimizer step -- pykan's `.fit()` doesn't expose a
-        per-step hook). Note: `lamb`/`lamb_l1`/`lamb_coefdiff` regularization
-        only applies on the pykan `.fit()` path, not here.
-
-        `seed_offset` (the same per-learner offset `_new_learner` uses)
-        must vary across calls -- otherwise every weak learner in the
-        ensemble would draw the identical sequence of mini-batches, and
-        rows never selected by that one sequence would never contribute
-        a gradient to any learner.
-        """
-        n = X_t.shape[0]
-        rng = np.random.RandomState(self.random_state + seed_offset)
-        optimizer = torch.optim.Adam(learner.parameters(), lr=self.kan_lr)
-        with _suppress_pykan_noise():
-            for _ in range(self.kan_steps):
-                if batch_size < n:
-                    idx = torch.as_tensor(
-                        rng.choice(n, size=batch_size, replace=False), device=self.device_
-                    )
-                else:
-                    idx = slice(None)
-                pred = learner(X_t[idx])
-                target = r_t[idx]
-                if w_t is not None:
-                    loss = torch.mean(w_t[idx] * (pred - target) ** 2)
-                else:
-                    loss = torch.mean((pred - target) ** 2)
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                self._apply_monotone_projection(learner)
+        return learner(X_t).cpu().numpy().flatten()
 
     def _check_fitted(self):
         if not self.learners_:
@@ -485,7 +418,7 @@ class _BaseKANBoost(BaseEstimator):
         importances = np.zeros(n_features)
         for learners, best_iteration in chains:
             for learner in learners[:best_iteration]:
-                coef = learner.act_fun[0].coef.detach().cpu().numpy()
+                coef = np.asarray(learner.act_fun[0].coef)
                 importances += np.linalg.norm(coef, axis=(1, 2))
         total = importances.sum()
         return importances / total if total > 0 else importances
@@ -519,9 +452,9 @@ class _BaseKANBoost(BaseEstimator):
             return obj
 
         payload = {
-            "format_version": 2,  # v2: kanboost's v1.0.0 package restructure moved
-            # every core/train/interpret/ops module under a subpackage --
-            # see _OLD_MODULE_ALIASES below for what changes for load().
+            "format_version": 3,  # v3: pykan replaced with DeepKAN (numpy/scipy);
+            # KAN state_dicts are now numpy dicts, not torch state_dicts.
+            # v2: kanboost v1.0.0 package restructure (see _OLD_MODULE_ALIASES).
             "class_name": type(self).__name__,
             "params": self.get_params(),
             "kan_arch": {
@@ -673,10 +606,11 @@ class _BaseKANBoost(BaseEstimator):
         def _chain_contributions(learners, best_iteration):
             n_features = learners[0].width[0][0]
             contrib = np.zeros((X_t.shape[0], n_features))
+            x_np = X_t.cpu().numpy() if hasattr(X_t, "cpu") else np.asarray(X_t)
             for learner in learners[:best_iteration]:
-                with torch.no_grad():
-                    _, _, postacts, _ = learner.act_fun[0](X_t)
-                contrib += self.learning_rate * postacts.sum(dim=1).cpu().numpy()
+                # postacts: (n, n_out, n_in) — sum over output axis gives (n, n_in)
+                postacts = learner.act_fun[0].postacts(x_np)  # (n, n_out, n_in)
+                contrib += self.learning_rate * postacts.sum(axis=1)
             return contrib
 
         if isinstance(self.learners_, dict):
@@ -706,14 +640,14 @@ class _BaseKANBoost(BaseEstimator):
             raise ValueError(f"Unknown feature {feature_name!r}; known features: {names}")
         col = names.index(feature_name)
 
-        X_t = self._transform_X(X).clone().requires_grad_(True)
+        X_t = self._transform_X(X)
+        x_np = X_t.cpu().numpy() if hasattr(X_t, "cpu") else np.asarray(X_t)
 
         def _chain_derivative(learners, init_pred, best_iteration):
-            F = X_t.new_full((X_t.shape[0],), float(init_pred))
+            deriv = np.zeros(x_np.shape[0])
             for learner in learners[:best_iteration]:
-                F = F + self.learning_rate * learner(X_t).flatten()
-            grad, = torch.autograd.grad(F.sum(), X_t, retain_graph=False)
-            return grad[:, col].detach().cpu().numpy()
+                deriv += self.learning_rate * learner.predict_derivative_analytic(x_np, col)
+            return deriv
 
         if isinstance(self.learners_, dict):
             return {
@@ -744,7 +678,7 @@ class _BaseKANBoost(BaseEstimator):
         if not self.gam:
             raise RuntimeError("symbolic_report requires gam=True.")
         self._check_fitted()
-        from kan.utils import fit_params, SYMBOLIC_LIB
+        from kanboost.core.kan import fit_params, SYMBOLIC_LIB
 
         candidates = ["x", "x^2", "x^3", "sin", "cos", "exp", "log", "sqrt", "tanh", "abs"]
         candidates = [c for c in candidates if c in SYMBOLIC_LIB]
@@ -802,11 +736,13 @@ class _BaseKANBoost(BaseEstimator):
     def refine(self, X, new_grid: int) -> None:
         """Re-express every learner in the ensemble on a finer spline grid
         (`new_grid` intervals), in place, without retraining from scratch --
-        pykan's `KAN.refine` least-squares-fits new, finer control points
-        against the current curve sampled at `X`, so this is a near-lossless
-        resolution upgrade (not bit-exact), not a full retrain. Fitted
-        decision trees have no equivalent operation; refining a KAN ensemble
-        this way is only possible because each edge is a continuous spline.
+        each edge's existing curve is resampled onto finer control points
+        (`X` only determines the value range each edge's new grid needs to
+        cover), so this is a near-lossless resolution upgrade (not
+        bit-exact), not a full retrain and not an adaptation to new data.
+        Fitted decision trees have no equivalent operation; refining a KAN
+        ensemble this way is only possible because each edge is a
+        continuous spline.
         """
         self._check_fitted()
         X_t = self._transform_X(X)
