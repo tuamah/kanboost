@@ -50,5 +50,6 @@ nav:
       - Serving & observability: guide/serving.md
       - MLOps integration: guide/mlops.md
       - Tuning with kantun: guide/tuning-with-kantun.md
+  - Benchmark v1 (DeepKAN baseline): benchmark_v1.md
   - API reference: api.md
   - Roadmap: roadmap.md
