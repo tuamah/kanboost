@@ -1,0 +1,1343 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Gradient boosting with Kolmogorov-Arnold Network (KAN) learners">
+      
+      
+      
+        <link rel="canonical" href="https://tuamah.github.io/kanboost/guide/symbolic-export/">
+      
+      
+        <link rel="prev" href="../editing-dashboard/">
+      
+      
+        <link rel="next" href="../interactions/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Symbolic formula export - KANBoost</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#symbolic-formula-export" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="KANBoost" class="md-header__button md-logo" aria-label="KANBoost" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KANBoost
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Symbolic formula export
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/tuamah/kanboost" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tuamah/kanboost
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="KANBoost" class="md-nav__button md-logo" aria-label="KANBoost" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    KANBoost
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/tuamah/kanboost" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tuamah/kanboost
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classification & regression
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interpretability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interpretability (GAM, monotone, symbolic, derivatives)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../editing-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Editable models & dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Symbolic formula export
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Symbolic formula export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-fits-each-feature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it fits each feature
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#predict-is-a-lossy-approximation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Predict is a lossy approximation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multiclass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multiclass
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-ranked-summary-explain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick ranked summary: explain()
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-call-report-symbolic_summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One-call report: symbolic_summary()
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#leaner-more-honest-equations-parsimony-joint-refitting-and-stability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Leaner, more honest equations: parsimony, joint refitting, and stability
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-much-data-does-the-formula-actually-need-stability_across_sample_sizes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How much data does the formula actually need? stability_across_sample_sizes()
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#disabling-periodic-candidates-allow_periodic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disabling periodic candidates: allow_periodic
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-call-distillation-distill_equation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One-call distillation: distill_equation()
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interactions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Checking the additive assumption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calibration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../imbalance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Imbalanced classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../training-speed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training speed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../serving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serving & observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mlops/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MLOps integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tuning-with-kantun/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tuning with kantun
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../benchmark_v1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmark v1 (DeepKAN baseline)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-fits-each-feature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it fits each feature
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#predict-is-a-lossy-approximation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Predict is a lossy approximation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multiclass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multiclass
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-ranked-summary-explain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick ranked summary: explain()
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-call-report-symbolic_summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One-call report: symbolic_summary()
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#leaner-more-honest-equations-parsimony-joint-refitting-and-stability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Leaner, more honest equations: parsimony, joint refitting, and stability
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-much-data-does-the-formula-actually-need-stability_across_sample_sizes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How much data does the formula actually need? stability_across_sample_sizes()
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#disabling-periodic-candidates-allow_periodic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disabling periodic candidates: allow_periodic
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-call-distillation-distill_equation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One-call distillation: distill_equation()
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="symbolic-formula-export">Symbolic formula export<a class="headerlink" href="#symbolic-formula-export" title="Permanent link">&para;</a></h1>
+<p><code>model.symbolic_report(X)</code> and <code>kanboost.interpret.experimental.symbolic_export</code>
+(see <a href="../interpretability/">Interpretability</a>) give a human-readable
+summary of each feature's best-fitting named function.
+<code>kanboost.interpret.symbolic.export_symbolic</code> goes further: an actual executable
+formula.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">kanboost.interpret.symbolic</span><span class="w"> </span><span class="kn">import</span> <span class="n">export_symbolic</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">KANBoostRegressor</span><span class="p">(</span><span class="n">gam</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">kan_hidden</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_estimators</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+<span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
+
+<span class="n">sym</span> <span class="o">=</span> <span class="n">export_symbolic</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">min_r2</span><span class="o">=</span><span class="mf">0.85</span><span class="p">)</span>  <span class="c1"># multiclass classifier -&gt; {class_label: SymbolicModel}</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">sym</span><span class="o">.</span><span class="n">to_sympy</span><span class="p">())</span>          <span class="c1"># a real sympy expression</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">sym</span><span class="o">.</span><span class="n">to_latex</span><span class="p">())</span>          <span class="c1"># ready to paste into a paper</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">sym</span><span class="o">.</span><span class="n">fidelity_report</span><span class="p">())</span>   <span class="c1"># {feature: {&quot;kind&quot;, &quot;r2&quot;, &quot;candidate&quot;, &quot;amplitude&quot;}}</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">sym</span><span class="o">.</span><span class="n">symbolic_fraction</span><span class="p">())</span> <span class="c1"># fraction of features that got a true closed form</span>
+
+<span class="n">sym</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>            <span class="c1"># standalone -- no torch/pykan needed at call time</span>
+<span class="n">sym</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;formula.pt&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="how-it-fits-each-feature">How it fits each feature<a class="headerlink" href="#how-it-fits-each-feature" title="Permanent link">&para;</a></h2>
+<p>Each feature's exact aggregated shape function — the same one
+<code>plot_feature</code>/<code>symbolic_report</code> use, and reusing
+<a href="../editing-dashboard/"><code>kanboost.interpret.editing.consolidate()</code></a>'s already-correct,
+already-tested per-feature centering rather than re-deriving curve
+sampling from scratch — gets one closed-form candidate fit
+(<code>c * fun(a*x + b) + d</code>, pykan's own <code>SYMBOLIC_LIB</code>: <code>x</code>, <code>x^2</code>, <code>x^3</code>,
+<code>sin</code>, <code>cos</code>, <code>exp</code>, <code>log</code>, <code>sqrt</code>, <code>tanh</code>, <code>abs</code>) if some candidate
+clears <code>min_r2</code>. If nothing does, that feature is kept as a numeric
+(spline-interpolated) term instead of forced into a misleading formula
+— <code>fidelity_report()</code> flags which features that happened to, so the
+exported formula never silently claims a closed form that doesn't
+actually fit.</p>
+<div class="admonition warning">
+<p class="admonition-title">R² alone doesn't mean a term matters</p>
+<p><code>fidelity_report()</code>'s <code>amplitude</code> field (the term's max-min range)
+matters alongside <code>r2</code>. A near-flat, unimportant feature can still
+score a deceptively high R² by fitting its own tiny wiggles —
+check <code>amplitude</code> against the other features' before treating a
+high-R² term as meaningful. This was caught empirically while
+building this feature: a genuinely irrelevant (near-noise) feature
+in a test case scored R²=0.996 with a <code>cos</code> fit, while its
+amplitude (~0.13) was more than 20x smaller than a real feature's
+(~3.0) in the same model.</p>
+</div>
+<h2 id="predict-is-a-lossy-approximation">Predict is a lossy approximation<a class="headerlink" href="#predict-is-a-lossy-approximation" title="Permanent link">&para;</a></h2>
+<p>Because this refits every feature's spline as a parametric
+approximation, <code>sym.predict()</code> is a <em>lossy</em> approximation of the
+original model — unlike <a href="../editing-dashboard/"><code>EditableGAM.predict</code></a>,
+which is exact. <code>fidelity_report()</code> tells you how lossy, per feature;
+low-<code>r2</code> (numeric-fallback) features contribute the same spline-exact
+value they would in the original ensemble, so most of the approximation
+error concentrates in the features that <em>did</em> get a symbolic fit.</p>
+<h2 id="multiclass">Multiclass<a class="headerlink" href="#multiclass" title="Permanent link">&para;</a></h2>
+<p><code>export_symbolic</code> returns <code>{class_label: SymbolicModel}</code> for a
+multiclass classifier — one independent formula per one-vs-rest chain,
+matching <code>consolidate()</code>'s own convention.</p>
+<h2 id="quick-ranked-summary-explain">Quick ranked summary: <code>explain()</code><a class="headerlink" href="#quick-ranked-summary-explain" title="Permanent link">&para;</a></h2>
+<p>For a top-<code>N</code> feature report instead of the full formula:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">kanboost.interpret.symbolic</span><span class="w"> </span><span class="kn">import</span> <span class="n">explain</span>
+
+<span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">explain</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">top_features</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">symbolic</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">simplify</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s2">&quot;feature&quot;</span><span class="p">],</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;importance&quot;</span><span class="p">],</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;formula&quot;</span><span class="p">])</span>
+</code></pre></div>
+<p>Ranks features by <code>model.feature_importances_dict()</code> and attaches each
+top feature's symbolic term (<code>simplify=True</code> runs <code>sympy.simplify()</code> on
+it — cheap here, since it's one term, not the whole model).
+<code>symbolic=False</code> skips formula extraction for a plain top-<code>N</code>
+importance ranking. For a multiclass model, <code>explain()</code> uses each
+feature's term from <code>model.classes_[0]</code>'s chain as a representative
+formula — one-vs-rest chains can fit a feature differently per class,
+so call <code>export_symbolic(model)</code> directly and index by class if you
+need a true per-class formula.</p>
+<h2 id="one-call-report-symbolic_summary">One-call report: <code>symbolic_summary()</code><a class="headerlink" href="#one-call-report-symbolic_summary" title="Permanent link">&para;</a></h2>
+<p><code>explain()</code> ranks by <em>importance</em> and only fits candidates for its
+top-<code>N</code>, so the full model formula it implies still has opaque
+<code>g_&lt;feature&gt;(x)</code> placeholders for everything else. <code>symbolic_summary()</code>
+instead ranks by <code>amplitude</code> — how much a feature's term actually moves
+the prediction, which is the metric <a href="#r-alone-doesnt-mean-a-term-matters">the warning above</a>
+says to check, not raw importance — and by default fits candidates for
+<em>every</em> feature, so <code>full_formula</code> only gets a placeholder for a
+feature whose best candidate genuinely falls below <code>min_r2</code> (check each
+term's <code>"kind"</code>), not for every feature outside some top-N cutoff:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">kanboost.interpret.symbolic</span><span class="w"> </span><span class="kn">import</span> <span class="n">symbolic_summary</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">symbolic_summary</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">min_r2</span><span class="o">=</span><span class="mf">0.8</span><span class="p">)</span>  <span class="c1"># top_n=None -&gt; every feature</span>
+
+<span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;ranked_terms&quot;</span><span class="p">]:</span>  <span class="c1"># most-amplitude-first</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">term</span><span class="p">[</span><span class="s2">&quot;feature&quot;</span><span class="p">],</span> <span class="n">term</span><span class="p">[</span><span class="s2">&quot;candidate&quot;</span><span class="p">],</span> <span class="n">term</span><span class="p">[</span><span class="s2">&quot;amplitude&quot;</span><span class="p">],</span> <span class="n">term</span><span class="p">[</span><span class="s2">&quot;formula&quot;</span><span class="p">])</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;full_formula&quot;</span><span class="p">])</span>   <span class="c1"># sympy expression, the whole model</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;full_latex&quot;</span><span class="p">])</span>     <span class="c1"># ready to paste into a paper</span>
+<span class="n">result</span><span class="p">[</span><span class="s2">&quot;model&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span> <span class="c1"># the underlying SymbolicModel, same API as export_symbolic()&#39;s</span>
+</code></pre></div>
+<p>Pass <code>top_n=k</code> to restrict both the ranking <em>and</em> the candidate search
+to the <code>k</code> most important features (by <code>feature_importances_dict()</code>) —
+useful when the full per-feature candidate search is too slow for a
+model with many features. With <code>top_n</code> set, <code>full_formula</code> goes back to
+having a <code>g_&lt;feature&gt;(x)</code> placeholder for every feature outside that
+cutoff, same as <code>explain()</code>. Multiclass: uses <code>model.classes_[0]</code>'s chain,
+same convention as <code>explain()</code>.</p>
+<p>Pass <code>min_amplitude=t</code> to drop any term whose <code>amplitude</code> falls below
+<code>t</code> from <em>both</em> <code>ranked_terms</code> and <code>full_formula</code> — a low-amplitude term
+barely moves the prediction regardless of its R², so leaving it in the
+final equation adds length without adding real signal:</p>
+<div class="highlight"><pre><span></span><code><span class="n">result</span> <span class="o">=</span> <span class="n">symbolic_summary</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">min_r2</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">min_amplitude</span><span class="o">=</span><span class="mf">0.05</span><span class="p">)</span>
+<span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;ranked_terms&quot;</span><span class="p">])</span>  <span class="c1"># fewer terms than an unpruned call</span>
+</code></pre></div>
+<h2 id="leaner-more-honest-equations-parsimony-joint-refitting-and-stability">Leaner, more honest equations: parsimony, joint refitting, and stability<a class="headerlink" href="#leaner-more-honest-equations-parsimony-joint-refitting-and-stability" title="Permanent link">&para;</a></h2>
+<p>Four sharp, real limitations of the default export, and what addresses each:</p>
+<p><strong>1. Candidate selection over-trusts R² alone.</strong> Two candidates that fit
+almost equally well (say <code>x^3</code> at R²=0.94 and <code>sin</code> at R²=0.95) pick the
+higher-R² one even when it's periodic/more complex for a negligible
+gain. <code>parsimony_margin</code> (default <code>0.0</code>, i.e. off) makes <code>export_symbolic()</code>
+only prefer a more complex candidate (by a fixed ranking, roughly
+<code>x &lt; abs/x² &lt; x³/tanh &lt; sqrt/sin/cos &lt; log/exp</code>) when it improves R² by
+more than the margin:</p>
+<div class="highlight"><pre><span></span><code><span class="n">sym</span> <span class="o">=</span> <span class="n">export_symbolic</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">min_r2</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">parsimony_margin</span><span class="o">=</span><span class="mf">0.02</span><span class="p">)</span>
+</code></pre></div>
+<p><strong>2. Each term's constants are fit in isolation, never jointly.</strong>
+<code>export_symbolic()</code>'s default fits each feature's <code>(a, b, c, d)</code> to that
+one feature's own isolated marginal curve — nothing about the default
+fit ever looks at more than one feature at a time, so the <em>combined</em>
+equation can be a worse joint approximation than a joint refit would
+give. <code>refit_constants_from_model()</code> re-optimizes every symbolic term's
+constants together against the real trained model's own raw score:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">kanboost.interpret.symbolic</span><span class="w"> </span><span class="kn">import</span> <span class="n">refit_constants_from_model</span><span class="p">,</span> <span class="n">formula_fidelity</span>
+
+<span class="n">sym</span> <span class="o">=</span> <span class="n">symbolic_summary</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">min_r2</span><span class="o">=</span><span class="mf">0.8</span><span class="p">)[</span><span class="s2">&quot;model&quot;</span><span class="p">]</span>
+<span class="n">sym_refit</span> <span class="o">=</span> <span class="n">refit_constants_from_model</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">sym</span><span class="p">,</span> <span class="n">X_train</span><span class="p">)</span>  <span class="c1"># new SymbolicModel, doesn&#39;t mutate sym</span>
+
+<span class="n">formula_fidelity</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">sym</span><span class="p">,</span> <span class="n">X_test</span><span class="p">,</span> <span class="n">y_test</span><span class="p">)</span>        <span class="c1"># before</span>
+<span class="n">formula_fidelity</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">sym_refit</span><span class="p">,</span> <span class="n">X_test</span><span class="p">,</span> <span class="n">y_test</span><span class="p">)</span>  <span class="c1"># after -- compare</span>
+</code></pre></div>
+<p>Only supports binary classifiers and regressors directly (a multiclass
+one-vs-rest chain needs its own raw score computed by hand and passed
+to the lower-level <code>refit_constants(sym, X_scaled, target)</code>).</p>
+<p><strong>3. "Does the equation still rank like the model?" was never measured.</strong>
+<code>formula_fidelity(model, sym, X, y=None)</code> returns <code>max_abs_error</code>/
+<code>mean_abs_error</code> always, plus <code>auc_model</code>/<code>auc_equation</code> when <code>model</code> is
+a binary classifier and <code>y</code> is given — so <code>auc_equation &gt;= auc_model - 0.005</code>
+is a number you can check, not an assumption.</p>
+<p><strong>4. A formula from one seed isn't <em>the</em> formula.</strong> Boosting is
+stochastic — a different seed can genuinely pick a different candidate
+function for the same feature. <code>stability_across_seeds()</code> trains several
+independent models and reports how often each feature's modal candidate
+was chosen, alongside per-seed <code>formula_fidelity()</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">kanboost.interpret.symbolic</span><span class="w"> </span><span class="kn">import</span> <span class="n">stability_across_seeds</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">build_and_fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">seed</span><span class="p">):</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">KANBoostClassifier</span><span class="p">(</span><span class="n">gam</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">kan_hidden</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">seed</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">m</span>
+
+<span class="n">report</span> <span class="o">=</span> <span class="n">stability_across_seeds</span><span class="p">(</span><span class="n">build_and_fit</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">n_seeds</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">top_n</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<span class="n">report</span><span class="p">[</span><span class="s2">&quot;candidate_stability&quot;</span><span class="p">]</span>   <span class="c1"># per-feature modal_candidate + modal_agreement</span>
+<span class="n">report</span><span class="p">[</span><span class="s2">&quot;fidelity_per_seed&quot;</span><span class="p">]</span>     <span class="c1"># auc_model/auc_equation per seed</span>
+</code></pre></div>
+<h2 id="how-much-data-does-the-formula-actually-need-stability_across_sample_sizes">How much data does the formula actually need? <code>stability_across_sample_sizes()</code><a class="headerlink" href="#how-much-data-does-the-formula-actually-need-stability_across_sample_sizes" title="Permanent link">&para;</a></h2>
+<p><code>stability_across_seeds()</code> (above) holds the training sample size fixed
+and varies the random seed. <code>stability_across_sample_sizes()</code> does the
+opposite: same <code>build_and_fit</code> factory (same hyperparameters/depth every
+call), increasing training sample <em>sizes</em>, one common held-out test
+split shared across all sizes for a fair comparison:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">kanboost.interpret.symbolic</span><span class="w"> </span><span class="kn">import</span> <span class="n">stability_across_sample_sizes</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">build_and_fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">seed</span><span class="p">):</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">KANBoostClassifier</span><span class="p">(</span><span class="n">gam</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">kan_hidden</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">seed</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">m</span>
+
+<span class="n">report</span> <span class="o">=</span> <span class="n">stability_across_sample_sizes</span><span class="p">(</span>
+    <span class="n">build_and_fit</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">sample_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">200</span><span class="p">,</span> <span class="mi">1000</span><span class="p">,</span> <span class="mi">5000</span><span class="p">],</span>
+<span class="p">)</span>
+<span class="n">report</span><span class="p">[</span><span class="s2">&quot;agreement_with_largest&quot;</span><span class="p">]</span>  <span class="c1"># {size: fraction of features matching the largest size&#39;s formula}</span>
+<span class="n">report</span><span class="p">[</span><span class="s2">&quot;stabilized_at&quot;</span><span class="p">]</span>           <span class="c1"># smallest size whose formula already matches the largest size&#39;s</span>
+<span class="n">report</span><span class="p">[</span><span class="s2">&quot;fidelity_by_size&quot;</span><span class="p">]</span>        <span class="c1"># formula_fidelity() per size, same held-out split</span>
+</code></pre></div>
+<p>Useful for checking whether a small, quickly and deeply trained sample
+already gives the same formula as a much larger one — if
+<code>stabilized_at</code> is small relative to your full dataset, you don't need
+to refit on the full data just to get the same equation. Matching
+candidate <em>functions</em> across sizes doesn't guarantee matching refit
+constants — check <code>fidelity_by_size</code> too, not <code>stabilized_at</code> alone.</p>
+<h2 id="disabling-periodic-candidates-allow_periodic">Disabling periodic candidates: <code>allow_periodic</code><a class="headerlink" href="#disabling-periodic-candidates-allow_periodic" title="Permanent link">&para;</a></h2>
+<p><code>sin</code>/<code>tanh</code>/<code>cos</code> can look nearly identical over the model's fitted
+[-1, 1] domain — a real pattern observed on real data this project
+benchmarked, not a hypothetical. In a domain where a periodic
+relationship is implausible on its face (e.g. a clinical risk score),
+<code>allow_periodic=False</code> drops <code>sin</code>/<code>cos</code> from the candidate library
+entirely, rather than merely deprioritizing them via <code>parsimony_margin</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="n">sym</span> <span class="o">=</span> <span class="n">export_symbolic</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">min_r2</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">allow_periodic</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</code></pre></div>
+<p>Also accepted by <code>symbolic_summary()</code> and <code>stability_across_seeds()</code>.</p>
+<h2 id="one-call-distillation-distill_equation">One-call distillation: <code>distill_equation()</code><a class="headerlink" href="#one-call-distillation-distill_equation" title="Permanent link">&para;</a></h2>
+<p>Combines every safeguard above into a single pipeline, instead of
+running <code>symbolic_summary()</code>, amplitude pruning, <code>stability_across_seeds()</code>,
+and <code>refit_constants_from_model()</code> separately and reconciling them by
+hand:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">kanboost.interpret.symbolic</span><span class="w"> </span><span class="kn">import</span> <span class="n">distill_equation</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">build_and_fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">seed</span><span class="p">):</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">KANBoostClassifier</span><span class="p">(</span><span class="n">gam</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">kan_hidden</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">seed</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">m</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">distill_equation</span><span class="p">(</span>
+    <span class="n">build_and_fit</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span>
+    <span class="n">top_n</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">min_r2</span><span class="o">=</span><span class="mf">0.98</span><span class="p">,</span> <span class="n">min_relative_amplitude</span><span class="o">=</span><span class="mf">0.03</span><span class="p">,</span>
+    <span class="n">stability_threshold</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span> <span class="n">n_seeds</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">allow_periodic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;formula&quot;</span><span class="p">])</span>            <span class="c1"># final, pruned, jointly-refit sympy expression</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;latex&quot;</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;kept_features&quot;</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;dropped_features&quot;</span><span class="p">])</span>   <span class="c1"># {&quot;numeric_fallback&quot;, &quot;low_relative_amplitude&quot;, &quot;unstable&quot;: [...]}</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;fidelity&quot;</span><span class="p">])</span>           <span class="c1"># auc_model/auc_equation on a held-out split</span>
+</code></pre></div>
+<p>A feature only survives into the final equation if <strong>all three</strong> hold:
+it cleared <code>min_r2</code> (a genuine closed-form term, not a numeric
+fallback), its amplitude is at least <code>min_relative_amplitude</code> of the
+<em>total</em> amplitude across the <code>top_n</code> terms (not just its own R^2), and
+its modal-candidate agreement across <code>n_seeds</code> independent refits is at
+least <code>stability_threshold</code>. The surviving terms' constants are then
+jointly refit (<code>refit_constants_from_model()</code>) against the reference
+model's real raw score — raises <code>ValueError</code> if nothing survives all
+three gates, rather than silently returning an intercept-only formula.</p>
+<p><strong>Scope note</strong>: the three per-term criteria are independent filters,
+not a causal per-term ablation test (removing one term and measuring
+the actual AUC drop it alone causes) — <code>min_relative_amplitude</code> is a
+fast, correlational proxy for "does this term matter enough to keep",
+not a substitute for a true leave-one-term-out significance test.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.tracking", "navigation.top", "content.code.copy", "search.suggest"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

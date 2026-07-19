@@ -1,0 +1,1504 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Gradient boosting with Kolmogorov-Arnold Network (KAN) learners">
+      
+      
+      
+        <link rel="canonical" href="https://tuamah.github.io/kanboost/guide/classification/">
+      
+      
+        <link rel="prev" href="../../installation/">
+      
+      
+        <link rel="next" href="../interpretability/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Classification & regression - KANBoost</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#classification-regression" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="KANBoost" class="md-header__button md-logo" aria-label="KANBoost" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KANBoost
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Classification & regression
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/tuamah/kanboost" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tuamah/kanboost
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="KANBoost" class="md-nav__button md-logo" aria-label="KANBoost" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    KANBoost
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/tuamah/kanboost" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tuamah/kanboost
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classification & regression
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classification & regression
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#kanboostclassifier" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KANBoostClassifier
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#kanboostregressor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KANBoostRegressor
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persistence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#benchmarks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Benchmarks
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interpretability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interpretability (GAM, monotone, symbolic, derivatives)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../editing-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Editable models & dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../symbolic-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Symbolic formula export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interactions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Checking the additive assumption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calibration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../imbalance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Imbalanced classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../training-speed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training speed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../serving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serving & observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mlops/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MLOps integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tuning-with-kantun/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tuning with kantun
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../benchmark_v1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmark v1 (DeepKAN baseline)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#kanboostclassifier" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KANBoostClassifier
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#kanboostregressor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KANBoostRegressor
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persistence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#benchmarks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Benchmarks
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="classification-regression">Classification &amp; regression<a class="headerlink" href="#classification-regression" title="Permanent link">&para;</a></h1>
+<h2 id="kanboostclassifier"><code>KANBoostClassifier</code><a class="headerlink" href="#kanboostclassifier" title="Permanent link">&para;</a></h2>
+<p>Binary and multiclass (one-vs-rest, <code>n_classes</code> independent binary
+boosting chains combined via softmax at prediction time).</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">kanboost</span><span class="w"> </span><span class="kn">import</span> <span class="n">KANBoostClassifier</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">KANBoostClassifier</span><span class="p">(</span>
+    <span class="n">n_estimators</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">learning_rate</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span>
+    <span class="n">kan_hidden</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+    <span class="n">kan_grid</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+    <span class="n">categorical_cols</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;region&quot;</span><span class="p">,</span> <span class="s2">&quot;plan_type&quot;</span><span class="p">],</span>  <span class="c1"># optional, auto-encoded</span>
+    <span class="n">early_stopping_rounds</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">,</span>  <span class="c1"># or None to auto-detect, &quot;cpu&quot; to force CPU</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">2048</span><span class="p">,</span>  <span class="c1"># optional: mini-batch training for large datasets</span>
+<span class="p">)</span>
+<span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">eval_set</span><span class="o">=</span><span class="p">(</span><span class="n">X_val</span><span class="p">,</span> <span class="n">y_val</span><span class="p">),</span> <span class="n">sample_weight</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+<span class="n">probs</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict_proba</span><span class="p">(</span><span class="n">X_val</span><span class="p">)</span>  <span class="c1"># (n, 2) binary, (n, n_classes) multiclass</span>
+<span class="n">labels</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_val</span><span class="p">)</span>
+</code></pre></div>
+<p><code>validation_fraction</code> carves out an internal train/validation split
+automatically (stratified) if you don't want to build <code>eval_set</code>
+yourself:</p>
+<div class="highlight"><pre><span></span><code><span class="n">model</span> <span class="o">=</span> <span class="n">KANBoostClassifier</span><span class="p">(</span><span class="n">validation_fraction</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span> <span class="n">early_stopping_rounds</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>  <span class="c1"># no eval_set needed</span>
+</code></pre></div>
+<h2 id="kanboostregressor"><code>KANBoostRegressor</code><a class="headerlink" href="#kanboostregressor" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">kanboost</span><span class="w"> </span><span class="kn">import</span> <span class="n">KANBoostRegressor</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">KANBoostRegressor</span><span class="p">(</span><span class="n">objective</span><span class="o">=</span><span class="s2">&quot;squared_error&quot;</span><span class="p">)</span>  <span class="c1"># or objective=&quot;quantile&quot;, alpha=0.9</span>
+<span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">eval_set</span><span class="o">=</span><span class="p">(</span><span class="n">X_val</span><span class="p">,</span> <span class="n">y_val</span><span class="p">))</span>
+<span class="n">preds</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_val</span><span class="p">)</span>
+<span class="n">report</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">X_val</span><span class="p">,</span> <span class="n">y_val</span><span class="p">)</span>  <span class="c1"># MSE, RMSE, MAE, R^2 (+ pinball for quantile)</span>
+</code></pre></div>
+<h2 id="persistence">Persistence<a class="headerlink" href="#persistence" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">model</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;model.pt&quot;</span><span class="p">)</span>
+<span class="n">loaded</span> <span class="o">=</span> <span class="n">KANBoostClassifier</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;model.pt&quot;</span><span class="p">)</span>  <span class="c1"># device=... to override where it loads</span>
+</code></pre></div>
+<p>Learners are stored as <code>state_dict</code>s (pykan's <code>KAN</code> isn't directly
+picklable) and rebuilt on load.</p>
+<h2 id="benchmarks">Benchmarks<a class="headerlink" href="#benchmarks" title="Permanent link">&para;</a></h2>
+<p>Preliminary results on a real-world telecom churn dataset (100K rows,
+10 numeric features used, 8K-row sample for the KANBoost run due to
+current training-speed limits):</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Test AUC</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CatBoost (tuned, full data, ~100 columns)</td>
+<td><strong>0.6992</strong></td>
+<td>production baseline</td>
+</tr>
+<tr>
+<td>KANBoostClassifier (this repo, 10 features, 8K sample)</td>
+<td>0.64</td>
+<td>early prototype, untuned</td>
+</tr>
+<tr>
+<td>Plain KAN (no boosting)</td>
+<td>0.65</td>
+<td>single model, same features</td>
+</tr>
+<tr>
+<td>Plain MLP</td>
+<td>0.59–0.62</td>
+<td>same features</td>
+</tr>
+</tbody>
+</table>
+<p>Standard UCI-style datasets, KANBoost vs. sklearn's
+<code>HistGradientBoosting*</code> (untuned defaults) as a sanity floor — see
+<a href="https://github.com/tuamah/kanboost/blob/main/examples/benchmark_uci.py"><code>examples/benchmark_uci.py</code></a>,
+reproducible in one run (<code>kan_hidden=1</code>, <code>n_estimators=60</code>,
+<code>kan_steps=15</code>, <code>batch_size=2048</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th>Metric</th>
+<th>KANBoost</th>
+<th>HistGradientBoosting</th>
+<th>KANBoost train time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Adult Income (10K-row train sample, 48K total)</td>
+<td>AUC</td>
+<td>0.884</td>
+<td>0.919</td>
+<td>~17s</td>
+</tr>
+<tr>
+<td>California Housing (full, 20.6K rows)</td>
+<td>R²</td>
+<td>0.639</td>
+<td>0.836</td>
+<td>~13s</td>
+</tr>
+<tr>
+<td>Breast Cancer Wisconsin (full, 569 rows)</td>
+<td>AUC</td>
+<td><strong>0.9954</strong></td>
+<td>0.9931</td>
+<td>~11s</td>
+</tr>
+</tbody>
+</table>
+<p>A separate, fully independent real-world test (an NFL Draft prediction
+dataset, ~2.8K rows, 80 engineered features after preprocessing, 5-fold
+CV, <code>n_estimators=300</code>, <code>early_stopping_rounds=30</code>,
+<code>validation_fraction=0.15</code>), comparing against tuned CatBoost rather than
+untuned HistGradientBoosting:</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Mean CV AUC</th>
+<th>OOF AUC</th>
+<th>Time per fold</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CatBoost (tuned)</td>
+<td><strong>0.83880</strong></td>
+<td>0.81961</td>
+<td>2.4–7.8s</td>
+</tr>
+<tr>
+<td>KANBoost</td>
+<td>0.83153</td>
+<td><strong>0.83002</strong></td>
+<td>84–90s</td>
+</tr>
+</tbody>
+</table>
+<p>KANBoost trailed on 4 of 5 individual folds by under 0.5 points, and
+actually edged CatBoost out on OOF AUC (the metric computed on all
+pooled out-of-fold predictions at once, rather than averaged per-fold) —
+at roughly 17–20x the training time. Consistent with the UCI results
+above: KANBoost's accuracy is competitive, not the reason to reach for
+it; the ~20x slowdown is real and dataset-independent so far.</p>
+<p>On the small-data end (Breast Cancer, 569 rows), KANBoost's smaller
+per-round learner capacity stops being a handicap and it edges out the
+tree baseline — the two larger datasets show the more typical pattern of
+tree boosting ahead on both accuracy and speed.</p>
+<p>Also in that script: a <code>monotone_constraints={"MedInc": 1}</code> model on
+California Housing, verified via <code>predict_derivative</code> to have a
+non-negative derivative (min ≈ +0.50) on the <em>held-out test set</em> — a
+hard structural guarantee tree-boosting libraries can't offer.</p>
+<p>A separate, more rigorous cross-validated benchmark on Breast Cancer
+Wisconsin (mean ± std over folds, tuned KANBoost vs. tuned tree
+ensembles and a scaled logistic regression/MLP baseline) surfaces a
+genuine, previously undocumented finding — a calibration gap, not just
+a speed one:</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>ROC AUC</th>
+<th>F1 @ 0.5</th>
+<th>F1 @ best per-fold threshold</th>
+<th>Brier score</th>
+<th>Fit time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LogReg (scaled)</td>
+<td>0.9954</td>
+<td>0.9616</td>
+<td><strong>0.9823</strong></td>
+<td><strong>0.0201</strong></td>
+<td>0.02s</td>
+</tr>
+<tr>
+<td><strong>KANBoost (tuned)</strong></td>
+<td><strong>0.9940</strong></td>
+<td>0.9476</td>
+<td>0.9706</td>
+<td>0.0578</td>
+<td>30.4s</td>
+</tr>
+<tr>
+<td>LightGBM</td>
+<td>0.9936</td>
+<td>0.9551</td>
+<td>0.9680</td>
+<td>0.0246</td>
+<td>0.14s</td>
+</tr>
+<tr>
+<td>XGBoost</td>
+<td>0.9934</td>
+<td><strong>0.9614</strong></td>
+<td>0.9673</td>
+<td>0.0228</td>
+<td>0.28s</td>
+</tr>
+<tr>
+<td>HistGradientBoosting</td>
+<td>0.9937</td>
+<td>0.9518</td>
+<td>0.9619</td>
+<td>0.0300</td>
+<td>0.33s</td>
+</tr>
+<tr>
+<td>RandomForest</td>
+<td>0.9881</td>
+<td>0.9406</td>
+<td>0.9579</td>
+<td>0.0331</td>
+<td>1.49s</td>
+</tr>
+<tr>
+<td>MLP (scaled)</td>
+<td>0.9751</td>
+<td>0.8951</td>
+<td>0.9345</td>
+<td>0.1151</td>
+<td>0.05s</td>
+</tr>
+</tbody>
+</table>
+<p>KANBoost's <em>ranking</em> ability (ROC AUC, PR AUC) is genuinely excellent
+here — second only to logistic regression, ahead of every tree
+ensemble. But its raw probabilities are comparatively <strong>miscalibrated</strong>:
+worst Brier score of the group, and the per-fold F1-optimal decision
+threshold averaged <strong>0.405</strong>, not 0.5 — a real, systematic skew, not
+noise. At the default 0.5 cutoff its F1 looks mediocre; using each
+fold's own optimal threshold instead, F1 and MCC both jump to
+second-best overall, ahead of LightGBM, XGBoost, and
+HistGradientBoosting.</p>
+<div class="admonition tip">
+<p class="admonition-title">Don't threshold at 0.5 without checking</p>
+<p>Tune the decision threshold on a validation set (or apply a
+post-hoc calibration step like Platt scaling/isotonic regression)
+the way you would for any model with a known calibration gap.
+KANBoost's probability <em>ranking</em> can be trusted at face value; its
+probability <em>values</em> currently can't be, out of the box.</p>
+</div>
+<p>Also notable, and not previously measured: <strong>prediction time</strong>, not just
+fit time, is markedly slower here too (~0.99s vs. 0.006–0.12s for the
+tree ensembles) — roughly two orders of magnitude, distinct from the
+already-documented training-speed gap.</p>
+<p>A second, independent run on the same dataset with a stricter
+methodology — the decision threshold picked on a held-out <em>validation</em>
+split, then applied once to a separate <em>test</em> split (rather than the
+per-fold-optimal-on-test-itself threshold above, which is a slightly
+more optimistic setup) — both confirms and strengthens this picture:</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Test ROC AUC</th>
+<th>Test Brier</th>
+<th>Threshold (from val)</th>
+<th>Test accuracy @ that threshold</th>
+<th>Test F1</th>
+<th>Test MCC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RandomForest</td>
+<td><strong>0.9983</strong></td>
+<td>0.0274</td>
+<td>0.440</td>
+<td>0.9649</td>
+<td>0.9512</td>
+<td>0.9245</td>
+</tr>
+<tr>
+<td><strong>KANBoost (tuned)</strong></td>
+<td>0.9980</td>
+<td><strong>0.0578</strong></td>
+<td>0.415</td>
+<td><strong>0.9825</strong></td>
+<td><strong>0.9756</strong></td>
+<td><strong>0.9626</strong></td>
+</tr>
+<tr>
+<td>LogReg (scaled)</td>
+<td>0.9954</td>
+<td>0.0222</td>
+<td>0.730</td>
+<td>0.9649</td>
+<td>0.9500</td>
+<td>0.9258</td>
+</tr>
+<tr>
+<td>HistGradientBoosting</td>
+<td>0.9940</td>
+<td>0.0296</td>
+<td>0.235</td>
+<td>0.9737</td>
+<td>0.9630</td>
+<td>0.9442</td>
+</tr>
+<tr>
+<td>LightGBM</td>
+<td>0.9940</td>
+<td><strong>0.0198</strong></td>
+<td>0.270</td>
+<td><strong>0.9825</strong></td>
+<td><strong>0.9756</strong></td>
+<td><strong>0.9626</strong></td>
+</tr>
+<tr>
+<td>XGBoost</td>
+<td>0.9931</td>
+<td>0.0199</td>
+<td>0.280</td>
+<td><strong>0.9825</strong></td>
+<td><strong>0.9756</strong></td>
+<td><strong>0.9626</strong></td>
+</tr>
+<tr>
+<td>MLP (scaled)</td>
+<td>0.9894</td>
+<td>0.0980</td>
+<td>0.555</td>
+<td>0.9386</td>
+<td>0.9136</td>
+<td>0.8675</td>
+</tr>
+</tbody>
+</table>
+<p>Brier score replicates the calibration gap independently — still
+clearly the worst of the group, confirming it's a real, repeatable
+property of KANBoost's raw probability outputs, not an artifact of one
+experimental setup. But with an honestly-selected (validation-derived,
+not test-leaked) threshold, KANBoost's classification metrics
+(accuracy/F1/MCC) come out in an exact three-way tie for <strong>best in the
+entire comparison</strong>, matching LightGBM and XGBoost and ahead of
+RandomForest, LogReg, HistGradientBoosting, and MLP — while its ROC AUC
+is second only to RandomForest. Threshold calibration isn't a marginal
+tweak here; it's the difference between mediocre and top-tier
+classification performance for KANBoost specifically.</p>
+<p>A <strong>third</strong>, independent CV run on the same dataset (8 models including
+CatBoost, mean ± std over folds, log-loss added alongside Brier)
+confirms the pattern again, and sharpens it:</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>ROC AUC</th>
+<th>PR AUC</th>
+<th>F1 @ 0.5</th>
+<th>Log loss</th>
+<th>Brier</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>KANBoost (tuned)</strong></td>
+<td><strong>0.9960</strong></td>
+<td><strong>0.9948</strong></td>
+<td>0.9309</td>
+<td><strong>0.3628</strong></td>
+<td><strong>0.0971</strong></td>
+</tr>
+<tr>
+<td>LogReg (scaled)</td>
+<td>0.9951</td>
+<td>0.9939</td>
+<td><strong>0.9620</strong></td>
+<td>0.0796</td>
+<td>0.0213</td>
+</tr>
+<tr>
+<td>CatBoost</td>
+<td>0.9947</td>
+<td>0.9934</td>
+<td>0.9474</td>
+<td>0.0929</td>
+<td>0.0257</td>
+</tr>
+<tr>
+<td>XGBoost</td>
+<td>0.9935</td>
+<td>0.9914</td>
+<td>0.9499</td>
+<td>0.0967</td>
+<td>0.0272</td>
+</tr>
+<tr>
+<td>HistGradientBoosting</td>
+<td>0.9928</td>
+<td>0.9909</td>
+<td>0.9464</td>
+<td>0.1292</td>
+<td>0.0285</td>
+</tr>
+<tr>
+<td>LightGBM</td>
+<td>0.9916</td>
+<td>0.9898</td>
+<td>0.9490</td>
+<td>0.1501</td>
+<td>0.0306</td>
+</tr>
+<tr>
+<td>RandomForest</td>
+<td>0.9904</td>
+<td>0.9889</td>
+<td>0.9430</td>
+<td>0.1253</td>
+<td>0.0336</td>
+</tr>
+<tr>
+<td>MLP (scaled)</td>
+<td>0.9855</td>
+<td>0.9831</td>
+<td>0.9284</td>
+<td>0.2218</td>
+<td>0.0580</td>
+</tr>
+</tbody>
+</table>
+<p>This time KANBoost's ROC AUC and PR AUC are the <strong>highest of all 8
+models</strong> — including CatBoost and LogReg. But log loss (which, unlike
+Brier, penalizes confidently-wrong probabilities heavily) is nearly 2x
+worse than the next-worst model (MLP) and 4-5x worse than the tree
+ensembles — the starkest evidence yet, across a third independent
+methodology, that KANBoost's ranking and its raw probability confidence
+are two very different things. The practical guidance stands regardless
+of which of these three runs you look at: trust the ranking, calibrate
+or threshold-tune before trusting the raw probability values.</p>
+<p>A fourth benchmark, this time spanning <strong>three separate datasets</strong> (not
+repeated runs of one) with <strong>Wilcoxon signed-rank significance testing</strong>
+(5-fold, <code>KANBoost</code> vs. each of 7 other models, per dataset) rather than
+just comparing means:</p>
+<table>
+<thead>
+<tr>
+<th>Dataset (rows)</th>
+<th>KANBoost ROC AUC</th>
+<th>Best of the other 7</th>
+<th>KANBoost rank</th>
+<th>Brier (KANBoost)</th>
+<th>Fit time (KANBoost)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Heart-Statlog (270)</td>
+<td><strong>0.9181</strong></td>
+<td>LogReg 0.9053</td>
+<td><strong>1st of 8</strong></td>
+<td>0.1253</td>
+<td>9.8s</td>
+</tr>
+<tr>
+<td>Breast Cancer Wisconsin (569)</td>
+<td>0.9945</td>
+<td>LogReg 0.9946 (~tied)</td>
+<td>1st–2nd of 8</td>
+<td>0.0563</td>
+<td>13.4s</td>
+</tr>
+<tr>
+<td>Diabetes / Pima (768)</td>
+<td>0.8290</td>
+<td>CatBoost 0.8402</td>
+<td>5th of 8</td>
+<td>0.1659</td>
+<td>12.2s</td>
+</tr>
+</tbody>
+</table>
+<p>On Heart-Statlog specifically, KANBoost's ROC AUC beat <strong>every one of
+the other 7 models on every one of the 5 folds</strong> — <code>p=0.0625</code> against
+all seven, the smallest p-value obtainable with 5 paired folds (i.e.
+maximally significant given the sample size). Brier score again lands
+in the worse half of the pack on the two datasets where it's not
+best-in-class, consistent with the calibration gap documented above.</p>
+<div class="admonition note">
+<p class="admonition-title">An emerging pattern worth taking seriously, not yet proven</p>
+<p>Across all four Breast-Cancer-family runs plus this new
+multi-dataset one, KANBoost's <em>relative</em> standing tracks dataset
+size — decisive win on the smallest set (270 rows), a near-tie for
+best on a mid-small one (569 rows), and merely mid-pack on the
+largest of the three (768 rows). This lines up with the small-data
+observation already made about Breast Cancer vs. Adult Income/
+California Housing earlier in this page: fewer rows seem to blunt
+tree ensembles' usual edge more than they blunt KANBoost's. Three
+datasets and one 8-model comparison is not enough to call this a
+rule — it's a pattern to test further, not a guarantee.</p>
+</div>
+<p><strong>Read these tables honestly</strong>: KANBoost does not consistently beat tuned
+tree boosting on accuracy or speed. The value proposition is
+interpretability and structural guarantees (monotonicity, exact additive
+decomposition, analytic derivatives) that trees and MLPs
+can't provide even in principle — not raw predictive performance.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.tracking", "navigation.top", "content.code.copy", "search.suggest"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

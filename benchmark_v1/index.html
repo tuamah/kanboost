@@ -1,0 +1,1619 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Gradient boosting with Kolmogorov-Arnold Network (KAN) learners">
+      
+      
+      
+        <link rel="canonical" href="https://tuamah.github.io/kanboost/benchmark_v1/">
+      
+      
+        <link rel="prev" href="../guide/tuning-with-kantun/">
+      
+      
+        <link rel="next" href="../api/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Benchmark v1 (DeepKAN baseline) - KANBoost</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#benchmark-v1-deepkan-baseline-v122" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="KANBoost" class="md-header__button md-logo" aria-label="KANBoost" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KANBoost
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Benchmark v1 (DeepKAN baseline)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/tuamah/kanboost" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tuamah/kanboost
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="KANBoost" class="md-nav__button md-logo" aria-label="KANBoost" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    KANBoost
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/tuamah/kanboost" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tuamah/kanboost
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classification & regression
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/interpretability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interpretability (GAM, monotone, symbolic, derivatives)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/editing-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Editable models & dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/symbolic-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Symbolic formula export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/interactions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Checking the additive assumption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/calibration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/imbalance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Imbalanced classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/training-speed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training speed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/serving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serving & observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/mlops/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MLOps integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/tuning-with-kantun/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tuning with kantun
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmark v1 (DeepKAN baseline)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmark v1 (DeepKAN baseline)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#default-training-behavior-frozen-as-of-v122" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Default training behavior (frozen as of v1.2.2)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-experimental-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Experimental setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-accuracy-results-5-fold-cv-r2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Accuracy results (5-fold CV, R²)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Accuracy results (5-fold CV, R²)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overfitting-diagnostic-train-r2-val-r2-8020-split" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overfitting diagnostic (Train R² / Val R², 80/20 split)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-speed-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Speed results
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Speed results">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#b-spline-evaluation-kernel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B-spline evaluation kernel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#full-training-time-cumulative-optimization-chain-friedman-500-n_estimators60-5-fold-cv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full training time, cumulative optimization chain (Friedman-500, n_estimators=60, 5-fold CV)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#als-convergence-tolerance-fix-separate-later-fix-measured-at-kan_hidden64" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ALS convergence tolerance fix (separate, later fix — measured at kan_hidden=64)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-engineering-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Engineering decisions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Engineering decisions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adopted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adopted
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rejected-cholesky-instead-of-eigh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rejected — Cholesky instead of eigh
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rejected-as-a-default-cross-round-warm-starting-capped-als-sweeps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rejected as a default — cross-round warm-starting + capped ALS sweeps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rejected-named-presetmode-api-presetbalancedaccuracy-modefastaccurate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rejected — named preset/mode API (preset='balanced'/'accuracy', mode='fast'/'accurate')
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#not-pursued-evidence-doesnt-support-it-yet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not pursued (evidence doesn't support it yet)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-v1-means-going-forward" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What v1 means going forward
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#default-training-behavior-frozen-as-of-v122" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Default training behavior (frozen as of v1.2.2)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-experimental-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Experimental setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-accuracy-results-5-fold-cv-r2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Accuracy results (5-fold CV, R²)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Accuracy results (5-fold CV, R²)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overfitting-diagnostic-train-r2-val-r2-8020-split" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overfitting diagnostic (Train R² / Val R², 80/20 split)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-speed-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Speed results
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Speed results">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#b-spline-evaluation-kernel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B-spline evaluation kernel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#full-training-time-cumulative-optimization-chain-friedman-500-n_estimators60-5-fold-cv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full training time, cumulative optimization chain (Friedman-500, n_estimators=60, 5-fold CV)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#als-convergence-tolerance-fix-separate-later-fix-measured-at-kan_hidden64" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ALS convergence tolerance fix (separate, later fix — measured at kan_hidden=64)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-engineering-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Engineering decisions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Engineering decisions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adopted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adopted
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rejected-cholesky-instead-of-eigh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rejected — Cholesky instead of eigh
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rejected-as-a-default-cross-round-warm-starting-capped-als-sweeps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rejected as a default — cross-round warm-starting + capped ALS sweeps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rejected-named-presetmode-api-presetbalancedaccuracy-modefastaccurate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rejected — named preset/mode API (preset='balanced'/'accuracy', mode='fast'/'accurate')
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#not-pursued-evidence-doesnt-support-it-yet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not pursued (evidence doesn't support it yet)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-v1-means-going-forward" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What v1 means going forward
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="benchmark-v1-deepkan-baseline-v122">Benchmark v1 — DeepKAN Baseline (v1.2.2)<a class="headerlink" href="#benchmark-v1-deepkan-baseline-v122" title="Permanent link">&para;</a></h1>
+<p>This page documents the official v1.2.2 baseline: the default training
+behavior, the accuracy/speed numbers behind it, and the engineering
+decisions (including rejected ones) that led here. Any future
+optimization should be measured against these numbers, not against
+"feels faster."</p>
+<h2 id="default-training-behavior-frozen-as-of-v122">Default training behavior (frozen as of v1.2.2)<a class="headerlink" href="#default-training-behavior-frozen-as-of-v122" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Non-GAM solver</td>
+<td><code>eigh</code> (truncated eigenvalue pseudo-inverse)</td>
+</tr>
+<tr>
+<td>ALS internal convergence tolerance</td>
+<td><code>1e-3</code></td>
+</tr>
+<tr>
+<td>Early stopping</td>
+<td>enabled automatically when <code>validation_fraction</code> is set</td>
+</tr>
+<tr>
+<td>B-spline evaluation</td>
+<td><code>numba</code>-accelerated when installed (<code>pip install kanboost[accel]</code>), scipy fallback otherwise</td>
+</tr>
+<tr>
+<td>GAM solver</td>
+<td>closed-form P-spline solve (unchanged, unaffected by any of the above)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Important, easy-to-miss default:</strong> <code>early_stopping_rounds</code> defaults to
+<code>10</code>, but it does nothing unless <code>validation_fraction</code> (or an explicit
+<code>eval_set</code>) is also set — there is no internal validation split without
+it. Set <code>validation_fraction=0.15</code> (or similar) explicitly if you want
+early stopping active; its absence is not "no early stopping," it's
+"early stopping silently disabled."</p>
+<h2 id="1-experimental-setup">1. Experimental setup<a class="headerlink" href="#1-experimental-setup" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Python:</strong> 3.10.11</li>
+<li><strong>OS:</strong> Windows 10 (Windows-10-10.0.26200-SP0)</li>
+<li><strong>kanboost:</strong> v1.2.2, <code>numba</code> accelerator installed</li>
+<li><strong>Datasets:</strong></li>
+<li>Friedman #1, 500 samples, 5 features (PMLB <code>649_fri_c0_500_5</code>)</li>
+<li>Friedman #1, 1000 samples, 10 features — 5 relevant + 5 pure noise (PMLB <code>595_fri_c0_1000_10</code>)</li>
+<li>UCI Concrete Compressive Strength, 1030 samples, 8 features</li>
+<li>California Housing, subsampled to 3000 of 20,640 rows, 8 features (full-size run is impractically slow at <code>kan_hidden=64</code> — see Engineering Decisions)</li>
+<li>Diabetes, 442 samples, 10 features</li>
+<li><strong>Preprocessing:</strong> kanboost's built-in <code>TabularPreprocessor</code> (automatic scaling/encoding); no external preprocessing applied</li>
+<li><strong>Metrics:</strong> R², RMSE, wall-clock fit time; Train R² / Validation R² / Overfit gap via a separate 80/20 diagnostic split</li>
+<li><strong>CV strategy:</strong> 5-fold <code>KFold(shuffle=True, random_state=42)</code> for the reported R²/RMSE/time; a single 80/20 <code>train_test_split(random_state=42)</code> for the overfitting diagnostic (kept separate from the CV numbers on purpose — CV is the accuracy judgment, the 80/20 split is only for detecting train/val gaps)</li>
+<li><strong>KANBoost config:</strong> <code>n_estimators=60, kan_hidden=64, kan_grid=3, learning_rate=0.1, gam=False</code> (non-GAM); <code>n_estimators=30, kan_hidden=1, gam=True</code> (GAM). Tree ensembles: <code>n_estimators=300, max_depth=4, learning_rate=0.05</code> (XGBoost/LightGBM/CatBoost defaults used throughout this benchmark, not separately tuned)</li>
+</ul>
+<p><code>kan_hidden=64, kan_grid=3</code> was arrived at via a systematic diagnostic
+sweep on Friedman-1000 specifically (see
+<a href="#4-engineering-decisions">Engineering Decisions</a>) — it is the single
+config used across all five datasets below for a fair, honest
+comparison, <strong>not</strong> a per-dataset-optimal config. Concrete specifically
+does measurably better with <code>kan_grid=8</code> (0.909 vs 0.893); this is
+intentionally not special-cased here.</p>
+<h2 id="2-accuracy-results-5-fold-cv-r2">2. Accuracy results (5-fold CV, R²)<a class="headerlink" href="#2-accuracy-results-5-fold-cv-r2" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th>XGBoost</th>
+<th>LightGBM</th>
+<th>CatBoost</th>
+<th><strong>KANBoost</strong></th>
+<th>KANBoost-GAM</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Friedman-500</td>
+<td>0.904</td>
+<td>0.903</td>
+<td>0.932</td>
+<td><strong>0.935</strong></td>
+<td>0.891</td>
+</tr>
+<tr>
+<td>Friedman-1000</td>
+<td>0.915</td>
+<td>0.911</td>
+<td>0.934</td>
+<td><strong>0.919</strong></td>
+<td>0.871</td>
+</tr>
+<tr>
+<td>Concrete</td>
+<td>0.931</td>
+<td>0.917</td>
+<td>0.914</td>
+<td>0.887</td>
+<td>0.841</td>
+</tr>
+<tr>
+<td>California Housing (n=3000)</td>
+<td>0.782</td>
+<td>0.779</td>
+<td>0.769</td>
+<td>0.710</td>
+<td>0.653</td>
+</tr>
+<tr>
+<td>Diabetes (n=442)</td>
+<td>0.385</td>
+<td>0.398</td>
+<td>0.462</td>
+<td>0.322</td>
+<td>0.426</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reading:</strong> KANBoost matches or beats XGBoost/LightGBM on the two
+Friedman datasets (best model overall on Friedman-500) using a single
+non-tuned-per-dataset config. It trails on Concrete (grid=3 is not this
+dataset's optimum), California Housing, and Diabetes.</p>
+<h3 id="overfitting-diagnostic-train-r2-val-r2-8020-split">Overfitting diagnostic (Train R² / Val R², 80/20 split)<a class="headerlink" href="#overfitting-diagnostic-train-r2-val-r2-8020-split" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Diabetes gap</th>
+<th>California Housing gap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>XGBoost</td>
+<td>0.584</td>
+<td>0.143</td>
+</tr>
+<tr>
+<td>LightGBM</td>
+<td>0.472</td>
+<td>0.112</td>
+</tr>
+<tr>
+<td>CatBoost</td>
+<td>0.329</td>
+<td>0.068</td>
+</tr>
+<tr>
+<td><strong>KANBoost</strong></td>
+<td><strong>0.170</strong></td>
+<td><strong>0.043</strong></td>
+</tr>
+<tr>
+<td>KANBoost-GAM</td>
+<td>0.021</td>
+<td>-0.008</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Important correction to an early misdiagnosis:</strong> KANBoost's lower
+absolute R² on Diabetes is <em>not</em> classic overfitting — its train/val
+gap is smaller than every tree ensemble's, in some cases dramatically
+so (XGBoost's gap is 3.4x KANBoost's). The low absolute score reflects
+a different limitation (see Engineering Decisions — most of this gap
+turned out to be a benchmark-harness bug: early stopping was silently
+disabled).</p>
+<h2 id="3-speed-results">3. Speed results<a class="headerlink" href="#3-speed-results" title="Permanent link">&para;</a></h2>
+<h3 id="b-spline-evaluation-kernel">B-spline evaluation kernel<a class="headerlink" href="#b-spline-evaluation-kernel" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Time (18,000 calls, representative shape)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>scipy (<code>BSpline.design_matrix</code> + <code>.toarray()</code>)</td>
+<td>2.75s</td>
+</tr>
+<tr>
+<td>numba JIT dense Cox-de-Boor</td>
+<td><strong>0.42s (6.5x faster)</strong></td>
+</tr>
+</tbody>
+</table>
+<p>A hand-written pure-numpy Cox-de-Boor recursion was tried first and was
+<em>slower</em> than scipy (Python/numpy loop overhead outweighs skipping
+scipy's sparse-matrix construction). Only a compiled (JIT) kernel wins.</p>
+<h3 id="full-training-time-cumulative-optimization-chain-friedman-500-n_estimators60-5-fold-cv">Full training time, cumulative optimization chain (Friedman-500, <code>n_estimators=60</code>, 5-fold CV)<a class="headerlink" href="#full-training-time-cumulative-optimization-chain-friedman-500-n_estimators60-5-fold-cv" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Time</th>
+<th>Cumulative speedup</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Baseline (v1.2.1)</td>
+<td>34.1s</td>
+<td>1x</td>
+</tr>
+<tr>
+<td>+ eigh factorization hoisted (once per sweep, not per output/hidden-unit)</td>
+<td>23.4s</td>
+<td>1.5x</td>
+</tr>
+<tr>
+<td>+ layer-0 basis matrix cached within one fit</td>
+<td>13.4s</td>
+<td>2.5x</td>
+</tr>
+<tr>
+<td>+ layer-1 design matrix reused within one sweep</td>
+<td>11.2s</td>
+<td>3.0x</td>
+</tr>
+<tr>
+<td>+ init-loop redundancy removed</td>
+<td>9.3s</td>
+<td>3.7x</td>
+</tr>
+<tr>
+<td>+ basis/eigendecomposition cached across the whole boosting chain</td>
+<td>8.8s</td>
+<td>3.9x</td>
+</tr>
+<tr>
+<td>+ numba B-spline kernel</td>
+<td><strong>3.7s</strong></td>
+<td><strong>9.2x</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Friedman-1000 and Concrete showed 6.8x and 7.4x respectively over the
+same chain.</p>
+<h3 id="als-convergence-tolerance-fix-separate-later-fix-measured-at-kan_hidden64">ALS convergence tolerance fix (separate, later fix — measured at <code>kan_hidden=64</code>)<a class="headerlink" href="#als-convergence-tolerance-fix-separate-later-fix-measured-at-kan_hidden64" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>California Housing (n=3000)</th>
+<th>Friedman-1000</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tolerance <code>1e-6</code> (never triggers in practice)</td>
+<td>0.710 R², ~193s</td>
+<td>0.919 R², ~89-96s</td>
+</tr>
+<tr>
+<td>Tolerance <code>1e-3</code> (adopted default)</td>
+<td><strong>0.710 R², 121.9s</strong></td>
+<td><strong>0.927 R², 50.7s</strong></td>
+</tr>
+</tbody>
+</table>
+<p>~1.6-1.9x additional speedup, <strong>no accuracy cost</strong> — confirmed via full
+5-fold CV (not a single split) on both datasets. This was one existing,
+already-tested mechanism (per-learner ALS early-break on training-loss
+convergence) whose threshold had simply never been loosened from an
+overly strict default.</p>
+<p><strong>Honest caveat:</strong> the 9.2x chain above and the 1.6-1.9x tolerance fix
+were measured in separate rounds, at different <code>kan_hidden</code> values
+(mostly 8 for the former, 64 for the latter) — they are not simply
+multiplicative, and the exact combined number at <code>kan_hidden=64</code> with
+every optimization stacked has not been separately re-measured
+end-to-end. Treat "up to ~9x" and "up to ~1.9x on top of that" as two
+distinct, independently-verified findings, not a single ~17x claim.</p>
+<h2 id="4-engineering-decisions">4. Engineering decisions<a class="headerlink" href="#4-engineering-decisions" title="Permanent link">&para;</a></h2>
+<h3 id="adopted">Adopted<a class="headerlink" href="#adopted" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Three-tier basis caching</strong> (within-sweep, within-fit, across-chain) — pure performance, bit-identical R² at every step, verified before each tier was trusted.</li>
+<li><strong>Optional numba B-spline kernel</strong> — 6.5x per-call, opt-in via <code>kanboost[accel]</code>, scipy fallback preserves zero-hard-dependency installs.</li>
+<li><strong>ALS tolerance <code>1e-6</code> → <code>1e-3</code></strong> — the existing early-break mechanism never fired at <code>1e-6</code>; loosening it is a one-constant change with a measured, safe win on two very different datasets.</li>
+<li><strong><code>kan_hidden</code>/<code>kan_grid</code> diagnostic sweep methodology</strong> — established that no single config generalizes across dataset shapes; documented here rather than automated into a preset (see below).</li>
+</ul>
+<h3 id="rejected-cholesky-instead-of-eigh">Rejected — Cholesky instead of <code>eigh</code><a class="headerlink" href="#rejected-cholesky-instead-of-eigh" title="Permanent link">&para;</a></h3>
+<p>Cholesky is ~4-10x cheaper than <code>eigh</code> at the same matrix size and was
+a natural target once profiling showed <code>eigh</code> at ~30% of fit time at
+<code>kan_hidden=64</code>. <strong>Rejected as numerically unsafe.</strong> ALS's
+normal-equations matrix routinely has condition numbers up to
+<code>~1e16-1e17</code> (near-duplicate/collinear hidden-unit columns). A small
+diagonal jitter large enough for <code>cho_factor</code> to succeed is not
+equivalent to <code>eigh</code>'s relative eigenvalue-truncation floor — these are
+different regularizers (uniform Tikhonov shift vs. selective
+truncation of only the smallest eigenvalues). On a synthetic
+near-singular test case (condition number ~3.7e17), Cholesky-with-jitter
+returned a solution norm of <strong>6.4 million</strong> against <code>eigh</code>'s correct
+<strong>148</strong> — silently, badly wrong, not merely slower-but-correct. Making
+the jitter track the true spectral radius safely would need a cheap
+max-eigenvalue estimate (e.g. power iteration), which erodes most of
+the expected win. Left as <code>eigh</code>.</p>
+<h3 id="rejected-as-a-default-cross-round-warm-starting-capped-als-sweeps">Rejected as a default — cross-round warm-starting + capped ALS sweeps<a class="headerlink" href="#rejected-as-a-default-cross-round-warm-starting-capped-als-sweeps" title="Permanent link">&para;</a></h3>
+<p><code>kanboost.train.accel.fast_fit()</code> (pre-existing) plus a reduced sweep
+budget gave a 3.2x speedup on California Housing with negligible
+accuracy cost (-0.0012 R²). The <em>same</em> configuration cost a real 0.04
+R² on Friedman-1000 (confirmed via 5-fold CV, not a single split — the
+gap far exceeds fold-level noise). Mechanism: warm-starting biases a
+new learner toward the <em>previous</em> round's residual shape, which is
+actively wrong when the residual's structure changes quickly
+round-to-round (e.g. Friedman's <code>sin(π·x1·x2)</code> term). <strong>Kept opt-in
+only</strong> (<code>fast_fit</code>, already existed) — not promoted to a default.</p>
+<h3 id="rejected-named-presetmode-api-presetbalancedaccuracy-modefastaccurate">Rejected — named preset/mode API (<code>preset='balanced'/'accuracy'</code>, <code>mode='fast'/'accurate'</code>)<a class="headerlink" href="#rejected-named-presetmode-api-presetbalancedaccuracy-modefastaccurate" title="Permanent link">&para;</a></h3>
+<p>Proposed twice this development cycle, rejected both times. The
+underlying parameters (<code>kan_hidden</code>, <code>kan_grid</code>, <code>kan_steps</code>, <code>fast_fit()</code>)
+already exist as explicit, documented arguments — a preset adds a
+lookup table, precedence rules, and a permanent naming commitment for
+numbers tuned on a single dataset, without adding any real capability.
+Documentation of measured tradeoffs (this page) is preferred over
+bundled convenience API.</p>
+<h3 id="not-pursued-evidence-doesnt-support-it-yet">Not pursued (evidence doesn't support it yet)<a class="headerlink" href="#not-pursued-evidence-doesnt-support-it-yet" title="Permanent link">&para;</a></h3>
+<p>Hessian/second-order boosting, a C++/CUDA compute engine, and new
+basis families (Fourier/RBF/rational) were all proposed at various
+points and set aside: for squared-error regression, Hessian boosting is
+mathematically identical to the existing first-order gradient (the
+loss's second derivative is a constant 1), so it cannot change anything
+for KANBoost's default regression objective. A C++ engine's realistic
+ceiling (the remaining, non-cacheable per-sweep basis evaluation) was
+estimated as a small fraction of total time — not worth the permanent
+cross-platform build/packaging burden for a currently pure-Python
+project, especially once <code>numba</code> delivered most of the available win
+without one.</p>
+<h2 id="what-v1-means-going-forward">What v1 means going forward<a class="headerlink" href="#what-v1-means-going-forward" title="Permanent link">&para;</a></h2>
+<p>Any future change to KANBoost's training path must answer one
+question: <strong>does it produce a measured improvement over this baseline
+on at least the five datasets above (via 5-fold CV, not a single
+split)?</strong> "Looks like it should be faster/more accurate" is not
+sufficient — see this page's own Cholesky and warm-starting examples
+above for why a single-dataset or non-CV measurement is not enough.</p>
+<p>The next reasonable phase (not started) is <strong>adaptive efficiency</strong>:
+reducing time without changing results (smarter ALS scheduling,
+selective solver calls) and improving UX (data-size-aware
+configuration guidance — as documentation, per the API-surface decision
+above, not a new bundled parameter) — plus benchmarking on a wider
+range of real-world tabular datasets (medical, physical sciences)
+before drawing further general conclusions.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.top", "content.code.copy", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
