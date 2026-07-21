@@ -357,7 +357,7 @@ class DeepKAN:
 
         if self._output_identity and self.layers[0].n_out == 1:
             # True single-hidden-unit GAM → P-spline closed form
-            self._solve_gam(X, r, W, lam_smooth, lam_ridge, monotone_signs)
+            self._solve_gam(X, r, W, lam_smooth, lam_ridge, monotone_signs, basis_cache=basis_cache)
         else:
             self._fit_als(X, r, W, steps, lam_smooth, lam_ridge, basis_cache=basis_cache)
         return self
@@ -374,35 +374,60 @@ class DeepKAN:
         lam_smooth: float,
         lam_ridge: float,
         monotone_signs,
+        basis_cache: dict | None = None,
     ) -> None:
-        """Joint P-spline solve for the additive model F(x) = Σ_j g_j(x_j)."""
+        """Joint P-spline solve for the additive model F(x) = Σ_j g_j(x_j).
+
+        Every learner in a GAM boosting chain shares the same X, knots
+        (fixed at construction, not data-adaptive -- unlike the ALS layer0
+        system, GAM has no z to rebuild knots from), grid/k, lamb*, and
+        sample_weight; only the residual target `r` changes each round. So
+        the design matrix B, penalty P_full, weighted normal-equations
+        matrix A, and A's eigendecomposition are all invariant across the
+        ENTIRE boosting chain -- `_solve_normal`'s own docstring already
+        says as much ("for many RHS against the same M, factor once...").
+        `basis_cache`, if given by the boosting loop, computes these once
+        on the first learner and reuses them for every later one, mirroring
+        the existing `_fit_als` layer0-system cache.
+        """
         n, p = X.shape
         layer = self.layers[0]
         K = layer.coef.shape[2]
         w = W if W is not None else np.ones(n)
 
-        # Build stacked design matrix B = [B_0 | B_1 | ... | B_{p-1} | 1]
-        # shape (n, p*K + 1)
-        cols = []
-        for j in range(p):
-            Bj = _b_basis_1d(X[:, j], layer.knots[j], layer.k)  # (n, K)
-            cols.append(Bj)
-        cols.append(np.ones((n, 1)))  # intercept
-        B = np.concatenate(cols, axis=1)  # (n, p*K + 1)
-
-        # Block-diagonal penalty (no penalty on intercept)
+        # Cheap (K x K, independent of n/X) -- always (re)computed rather
+        # than cached, since it's also needed by the monotone re-solve path
+        # below regardless of whether the main system was a cache hit.
         P_blk = _penalty_block(K, lam_smooth, lam_ridge)
-        P_full = np.zeros((p * K + 1, p * K + 1))
-        for j in range(p):
-            s, e = j * K, (j + 1) * K
-            P_full[s:e, s:e] = P_blk
 
-        # Weighted normal equations
-        Bw = B * w[:, np.newaxis]
-        A = Bw.T @ B + P_full
+        cache_key = "gam_system"
+        if basis_cache is not None and cache_key in basis_cache:
+            B, P_full, Bw, A, eigvecs, eigvals = basis_cache[cache_key]
+        else:
+            # Build stacked design matrix B = [B_0 | B_1 | ... | B_{p-1} | 1]
+            # shape (n, p*K + 1)
+            cols = []
+            for j in range(p):
+                Bj = _b_basis_1d(X[:, j], layer.knots[j], layer.k)  # (n, K)
+                cols.append(Bj)
+            cols.append(np.ones((n, 1)))  # intercept
+            B = np.concatenate(cols, axis=1)  # (n, p*K + 1)
+
+            # Block-diagonal penalty (no penalty on intercept)
+            P_full = np.zeros((p * K + 1, p * K + 1))
+            for j in range(p):
+                s, e = j * K, (j + 1) * K
+                P_full[s:e, s:e] = P_blk
+
+            # Weighted normal equations
+            Bw = B * w[:, np.newaxis]
+            A = Bw.T @ B + P_full
+            eigvecs, eigvals = _eigh_factor(A, rel_floor=1e-10)
+            if basis_cache is not None:
+                basis_cache[cache_key] = (B, P_full, Bw, A, eigvecs, eigvals)
+
         b = Bw.T @ r
-
-        c = _solve_normal(A, b)   # A = BᵀWB + P_full already built
+        c = _solve_with_factor(eigvecs, eigvals, b)   # same A, refactored once, reused every learner
 
         # Distribute solution to coef
         intercept = c[-1]
@@ -558,7 +583,32 @@ class DeepKAN:
                 c = _solve_with_factor(eigvecs0, eigvals0, Bw0.T @ t_h)
                 for i in range(n_in0):
                     layer0.coef[i, h] = c[i * K0:(i + 1) * K0]
+            # ponytail: a batched-solve replacement for this loop (all
+            # n_hidden units' linearized targets built into one matrix, one
+            # matmul + one batched division instead of n_hidden small ones)
+            # was tried, verified bit-for-bit equivalent, and measured
+            # ~1.16x faster on this machine (6-core Windows) -- but Kaggle's
+            # 4-core Linux runner (`remote/kaggle_speed_bench/` protocol,
+            # `tuamamhamza/kanboost-proposal1-verify`) showed the >=10%
+            # speedup only at a DIFFERENT kan_hidden (64, not 16) and never
+            # on both machines simultaneously; one local width (128)
+            # actively regressed. REJECTED per the >=10% acceptance gate
+            # evaluated across kan_hidden in {16,64,128,256} on two
+            # different hardware profiles -- the win is real but
+            # unpredictable in advance, not a reliable general speedup.
+            # Reverted to this loop; see AI_REVIEW_LOOP.md "ALS-solve
+            # performance" section for full before/after evidence on both
+            # machines if this is revisited.
 
+            # ponytail: reusing `e` (computed before this sweep's layer0
+            # update) as a "free" stand-in for _loss(z) (computed after it)
+            # was tried and REJECTED -- verified NOT to be the same quantity
+            # (relative difference ~1e-4 to 1e-5 across sweeps, nowhere near
+            # the <1e-12 bar required to call it a safe reformulation), even
+            # though it happened to produce bit-identical final coefficients
+            # in every tested case (the improve/converge booleans it drives
+            # were robust to that gap there, which is not a general
+            # guarantee). Recomputing the true post-update loss below.
             z = _layer0_forward_cached()
             loss = _loss(z)
             if loss < best_loss:
