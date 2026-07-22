@@ -4570,3 +4570,190 @@ this machine + Kaggle already found it fails.
   Code can substitute for.
 
 -- Claude Code, 2026-07-22
+
+---
+
+## [Claude Code] CX-19 test + literature research -- 2026-07-22
+
+User asked (1) what gaps Codex has proposed that Claude hasn't tested,
+and (2) to research the latest published literature on this exact task to
+find ways to close remaining gaps toward the shared goal. Both in
+progress; recorded here per rule 14/15 as results land rather than only
+at the end.
+
+### CX-19 status: identified as the only fully untested Codex proposal
+
+Grepped every `[Codex Proposal CX-n]` heading in this document. All of
+CX-8 through CX-18 and CX-20 already have a recorded local/Kaggle result
+and an accept/reject/inconclusive decision. **CX-19 (split-robust
+OpenNeuro KANBoost via fold-local rank aggregation)** has only its
+original proposal text -- zero local or Kaggle evidence from either
+Claude or Codex. Testing it now, on the same `openneuro_large_clean_
+features.csv` (cached locally at
+`remote/kaggle_dataset_openneuro_large_clean_features/`, the same file
+CX-8..CX-19 all use) and the exact CX-18 scaffold (`add_eeg_features`,
+`clean_prefix`, `kan_model` h3/e80/s6, `StratifiedKFold(5)` x seeds
+`[11,22,33,44,55]`), per rule 10. Implementation:
+`remote/kaggle_cx19_openneuro_rank_aggregation/cx19_openneuro_rank_aggregation.py`.
+`RankAggregationSelector` bootstrap-resamples each fold-local training
+set (15 resamples), ranks features by ANOVA F / mutual information /
+|logistic coefficient| per resample, averages ranks, keeps top-80 --
+documented simplification: does not include Codex's 4th criterion
+("KANBoost single-feature gain", too expensive for this round). Baseline
+to beat, from CX-18's own recorded numbers: mean BA 0.7183, worst seed
+(cv_seed=44) BA 0.6705, mean log loss 0.5757, mean ROC AUC 0.7812.
+CX-19's predefined gate: repeated BA >=0.730, OR worst-seed BA
+improved by >=0.03 (>=0.7005) while mean BA stays >=0.718; log loss
+<=0.590; ROC AUC not down >0.02 from CX-18. **Result pending** (running
+locally).
+
+### Literature research: what published work on this exact dataset/task recommends
+
+- **Validation protocol -- the most directly relevant finding.** Recent
+  published work on this exact dataset (AD/FTD functional-connectivity
+  ensemble study; 2025-2026 small-EEG-sample deep-learning robustness
+  studies) consistently uses **leave-one-subject-out (LOSO)**, not
+  repeated k-fold, as the validation standard at n~65-88 subjects --
+  specifically because fold *composition* is itself a variance source at
+  this sample size. That is exactly CX-19's target failure mode
+  (cv_seed=44's fold composition, not necessarily the model, driving the
+  0.670 BA drop). Testing LOSO now as a complementary, literature-grounded
+  check on the same data and same KANBoost config, to see whether the
+  instability is fold-composition noise or a real weakness --
+  `remote/kaggle_cx19_openneuro_rank_aggregation/cx19b_openneuro_loso.py`
+  (CC-8). Not directly comparable to CX-18/19's k-fold numbers under
+  rule 10 (different protocol), reported as a separate robustness
+  cross-check. **Result pending.**
+- **Reported benchmarks on ds004504 itself**: binary AD/FTD-vs-HC studies
+  report up to ~85% accuracy (SVM) and ROC-AUC 81.8%/71.4% (AD/FTD vs HC)
+  for a stacked Riemannian-geometry ensemble using LOSO -- not directly
+  comparable to our numbers (different features, different validation
+  protocol, some use 3-way not binary), but useful context: our current
+  ROC AUC (0.781, CX-18) is already in the same range as the published
+  Riemannian ensemble's 0.818, on a harder feature set (band-power derived,
+  not connectivity).
+- **Feature-engineering direction not yet tried**: multiple 2025-2026
+  papers on this exact AD/FTD/HC task use *functional connectivity*
+  features (phase-locking value / phase-lag index between channel pairs),
+  not just band-power ratios -- reported as complementary to, and in some
+  studies stronger than, power-band features alone. This requires
+  per-channel-pair phase-synchrony computation from raw EEG (not
+  available in the already-extracted local CSV; would need the raw EEG
+  cache Codex's Kaggle notebooks use under `/kaggle/temp`), so it's noted
+  as a candidate future CX/CC proposal, not attempted this round.
+- **Noted, not pursued**: TabPFN (a pretrained tabular foundation model)
+  is reported to outperform standard methods on datasets up to ~10k rows
+  -- relevant context for "how strong are the strongest models" but out
+  of scope to integrate into KANBoost's own training loop; it's an
+  external competitor baseline to be aware of, not a technique KANBoost
+  can adopt internally.
+
+Sources: [CatBoost ordered boosting](https://medium.com/@sharetonschool/what-is-catboosts-ordered-boosting-and-how-does-it-prevent-overfitting-e7d06e8caef5), [CatBoost paper](https://arxiv.org/pdf/1706.09516), [LightGBM GOSS/EFB](https://apxml.com/courses/mastering-gradient-boosting-algorithms/chapter-5-lightgbm-light-gradient-boosting/lightgbm-goss), [EEG functional connectivity AD/FTD classification](https://pmc.ncbi.nlm.nih.gov/articles/PMC12873302/), [EEG phase synchronization AD networks](https://biomedical-engineering-online.biomedcentral.com/articles/10.1186/s12938-025-01361-0), [TabPFN Nature paper](https://www.nature.com/articles/s41586-024-08328-6).
+
+### CC-8 result: LOSO -- KANBoost's margin over HistGBDT widens substantially
+
+`cx19b_openneuro_loso.py`, n=65 (36 AD, 29 Control), 3 KANBoost seeds
+(11/22/33), same `select80` feature set/model config as CX-18's baseline
+arm, HistGBDT on raw features (matching every prior script's baseline
+choice):
+
+| model | balanced accuracy | log loss | ROC AUC |
+|---|---:|---:|---:|
+| `hist_gbdt_raw_loso` (identical all 3 seeds -- deterministic at this n) | 0.5886 | 0.8443 | 0.6839 |
+| `kanboost_select80_loso` (mean of 3 seeds) | 0.6900 +- 0.0110 | 0.5865 | 0.7522 |
+
+**KANBoost beats HistGBDT by +0.1014 BA, -0.2578 log loss, +0.0683 ROC AUC
+under LOSO** -- a much larger, more decisive margin than CX-18's k-fold
+protocol showed (there: KANBoost 0.7183 vs HistGBDT 0.6757, a +0.043 BA
+gap). Both models' *absolute* BA is lower under LOSO than under 5-fold
+(LOSO is a harder, less optimistic estimator here -- single held-out
+subject per fold vs a larger validation fold), but HistGBDT's absolute
+score drops far more (0.676 -> 0.589, -0.087) than KANBoost's (0.718 ->
+0.690, -0.028), widening the relative gap in KANBoost's favor.
+
+**Cross-seed variance is also far tighter under LOSO**: KANBoost's
+seed-to-seed BA std is 0.011 (range 0.682-0.703), vs the ~0.035 std / 0.07
+range (0.670-0.751) CX-18 saw across `cv_seed`s under 5-fold. This is
+direct evidence for the literature-motivated hypothesis above: CX-19's
+"cv_seed=44 instability" is substantially a **fold-composition artifact**
+of small-n stratified k-fold (which subsets validation down to ~13
+subjects per fold), not a fundamental KANBoost weakness -- under LOSO,
+where every subject is held out exactly once and fold composition can't
+vary, KANBoost is both stronger and more stable relative to HistGBDT.
+
+This does not replace CX-18/CX-19's k-fold numbers (different protocol,
+rule 10 -- not a like-for-like substitution) but is strong complementary
+evidence, using the field's own preferred validation method for this
+exact dataset size, that KANBoost's advantage over HistGBDT on this task
+is real and not a k-fold artifact in KANBoost's favor either.
+
+### CX-19 final result: REJECT
+
+`cx19_openneuro_rank_aggregation.py` completed (25 outer folds x 4
+KANBoost variants + HistGBDT baseline; results under
+`remote/results/kaggle_cx19_openneuro_rank_aggregation/`). Process note:
+the script's Kaggle/local `PLATFORM` detection (copied from CX-18's
+script, which only ever ran on real Kaggle) checks `Path("/kaggle/
+working").exists()` -- on this Windows machine that resolves to
+`E:\kaggle\working` (a pre-existing directory from an earlier local run),
+not "doesn't exist", so output landed there instead of the intended
+`remote/results/...` path. Computation is unaffected; files copied to the
+correct results directory after the fact. Noting this so a future local
+rerun of any Kaggle-authored script on Windows isn't surprised by it.
+
+Comparing the CX-19 arm (`kanboost_rankagg80_inner_global`, same
+inner-global-fine threshold rule as CX-18's winner) against the exact
+CX-18 baseline reproduced in this same run
+(`kanboost_select80_baseline_inner_global`, which matches CX-18's
+original numbers exactly -- 0.7183 mean BA, cv_seed=44 worst at 0.6705 --
+confirming faithful reproduction per rule 10):
+
+| | baseline (CX-18) | CX-19 rank-agg | gate |
+|---|---:|---:|---|
+| mean balanced accuracy | 0.7183 | 0.7157 | need >=0.730, or >=0.718 under the OR-branch |
+| worst-seed BA (cv_seed=44) | 0.6705 | 0.6981 (+0.0276) | need +0.03 |
+| mean log loss | 0.5757 | 0.5818 | need <=0.590 -- passes |
+| mean ROC AUC | 0.7812 | 0.7832 (+0.002) | need not -0.02 -- passes |
+| mean fit time/fold | 0.523s | 4.917s (**9.4x**) | explicit reject trigger below |
+
+Per-seed breakdown shows the worst seed (44) did improve (+0.028, just
+under the required +0.03), but 3 of the other 4 seeds (22, 33, 55) got
+*worse* under rank-aggregation, and only seed 11 improved substantially --
+net effect is a slightly *lower* mean BA, not higher.
+
+**Verdict: REJECT, per CX-19's own predefined gate (rule 12: reject even
+though one part -- the worst seed -- looked promising)**:
+- Primary target (repeated BA >=0.730): missed (0.716).
+- OR-branch (worst-seed +0.03 AND mean BA >=0.718): both sub-conditions
+  missed -- worst-seed only +0.0276 (just short of +0.03), and mean BA
+  fell to 0.716 (below the required 0.718 floor).
+- Calibration/ROC AUC both pass comfortably, but that doesn't rescue a
+  primary-target miss.
+- **Explicit rejection clause fires outright**: "reject ... if runtime
+  grows more than 3x without a BA gain of at least +0.02" -- runtime grew
+  9.4x while mean BA *fell* by 0.0025. Unambiguous.
+
+**Root-cause read, tying this back to today's LOSO finding**: rank
+aggregation's extra bootstrap resampling doesn't fix the underlying issue
+-- it just moves which seeds are strong/weak around (seed 44 up, seeds
+22/33/55 down), at 9x the cost, because the instability is a
+fold-composition property of small-n stratified k-fold itself, not a
+feature-selection weakness the selector can resample its way out of. This
+is consistent with the CC-8 LOSO result above, where removing fold-
+composition variance entirely (every subject held out exactly once)
+already gives KANBoost a wider, more stable margin over HistGBDT without
+touching feature selection at all. **Recommended next step, if the k-fold
+protocol itself needs to look more robust: report LOSO as the primary
+robustness metric for this dataset size (matching the field's own
+practice), rather than chasing k-fold seed variance with more selector
+complexity.** Not implemented as a change to the standard evaluation
+protocol here -- flagging for Codex/ChatGPT/user review, since it's a
+benchmark-methodology decision, not a KANBoost code change.
+
+**Status: CX-19 closed (rejected)**. Experiment scripts kept under
+`remote/kaggle_cx19_openneuro_rank_aggregation/` for the record, matching
+this project's standing practice for rejected-but-evidenced experiments
+(e.g. CX-8/9/10). No kanboost/core change was ever proposed or made for
+this item.
+
+-- Claude Code, 2026-07-22
