@@ -1,0 +1,94 @@
+{
+  "seeds": [
+    11,
+    22,
+    33,
+    44,
+    55
+  ],
+  "n": 8000,
+  "summary": [
+    {
+      "model": "hist_gbdt_t0p5",
+      "mean_balanced_accuracy": 0.7873815505115538,
+      "std_balanced_accuracy": 0.008627530635834121,
+      "worst_seed_ba": 0.7706340335242035,
+      "mean_log_loss": 0.30534787732289137,
+      "mean_roc_auc": 0.9166284620814115,
+      "mean_fit_seconds": 0.7791554640000686,
+      "folds": 25
+    },
+    {
+      "model": "kanboost_e250_h8_s12",
+      "mean_balanced_accuracy": 0.7391309825617478,
+      "std_balanced_accuracy": 0.01270272682178955,
+      "worst_seed_ba": 0.7218473711197547,
+      "mean_log_loss": 0.3441077316444312,
+      "mean_roc_auc": 0.8961074647920291,
+      "mean_fit_seconds": 10.135857079999695,
+      "folds": 25
+    }
+  ],
+  "seed_summary": [
+    {
+      "model": "hist_gbdt_t0p5",
+      "cv_seed": 11,
+      "mean_balanced_accuracy": 0.7849631971410013,
+      "mean_log_loss": 0.30651037109777873
+    },
+    {
+      "model": "kanboost_e250_h8_s12",
+      "cv_seed": 11,
+      "mean_balanced_accuracy": 0.7379622147559275,
+      "mean_log_loss": 0.3441246250630724
+    },
+    {
+      "model": "hist_gbdt_t0p5",
+      "cv_seed": 22,
+      "mean_balanced_accuracy": 0.7900478134931077,
+      "mean_log_loss": 0.30404791649168433
+    },
+    {
+      "model": "kanboost_e250_h8_s12",
+      "cv_seed": 22,
+      "mean_balanced_accuracy": 0.7395607581707082,
+      "mean_log_loss": 0.3444012793575606
+    },
+    {
+      "model": "hist_gbdt_t0p5",
+      "cv_seed": 33,
+      "mean_balanced_accuracy": 0.7880080051880738,
+      "mean_log_loss": 0.3021353971544969
+    },
+    {
+      "model": "kanboost_e250_h8_s12",
+      "cv_seed": 33,
+      "mean_balanced_accuracy": 0.7395144079780899,
+      "mean_log_loss": 0.34388959266278196
+    },
+    {
+      "model": "hist_gbdt_t0p5",
+      "cv_seed": 44,
+      "mean_balanced_accuracy": 0.7868756023839854,
+      "mean_log_loss": 0.30527083120120585
+    },
+    {
+      "model": "kanboost_e250_h8_s12",
+      "cv_seed": 44,
+      "mean_balanced_accuracy": 0.7386570070804412,
+      "mean_log_loss": 0.34387497890612817
+    },
+    {
+      "model": "hist_gbdt_t0p5",
+      "cv_seed": 55,
+      "mean_balanced_accuracy": 0.7870131343516004,
+      "mean_log_loss": 0.30877487066929105
+    },
+    {
+      "model": "kanboost_e250_h8_s12",
+      "cv_seed": 55,
+      "mean_balanced_accuracy": 0.7399605248235723,
+      "mean_log_loss": 0.34424818223261305
+    }
+  ]
+}

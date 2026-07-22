@@ -4914,3 +4914,71 @@ even though a secondary signal looked promising)**:
 for possible future use).**
 
 -- Claude Code, 2026-07-22
+
+---
+
+## [Claude Code] CC-10 -- sanity check on a different, larger dataset: HistGBDT wins clearly
+
+User asked to retry on different data, since CX-19 and CC-9 both landed
+as "promising but inconclusive" on the n=65 OpenNeuro EEG task -- to
+check whether that pattern reflects small-sample noise specifically, or
+something more general. Picked Adult Census Income (48,842 rows, mixed
+numeric/categorical, ~24% positive, standard GBM benchmark, unrelated to
+EEG/connectivity work) via `sklearn.datasets.fetch_openml`, an 8,000-row
+stratified subsample (fixed once, `random_state=0`, shared across all
+seeds/folds -- only fold assignment varies by seed), `StratifiedKFold(5)`
+x seeds `[11,22,33,44,55]` (same seed convention as CX-18/19/CC-8/9).
+`remote/kaggle_cc10_adult_benchmark/cc10_adult_benchmark.py`.
+
+**Fair-comparison calibration pass** (not an exhaustive grid, per the
+burden-of-proof rule): tried 5 KANBoost capacity configs on one held-out
+split before committing to the full protocol. `kan_hidden=8,
+n_estimators=250, kan_steps=12` was the best (BA 0.7423 single-split);
+wider/deeper alternatives (e300/h3, e250/h8/s12 vs plain e150/h4) did not
+close the gap further -- consistent with CX-9's earlier finding on
+OpenNeuro that KANBoost capacity search alone doesn't close this kind of
+accuracy gap. HistGBDT: `max_iter=300, learning_rate=0.05` (same config
+used throughout this project's OpenNeuro work).
+
+**Result**:
+
+| model | mean BA | std BA | mean log loss | mean ROC AUC | mean fit seconds |
+|---|---:|---:|---:|---:|---:|
+| `hist_gbdt_t0p5` | **0.7874** | 0.0086 | **0.3053** | **0.9166** | 0.78 |
+| `kanboost_e250_h8_s12` | 0.7391 | 0.0127 | 0.3441 | 0.8961 | 10.14 |
+
+**Honest verdict: HistGBDT wins decisively and consistently.** Unlike
+every OpenNeuro comparison run today, this is not noisy or ambiguous --
+std BA is ~0.01 for both models (an order of magnitude tighter than the
+0.12-0.14 seen on the n=65 EEG task), and HistGBDT leads on every metric
+in every one of the 25 fold-seed combinations' aggregates. Notably,
+**KANBoost's calibration/log-loss edge, which held up consistently across
+every OpenNeuro comparison today (CX-18, CC-8, CC-9, CC-9 follow-up),
+does not appear here either** -- HistGBDT's log loss is also better
+(0.305 vs 0.344). KANBoost is also ~13x slower to fit at this scale
+(10.1s vs 0.78s per fold).
+
+**Why this matters for the shared goal**: it answers the question this
+test was run to answer. Today's mixed/inconclusive OpenNeuro results
+(CX-19, CC-9) are **not purely a small-sample-noise artifact** -- on a
+much larger, cleaner dataset with tight cross-seed variance, there is a
+real, stable KANBoost-vs-HistGBDT gap, including on the calibration
+dimension that looked like a reliable KANBoost strength on the EEG task.
+The honest reading is that KANBoost's demonstrated competitive edge so
+far in this project's evidence is tied to the small-sample / EEG-specific
+regime tested (n~65, ~120 features after selection, high per-feature
+noise), not a general property that transfers to larger, cleaner,
+differently-structured tabular tasks. This should calibrate expectations
+for "the goal" (highest realistically measured accuracy/speed) --
+claims of KANBoost's advantage should stay scoped to the conditions
+they were actually measured under, per this project's standing
+communication-style rule ("never present an unverified hypothesis as a
+confirmed result").
+
+**Not a rejection of any specific proposal** -- this is a new,
+independent data point, not a retest of CX-19 or CC-9 (neither
+rank-aggregation nor PLV/PLI connectivity are meaningful concepts on this
+dataset). Recorded for the record and for calibrating future capacity/
+speed decisions; no kanboost/core change implicated.
+
+-- Claude Code, 2026-07-22
