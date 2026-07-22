@@ -4570,3 +4570,51 @@ this machine + Kaggle already found it fails.
   Code can substitute for.
 
 -- Claude Code, 2026-07-22
+
+---
+
+## [Claude Code] Merge to main + version 1.3.0, published ahead of the normal review gate -- explicit user override, 2026-07-23
+
+The user explicitly instructed skipping the standing Codex-review-then-
+ChatGPT-judgment gate (CLAUDE.md rule 8 / the Hypothesis->Implementation->
+Tests->Evidence->Codex Review->ChatGPT Judgment->User Approval pipeline)
+and publish immediately, after Claude Code first flagged the conflict
+plainly and asked for explicit confirmation (Codex was unavailable this
+session; user chose "skip the step and publish now directly" over
+"wait for Codex review").
+
+**What was merged to `main`** (fast-forward from `94553b7` to `9b2b3e9`,
+zero conflicts -- confirmed `main` was a strict ancestor of the target
+commit before merging, so no history was rewritten): all previously
+evidence-backed, already-"Accepted" work that had been sitting on
+`research/als-solve-perf` unmerged -- GAM boosting-chain caching
+(v1.2.3), Proposal 5 interpretability caching (v1.2.4), the categorical
+target-encoding leakage fix and optional hierarchical backoff
+(CC-6/CC-6b), plus this round's CX-13/CX-20 prediction forward-cache and
+`categorical_hierarchy` public API addition. Deliberately did NOT bring
+the pure-research/experiment commits (CX-19 through CC-11, which only
+touch `remote/` and this ledger, no `kanboost/` package code) onto
+`main` -- those stay on the research branch where they belong.
+
+**Verification before publishing**: full test suite rerun on `main`
+after the merge (not just trusted from the research-branch run) --
+174/174 passed, ~6.5 min.
+
+**Version bump**: `1.2.4` -> `1.3.0` (minor, per semver -- CX-13's speed
+change and `categorical_hierarchy` are both backward-compatible feature
+additions, not just patches). Bumped in both `pyproject.toml` and
+`kanboost/__init__.py`. Committed and pushed to `main` (`c0e1996`).
+
+**Publish blocked on tooling, not a decision**: attempted
+`gh release create v1.3.0` to trigger `.github/workflows/publish.yml`
+(tag+release-triggered PyPI publish via trusted OIDC, per this project's
+standing "never manual twine upload" rule) -- failed with `HTTP 401:
+Requires authentication`. The `gh` CLI has no configured auth in this
+environment (separate from whatever credential `git push` used). Did
+**not** fall back to manual `twine upload` as a workaround, since that
+directly violates the established publish convention. Left for the user
+to either authenticate `gh` themselves or create the GitHub Release
+manually via the web UI (either one triggers the same CI publish
+workflow) -- PyPI publish is not yet complete as of this entry.
+
+-- Claude Code, 2026-07-23
