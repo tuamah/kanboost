@@ -63,6 +63,14 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
         validation split.
     categorical_cols : list of str, optional
         Column names to target-mean encode automatically.
+    categorical_hierarchy : dict or None, default=None
+        `{fine_col: coarse_col}` -- for a column in `categorical_cols`
+        also listed here as a key, back off a sparse category's target
+        encoding to its parent column's smoothed mean (e.g. `city` ->
+        `region`) instead of the flat global mean. Better prior when many
+        fine-grained categories have few samples. Any `categorical_cols`
+        entry not listed as a key here keeps the flat global-mean backoff.
+        Passed straight through to `TabularPreprocessor`'s `hierarchy`.
     random_state : int, default=42
     verbose : bool, default=False
     device : str or None, default=None
@@ -77,6 +85,12 @@ class KANBoostClassifier(ClassifierMixin, _BaseKANBoost):
         `F(x) = c + sum_j g_j(x_j)`. Required for `monotone_constraints`
         and for `symbolic_report()`; also makes `feature_contributions()`
         exact (it otherwise ignores the output layer's own nonlinearity).
+        Being strictly additive, GAM mode cannot represent an interaction
+        between a feature and KANBoost's own `_missing` indicator column
+        (e.g. a feature's effect on `y` flipping sign depending on whether
+        another value was missing) -- if that pattern is suspected, use
+        `gam=False` (non-GAM `kan_hidden` lets hidden units combine
+        features) or engineer an explicit interaction feature instead.
     monotone_constraints : dict or None, default=None
         `{feature_name: 1 or -1}` to force the ensemble's dependence on
         that (transformed) feature to be non-decreasing (`1`) or

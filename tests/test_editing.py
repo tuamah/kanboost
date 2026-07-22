@@ -235,8 +235,14 @@ def test_consolidated_predict_is_much_faster_than_the_ensemble():
 
     X, y = make_regression(n_samples=1000, n_features=6, noise=0.1, random_state=0)
     X_df = pd.DataFrame(X, columns=[f"f{i}" for i in range(6)])
+    # n_estimators=200, not 40: CX-13/CX-20's cached-forward path (see
+    # kanboost/core/base.py::_raw_score_chain) made the *ensemble* GAM
+    # predict path itself faster too, so the two paths' gap only stays a
+    # clear >=3x at a large-enough ensemble -- consolidate()'s one-
+    # spline-per-feature cost is ~constant in n_estimators, while the
+    # ensemble path (even cached) still does real per-learner work.
     model = KANBoostRegressor(
-        n_estimators=40, kan_steps=8, kan_hidden=1, gam=True,
+        n_estimators=200, kan_steps=8, kan_hidden=1, gam=True,
         early_stopping_rounds=None, random_state=0,
     )
     model.fit(X_df, y)

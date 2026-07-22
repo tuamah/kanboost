@@ -31,6 +31,58 @@ def test_classifier_fits_and_predicts():
     assert set(np.unique(preds)).issubset({0, 1})
 
 
+def test_regressor_categorical_hierarchy_wiring():
+    """categorical_hierarchy must reach TabularPreprocessor's `hierarchy`
+    and change the fitted encoding vs. the flat (no-hierarchy) baseline --
+    this is the public-API wiring for the CC-6b hierarchical encoder,
+    which previously only worked when instantiating TabularPreprocessor
+    directly.
+    """
+    rng = np.random.RandomState(0)
+    n = 400
+    region = rng.choice(["north", "south"], size=n)
+    city = np.where(
+        region == "north",
+        rng.choice(["city_a", "city_b"], size=n),
+        rng.choice(["city_c", "rare_city"], size=n),
+    )
+    # rare_city appears rarely -- a hierarchy should back it off toward
+    # "south"'s mean instead of the flat global mean.
+    mask_rare = city == "rare_city"
+    city[mask_rare] = "rare_city"
+    keep = np.ones(n, dtype=bool)
+    keep[np.where(mask_rare)[0][3:]] = False  # keep only 3 rare_city rows
+    region, city = region[keep], city[keep]
+
+    y = np.where(region == "north", 1.0, -1.0) + rng.randn(keep.sum()) * 0.1
+    X_df = pd.DataFrame({"region": region, "city": city})
+
+    model = KANBoostRegressor(
+        n_estimators=5, kan_steps=3, early_stopping_rounds=None,
+        categorical_cols=["region", "city"],
+        categorical_hierarchy={"city": "region"},
+        random_state=0,
+    )
+    model.fit(X_df, y)
+
+    assert model.preprocessor_.hierarchy == {"city": "region"}
+    preds = model.predict(X_df)
+    assert preds.shape == (keep.sum(),)
+
+    flat_model = KANBoostRegressor(
+        n_estimators=5, kan_steps=3, early_stopping_rounds=None,
+        categorical_cols=["region", "city"],
+        random_state=0,
+    )
+    flat_model.fit(X_df, y)
+    assert flat_model.preprocessor_.hierarchy == {}
+
+    # Different encoders -> different transformed columns for the rare city.
+    hier_arr = model.preprocessor_.transform(X_df)
+    flat_arr = flat_model.preprocessor_.transform(X_df)
+    assert not np.allclose(hier_arr, flat_arr)
+
+
 def test_classifier_with_categorical():
     X, y = make_classification(n_samples=200, n_features=4, random_state=1)
     X_df = pd.DataFrame(X, columns=["a", "b", "c", "d"])

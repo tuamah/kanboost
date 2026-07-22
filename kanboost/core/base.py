@@ -109,6 +109,7 @@ class _BaseKANBoost(BaseEstimator):
         early_stopping_rounds: int | None = 10,
         validation_fraction: float | None = None,
         categorical_cols=None,
+        categorical_hierarchy: dict | None = None,
         random_state: int = 42,
         verbose: bool = False,
         device: str | None = None,
@@ -129,6 +130,7 @@ class _BaseKANBoost(BaseEstimator):
         self.early_stopping_rounds = early_stopping_rounds
         self.validation_fraction = validation_fraction
         self.categorical_cols = categorical_cols
+        self.categorical_hierarchy = categorical_hierarchy
         self.random_state = random_state
         self.verbose = verbose
         self.device = device
@@ -230,7 +232,8 @@ class _BaseKANBoost(BaseEstimator):
         self.feature_names_in_ = list(X.columns)
 
         self.preprocessor_ = TabularPreprocessor(
-            categorical_cols=self.categorical_cols or []
+            categorical_cols=self.categorical_cols or [],
+            hierarchy=self.categorical_hierarchy or {},
         )
         X_arr = self.preprocessor_.fit_transform(X, y)
         self.monotone_signs_ = self._resolve_monotone_signs()
@@ -336,11 +339,54 @@ class _BaseKANBoost(BaseEstimator):
         return torch.tensor(X_arr, dtype=torch.float32, device=self.device_)
 
     def _raw_score_chain(self, X_t, learners, init_pred, best_iteration) -> np.ndarray:
-        """Sum of a single boosting chain's contributions on already-transformed input."""
+        """Sum of a single boosting chain's contributions on already-transformed input.
+
+        Every learner in a chain shares the same layer-0 knots (fixed
+        `kan_grid`/`kan_k`, `update_grid=False` during fit), so the B-spline
+        basis `_b_basis_1d(x[:, i], knots0[i], k0)` is identical across
+        learners and only needs computing once per predict call instead of
+        once per learner (CX-13/CX-20: verified 2.2x-15.3x prediction
+        speedup on Kaggle with exact/near-exact parity). Falls back to the
+        original per-learner loop whenever that assumption doesn't hold.
+        """
         F = np.full(X_t.shape[0], init_pred)
-        for learner in learners[:best_iteration]:
-            with torch.no_grad():
-                F += self.learning_rate * learner(X_t).cpu().numpy().flatten()
+        active = learners[:best_iteration]
+        if not active:
+            return F
+
+        layer0_ref = active[0].layers[0]
+        same_layer0 = all(
+            l.layers[0].n_in == layer0_ref.n_in
+            and l.layers[0].n_out == layer0_ref.n_out
+            and l.layers[0].k == layer0_ref.k
+            and np.array_equal(l.layers[0].knots, layer0_ref.knots)
+            for l in active
+        )
+        if not same_layer0:
+            for learner in active:
+                with torch.no_grad():
+                    F += self.learning_rate * learner(X_t).cpu().numpy().flatten()
+            return F
+
+        x_np = X_t.detach().cpu().numpy() if isinstance(X_t, torch.Tensor) else np.asarray(X_t)
+        knots0, k0, n_in0, n_hid0 = (
+            layer0_ref.knots, layer0_ref.k, layer0_ref.n_in, layer0_ref.n_out,
+        )
+        B0_cols = [_b_basis_1d(x_np[:, i], knots0[i], k0) for i in range(n_in0)]
+
+        for learner in active:
+            coef0 = learner.layers[0].coef  # (n_in, n_hidden, K)
+            z = np.zeros((x_np.shape[0], n_hid0))
+            for i in range(n_in0):
+                z += B0_cols[i] @ coef0[i].T
+            if learner._output_identity:
+                out = z.sum(axis=1) + getattr(learner, "_intercept", 0.0)
+            else:
+                out = learner.layers[1].forward(z)[:, 0]
+            # Match production DeepKAN.__call__, which round-trips every
+            # learner output through a torch.float32 tensor before it's
+            # summed -- required for exact parity (CX-13 v1 missed this).
+            F += self.learning_rate * out.astype(np.float32)
         return F
 
     def _all_chains(self):
