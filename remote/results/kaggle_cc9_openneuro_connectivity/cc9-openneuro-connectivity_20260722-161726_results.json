@@ -1,0 +1,172 @@
+{
+  "platform": "kaggle",
+  "seeds": [
+    11,
+    22,
+    33,
+    44,
+    55
+  ],
+  "n_bandpower_derived": 196,
+  "n_connectivity": 120,
+  "summary": [
+    {
+      "model": "kanboost_combined_select80",
+      "mean_balanced_accuracy": 0.6949761904761905,
+      "std_balanced_accuracy": 0.06792174417256734,
+      "mean_log_loss": 0.5619175988760037,
+      "mean_roc_auc": 0.8026190476190476,
+      "mean_fit_seconds": 0.5065029559998948,
+      "folds": 25
+    },
+    {
+      "model": "kanboost_bandpower_select80",
+      "mean_balanced_accuracy": 0.6940952380952381,
+      "std_balanced_accuracy": 0.1206712103415351,
+      "mean_log_loss": 0.5770346364917708,
+      "mean_roc_auc": 0.7809999999999999,
+      "mean_fit_seconds": 0.561878819999838,
+      "folds": 25
+    },
+    {
+      "model": "kanboost_connectivity_only",
+      "mean_balanced_accuracy": 0.6873571428571428,
+      "std_balanced_accuracy": 0.11366843570118466,
+      "mean_log_loss": 0.5707277434853327,
+      "mean_roc_auc": 0.7865238095238095,
+      "mean_fit_seconds": 0.49957672399985315,
+      "folds": 25
+    },
+    {
+      "model": "hist_gbdt_raw_t0p5",
+      "mean_balanced_accuracy": 0.6706904761904763,
+      "std_balanced_accuracy": 0.10547705824824873,
+      "mean_log_loss": 0.7859657078696953,
+      "mean_roc_auc": 0.7516190476190476,
+      "mean_fit_seconds": 0.0,
+      "folds": 25
+    }
+  ],
+  "seed_summary": [
+    {
+      "model": "hist_gbdt_raw_t0p5",
+      "cv_seed": 11,
+      "mean_balanced_accuracy": 0.6495238095238095,
+      "mean_log_loss": 0.8534689365601507
+    },
+    {
+      "model": "kanboost_bandpower_select80",
+      "cv_seed": 11,
+      "mean_balanced_accuracy": 0.6657142857142857,
+      "mean_log_loss": 0.5973767666320924
+    },
+    {
+      "model": "kanboost_combined_select80",
+      "cv_seed": 11,
+      "mean_balanced_accuracy": 0.653452380952381,
+      "mean_log_loss": 0.588933530457299
+    },
+    {
+      "model": "kanboost_connectivity_only",
+      "cv_seed": 11,
+      "mean_balanced_accuracy": 0.6673809523809524,
+      "mean_log_loss": 0.5997395949081152
+    },
+    {
+      "model": "hist_gbdt_raw_t0p5",
+      "cv_seed": 22,
+      "mean_balanced_accuracy": 0.6936904761904762,
+      "mean_log_loss": 0.8660946409263239
+    },
+    {
+      "model": "kanboost_bandpower_select80",
+      "cv_seed": 22,
+      "mean_balanced_accuracy": 0.7204761904761904,
+      "mean_log_loss": 0.5565136534965113
+    },
+    {
+      "model": "kanboost_combined_select80",
+      "cv_seed": 22,
+      "mean_balanced_accuracy": 0.7395238095238096,
+      "mean_log_loss": 0.538682401861198
+    },
+    {
+      "model": "kanboost_connectivity_only",
+      "cv_seed": 22,
+      "mean_balanced_accuracy": 0.7910714285714285,
+      "mean_log_loss": 0.528296452757621
+    },
+    {
+      "model": "hist_gbdt_raw_t0p5",
+      "cv_seed": 33,
+      "mean_balanced_accuracy": 0.6507142857142857,
+      "mean_log_loss": 0.8490686353429895
+    },
+    {
+      "model": "kanboost_bandpower_select80",
+      "cv_seed": 33,
+      "mean_balanced_accuracy": 0.7269047619047619,
+      "mean_log_loss": 0.5585395927646497
+    },
+    {
+      "model": "kanboost_combined_select80",
+      "cv_seed": 33,
+      "mean_balanced_accuracy": 0.6998809523809524,
+      "mean_log_loss": 0.5642182023424034
+    },
+    {
+      "model": "kanboost_connectivity_only",
+      "cv_seed": 33,
+      "mean_balanced_accuracy": 0.634047619047619,
+      "mean_log_loss": 0.5929540892029459
+    },
+    {
+      "model": "hist_gbdt_raw_t0p5",
+      "cv_seed": 44,
+      "mean_balanced_accuracy": 0.6625,
+      "mean_log_loss": 0.6833789442406503
+    },
+    {
+      "model": "kanboost_bandpower_select80",
+      "cv_seed": 44,
+      "mean_balanced_accuracy": 0.6514285714285715,
+      "mean_log_loss": 0.6111069111768177
+    },
+    {
+      "model": "kanboost_combined_select80",
+      "cv_seed": 44,
+      "mean_balanced_accuracy": 0.6969047619047619,
+      "mean_log_loss": 0.5511247291684368
+    },
+    {
+      "model": "kanboost_connectivity_only",
+      "cv_seed": 44,
+      "mean_balanced_accuracy": 0.7115476190476191,
+      "mean_log_loss": 0.5598271252679992
+    },
+    {
+      "model": "hist_gbdt_raw_t0p5",
+      "cv_seed": 55,
+      "mean_balanced_accuracy": 0.6970238095238095,
+      "mean_log_loss": 0.6778173822783622
+    },
+    {
+      "model": "kanboost_bandpower_select80",
+      "cv_seed": 55,
+      "mean_balanced_accuracy": 0.7059523809523809,
+      "mean_log_loss": 0.5616362583887832
+    },
+    {
+      "model": "kanboost_combined_select80",
+      "cv_seed": 55,
+      "mean_balanced_accuracy": 0.6851190476190476,
+      "mean_log_loss": 0.5666291305506811
+    },
+    {
+      "model": "kanboost_connectivity_only",
+      "cv_seed": 55,
+      "mean_balanced_accuracy": 0.6327380952380952,
+      "mean_log_loss": 0.5728214552899824
+    }
+  ]
+}

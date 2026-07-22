@@ -1,0 +1,15 @@
+{
+  "id": "tuamamhamza/cc9-openneuro-connectivity",
+  "title": "cc9 openneuro connectivity",
+  "code_file": "cc9_openneuro_connectivity.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": true,
+  "dataset_sources": [
+    "tuamamhamza/kanboost-1-2-4-proposal5-wheel"
+  ],
+  "competition_sources": [],
+  "kernel_sources": []
+}

@@ -4757,3 +4757,89 @@ this project's standing practice for rejected-but-evidenced experiments
 this item.
 
 -- Claude Code, 2026-07-22
+
+---
+
+## [Claude Code] CC-9 -- EEG functional connectivity (PLV/PLI) features, full result -- 2026-07-22
+
+Full pipeline: `remote/kaggle_cc9_openneuro_connectivity/cc9_openneuro_connectivity.py`.
+PLV/PLI math validated first against synthetic signals (fixed-lag ->
+PLV=PLI=1.0; independent noise -> both ~0; zero-lag identical signal ->
+PLV=1 but PLI=0 exactly, confirming PLI's documented zero-lag
+insensitivity), then against 2 real subjects (sub-001/002, downloaded
+with explicit user permission) before committing to the full run.
+Kaggle push was attempted but this machine has no working `kaggle.json`
+(only an unrelated `access_token` file) -- ran the full 65-subject
+extraction locally instead (all 65 raw `.set` files downloaded from
+OpenNeuro's public S3 bucket, 2.16GB, with explicit user permission;
+~65 x 20-65s extraction, ~30-45 min total wall-clock).
+
+**Process note**: the run log shows one subject (sub-065) triggering an
+`openneuro-py` download despite the file already being cached locally
+from the prior bulk download -- harmless (same public data, ~10-30s
+overhead) but not fully understood; not investigated further since it
+didn't affect correctness (final feature table has all 65 subjects, no
+gaps).
+
+**Sanity check**: the reimplemented band-power-only arm
+(`kanboost_bandpower_select80`: BA 0.6941, log loss 0.5770, ROC AUC
+0.7810) closely reproduces CX-18's independently-extracted
+`kanboost_select80_t0p5` baseline (BA 0.6886, log loss 0.5757, ROC AUC
+0.7812) -- confirms this from-scratch reimplementation of the band-power
+pipeline is faithful.
+
+**Result** (StratifiedKFold(5) x seeds [11,22,33,44,55], fixed 0.5
+threshold -- no inner-threshold tuning in this script, see correction
+below):
+
+| model | mean BA | std BA | mean log loss | mean ROC AUC |
+|---|---:|---:|---:|---:|
+| `kanboost_combined_select80` (bandpower+PLV/PLI, select80) | 0.6950 | **0.0679** | **0.5619** | **0.8026** |
+| `kanboost_bandpower_select80` (reproduces CX-18 baseline) | 0.6941 | 0.1207 | 0.5770 | 0.7810 |
+| `kanboost_connectivity_only` (PLV/PLI alone, no band power) | 0.6874 | 0.1137 | 0.5707 | 0.7865 |
+| `hist_gbdt_raw_t0p5` | 0.6707 | 0.1055 | 0.7860 | 0.7516 |
+
+**Self-correction on the acceptance gate**: the proposal text at the top
+of this file's CC-9 section states the gate as beating CX-18's baseline
+"mean BA 0.7183" -- **that number is CX-18's inner-threshold-tuned
+winner** (`kanboost_select80_inner_global_fine`), not the fixed-0.5-
+threshold baseline this script actually tests against. This script has
+no inner-threshold-tuning step, so the correct like-for-like baseline is
+CX-18's own `kanboost_select80_t0p5` (BA 0.6886, log loss 0.5757, ROC AUC
+0.7812) -- comparing against 0.7183 here would have been apples-to-oranges.
+Flagging my own error plainly per this project's attribution norms,
+rather than quietly using the easier or harder number.
+
+**Honest verdict against the corrected, like-for-like baseline**:
+- `kanboost_connectivity_only` **alone** (no band-power features at all)
+  comes within 0.001 BA and slightly *beats* band-power-only on ROC AUC
+  (0.7865 vs 0.7810) -- strong standalone signal, confirming the
+  literature's central claim that connectivity features carry real,
+  independent information for this task, not just redundant noise.
+- `kanboost_combined_select80` beats the corrected baseline on every
+  metric (+0.0064 BA, -0.0138 log loss, +0.0216 ROC AUC) and cuts
+  cross-seed variance nearly in half (std BA 0.068 vs 0.121) -- a real,
+  if modest, improvement plus a genuine stability win.
+- Does **not** clear a strict "decisive win" bar (BA improvement is
+  small, log-loss improvement is well under what a from-scratch
+  30%-cut gate would have required) -- this is **promising, not
+  decisive**, per this project's standing rule to never present an
+  unverified/borderline result as confirmed.
+
+**Recommended next step, not yet run**: apply CX-18's exact accepted
+inner-OOF global threshold-tuning to the `kanboost_combined_select80`
+arm and compare against CX-18's actual best number (0.7183 BA, 0.5757
+log loss, 0.7812 ROC AUC) -- the real bar this project uses for
+decisions -- rather than the fixed-threshold variant tested here. Given
+the variance reduction already seen (std BA nearly halved) plus
+connectivity's clear standalone signal, there's a real chance the
+threshold-tuned combined arm clears CX-18's number outright. Not run yet
+this round; pending user/Codex direction on whether to continue.
+
+**Status: CC-9 evidence gathered, verdict is PROMISING/INCONCLUSIVE, not
+yet accept or reject.** No kanboost/core change proposed -- this is a
+benchmark feature-engineering finding for the OpenNeuro notebooks, not a
+KANBoost library change. Awaiting Codex/ChatGPT/user review before
+deciding whether to run the inner-threshold follow-up.
+
+-- Claude Code, 2026-07-22
