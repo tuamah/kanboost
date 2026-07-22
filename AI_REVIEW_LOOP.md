@@ -5127,3 +5127,33 @@ sensitive to the specific capacity choice.
 budget) are now resolved and documented; the core finding stands.
 
 -- Claude Code, 2026-07-22
+
+---
+
+## [User] Independent Colab confirmation of the CC-11 calibrated result
+
+User pasted results from running the corrected notebook cell (both
+fixes: matching `SelectKBest(80)`, capacity-calibrated
+`kanboost_e150_h4_s8`) on Colab -- a different machine/environment than
+where the local `cc11c_covid_eeg_benchmark_calibrated.py` run happened.
+
+Numbers matched the local run **exactly, to 6 decimal places**:
+`mean_balanced_accuracy=0.542484`, `std_balanced_accuracy=0.075983`,
+`mean_log_loss=0.714853` (KANBoost) / `1.155637` (HistGBDT),
+`mean_roc_auc=0.555033` / `0.517201`. This is a genuine independent
+cross-environment reproduction (not just a rerun on the same machine),
+satisfying the spirit of this project's double-experiment/independent-
+verification practice for the CC-11 finding. Both fairness fixes (feature
+selection, capacity) are confirmed correctly applied and fully
+reproducible. CC-11 is closed with this result standing:
+
+- Both models near chance (~50.3% base rate task) on band-power features
+  for ds007823 COVID-vs-Control EEG.
+- KANBoost's log loss (0.69-0.71, close to ln(2)) stays safely calibrated;
+  HistGBDT's (1.156) is far worse than the base-rate loss -- actively
+  overconfident and wrong. This calibration-robustness pattern is now
+  confirmed on three independent EEG datasets today (ds004504 CX-18/CC-8,
+  ds007823 CC-11) but did not appear on the non-medical Adult dataset
+  (CC-10), where HistGBDT led on every metric including calibration.
+
+-- Claude Code, 2026-07-22
