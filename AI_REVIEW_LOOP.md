@@ -5315,3 +5315,84 @@ given it's an inherently unreliable label, not a real third class to
 predict). Continuing.
 
 -- Claude Code, 2026-07-23
+
+---
+
+## [Claude Code] CC-13 ARGO -- full pipeline built, validated, TWO MORE leakage bugs caught (three total), final result is plausible
+
+Extracted all 1962 records (20-72s depending on whether from raw signal
+or already-cached), built the full notebook generator
+(`remote/generate_cc13_argo_vt_notebook.py` ->
+`remote/colab_cc13_argo_vt/argo_vt_ablation_model_comparison.ipynb`):
+small/medium/large **patient-count** stages (3/6/9 patients, ordered by
+record count so size increases monotonically: 172/495/1962 records),
+`StratifiedGroupKFold` (patient as group) x 4 models x 5 seeds, a
+cross-stage comparison, results-saving, and `tiered_equations()`.
+
+**Bug 4 (of the session's running count): GroupKFold fold-count mismatch.**
+The small stage's 3 patients can't support 5 group-disjoint folds --
+`StratifiedGroupKFold(n_splits=5)` on 3 groups produced an empty
+validation fold, crashing `SimpleImputer` with a 0-sample array. Fixed:
+`n_splits_stage = min(N_SPLITS, len(set(groups)))`, applied per stage.
+
+**Bug 5: `window_duration_ms` as an explicit leaked feature.** First full
+run gave suspiciously perfect scores (BA 0.97-1.0 across all 4 models).
+`tiered_equations()`'s "simple" tier immediately explained why: a
+**1-variable formula using only `window_duration_ms`**, AUC=0.96. Only
+AVP segments get a precisely delineated annotation window at all (see
+the CC-13 entry above); Physiological/Unknown always fall back to the
+whole 2.5s record. So window length is nearly a direct proxy for the
+label -- a pure labeling-protocol artifact, not EGM signal. Removed the
+feature entirely; re-extracted all 1962 records clean.
+
+**Bug 6, deeper: EVERY `*_window_*` feature leaks, even rate-normalized
+ones.** Re-ran after removing `window_duration_ms` -- scores were *still*
+suspiciously perfect (BA 0.97-1.0). Root cause is structural, not fixable
+by rate-normalization alone: a tightly-cropped window around one
+specific deflection (AVP) and a whole, mostly-quiet 2.5s recording
+(Physiological/Unknown) produce systematically different rate/proportion
+statistics purely from being different-length excerpts of different
+content -- independent of any real tissue difference. More
+fundamentally: **at real prediction time on a new, unlabeled recording,
+no window has been delineated yet** -- delineating it *is* what a real
+detector needs to produce, not something it can be handed as an input.
+Fixed by restricting the *training* feature set to `*_whole_*` and ECG
+features only (identically computed for every record regardless of
+label); `*_window_*` columns are still extracted and saved for future
+work (e.g. an actual localization/detection task) but excluded from this
+notebook's classification comparison. Also fixed
+`bipolar_unipolar_ratio` (renamed `_whole`) to use whole-record
+amplitudes for the same reason -- it was silently using the window's
+bipolar amplitude even after the first two fixes.
+
+**Result after all three leakage fixes (small stage, n=149, 3 patients,
+2 seeds for this validation pass -- not yet run at full scale/5 seeds)**:
+
+| model | mean BA | mean log loss | mean ROC AUC |
+|---|---:|---:|---:|
+| CatBoost | 0.922 | 0.254 | 0.976 |
+| XGBoost | 0.914 | 0.332 | 0.938 |
+| HistGBDT | 0.904 | 0.411 | 0.944 |
+| KANBoost | 0.840 | 0.517 | 0.961 |
+
+**This is a plausible, defensible result, not another red flag**:
+strong but not suspiciously perfect, and `tiered_equations()`'s "simple"
+tier now finds a single genuinely clinical feature --
+**`bip_whole_max_slew`** (bipolar EGM slew rate, a real, well-established
+EP marker of local conduction velocity/tissue health: steep deflections
+= healthy fast-conducting tissue, slurred/slow = diseased) -- giving
+AUC=0.96 alone. A clinically sensible variable driving the result, not
+an artifact, is exactly the kind of check this project has done all day
+for other datasets' *absence* of signal; here it confirms a *presence*
+of real signal.
+
+**Not yet done**: full-scale run (all 3 stages, 5 seeds, all 1962
+records) -- this validation pass used 2 seeds and the small stage only,
+for speed. Patient-level generalization at the large stage (9 patients,
+much more diverse substrate/pathology than 3) may look different.
+Recommend running the full notebook before treating these numbers as
+final. Local validation harnesses (`validate_locally.py`,
+`validate_notebook_logic.py`) and the generator/notebook are ready and
+committed.
+
+-- Claude Code, 2026-07-23

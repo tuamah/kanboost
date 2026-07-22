@@ -162,19 +162,24 @@ def extract_features(record, onset, offset):
     feats.update(_egm_channel_features(bip_whole, fs, "bip_whole"))
     feats.update(_egm_channel_features(bip_window, fs, "bip_window"))
 
-    uni_p2p = []
+    uni_p2p_whole = []
     for i, uidx in enumerate(EGM_UNIPOLAR_IDX):
         uni_whole = sig[:, uidx]
         uni_window = sig[onset:offset, uidx]
         feats.update(_egm_channel_features(uni_whole, fs, f"uni{i}_whole"))
         feats.update(_egm_channel_features(uni_window, fs, f"uni{i}_window"))
-        uni_p2p.append(float(np.max(uni_window) - np.min(uni_window)))
+        uni_p2p_whole.append(float(np.max(uni_whole) - np.min(uni_whole)))
 
     # Bipolar/unipolar amplitude ratio -- near-field vs far-field
     # discrimination (a real EP concept, not an arbitrary ratio).
-    bip_p2p_window = feats["bip_window_p2p"]
-    max_uni_p2p = max(uni_p2p) if uni_p2p else np.nan
-    feats["bipolar_unipolar_ratio"] = bip_p2p_window / (max_uni_p2p + 1e-9)
+    # Computed on WHOLE-record amplitudes only, deliberately, not the
+    # window: using the window here would reintroduce the exact same
+    # selection confound as window_duration_ms above (max_uni_p2p over a
+    # tightly-cropped AVP window vs a whole Physiological/Unknown record
+    # are not comparable quantities).
+    bip_p2p_whole = feats["bip_whole_p2p"]
+    max_uni_p2p_whole = max(uni_p2p_whole) if uni_p2p_whole else np.nan
+    feats["bipolar_unipolar_ratio_whole"] = bip_p2p_whole / (max_uni_p2p_whole + 1e-9)
 
     # ECG channels: simpler summary set (context/timing reference, not
     # the primary diagnostic channels for this task).
@@ -183,7 +188,16 @@ def extract_features(record, onset, offset):
         feats[f"ecg_{lead_name}_p2p"] = float(np.max(x) - np.min(x))
         feats[f"ecg_{lead_name}_rms"] = float(np.sqrt(np.mean(x ** 2)))
 
-    feats["window_duration_ms"] = float(offset - onset) / fs * 1000.0
+    # window_duration_ms is deliberately NOT included as a feature: only
+    # AVP segments get a precisely delineated window at all (see
+    # load_record_and_label) -- Physiological/Unknown always fall back
+    # to the whole record. So window length is almost a direct proxy for
+    # the label itself (a labeling-protocol artifact), not real EGM
+    # signal. Confirmed empirically: tiered_equations() found a
+    # 1-variable formula using only window_duration_ms with AUC=0.96,
+    # i.e. every model was mostly learning the annotation protocol, not
+    # cardiac electrophysiology. Caught during validation -- see
+    # AI_REVIEW_LOOP.md's CC-13 entry.
     return feats
 
 
@@ -226,9 +240,9 @@ def main():
     print(f"columns with NaN: {len(nan_cols)} {nan_cols[:10]}")
     print(f"constant columns: {len(const_cols)} {const_cols[:10]}")
 
-    print("\nsample feature values (bip_window_p2p, bipolar_unipolar_ratio):")
-    print(df[["patient", "record_id", "label", "bip_window_p2p", "bipolar_unipolar_ratio",
-              "bip_window_fractionation_rate", "bip_window_late_ratio"]].to_string(index=False))
+    print("\nsample feature values (bip_whole_p2p, bipolar_unipolar_ratio_whole):")
+    print(df[["patient", "record_id", "label", "bip_whole_p2p", "bipolar_unipolar_ratio_whole",
+              "bip_whole_fractionation_rate", "bip_whole_late_ratio"]].to_string(index=False))
 
     assert not df[feat_cols].isna().all(axis=None), "all-NaN feature table -- extraction is broken"
     print("\nfeature extraction validated OK")
