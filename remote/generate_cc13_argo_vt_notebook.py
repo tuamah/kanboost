@@ -170,7 +170,8 @@ def _fetch(session, url, out_path):
 def download_argo():
     session = _make_session()
     for fname in TOP_LEVEL_FILES:
-        _fetch(session, f"{BASE_URL}/{fname}", DATA_DIR / fname)
+        if not _fetch(session, f"{BASE_URL}/{fname}", DATA_DIR / fname):
+            raise RuntimeError(f"Could not fetch {fname} -- check network/PhysioNet availability before retrying.")
     records = (DATA_DIR / "RECORDS").read_text().strip().splitlines()
     jobs = [(f"{BASE_URL}/{rec}{suf}", DATA_DIR / f"{rec}{suf}") for rec in records for suf in SUFFIXES]
     print(f"{len(records)} records, {len(jobs)} files to fetch")
@@ -185,6 +186,22 @@ def download_argo():
             if i % 500 == 0:
                 print(f"  {i}/{len(jobs)} ({ok} ok, {len(failed)} failed)")
     print(f"done: {ok}/{len(jobs)} ok, {len(failed)} failed")
+
+    # Verify on disk, not just via the in-memory ok/failed counters -- a
+    # Colab disconnect mid-download can leave files partially written or
+    # the loop interrupted entirely without raising here. This cell is
+    # safe to just re-run if it reports missing files: _fetch() skips
+    # any file that already exists with nonzero size, so a rerun only
+    # fetches what's still missing.
+    missing = [rec for rec in records if not all((DATA_DIR / f"{rec}{suf}").exists() for suf in SUFFIXES)]
+    if missing:
+        raise RuntimeError(
+            f"{len(missing)}/{len(records)} records are missing files on disk after download "
+            f"(e.g. {missing[0]}). This usually means the runtime disconnected mid-download. "
+            f"Just re-run this cell -- already-downloaded files are skipped, so it will only "
+            f"fetch what's still missing."
+        )
+    print(f"verified: all {len(records)} records have their files on disk.")
     return records
 
 records = download_argo()

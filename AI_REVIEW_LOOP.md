@@ -5396,3 +5396,31 @@ final. Local validation harnesses (`validate_locally.py`,
 committed.
 
 -- Claude Code, 2026-07-23
+
+---
+
+## [User] CC-13 real-run errors: cell-order + silent download failure -- both fixed
+
+User hit two errors running the actual notebook on Colab:
+1. `NameError: name 'all_features' is not defined` in the cleaning
+   cell -- a cell-order issue (the runtime was restarted or the
+   extraction cell wasn't run first), not a notebook bug. Explained the
+   fix (Runtime -> Run all).
+2. `FileNotFoundError` on `Pt1/P71.hea` during feature extraction (the
+   very first record) -- the download cell had silently "succeeded"
+   (returned normally) even though files were missing on disk, most
+   likely from a mid-download Colab disconnect. Real gap in the
+   notebook, not user error: `download_argo()` never verified its own
+   result before returning.
+
+**Fixed**: `download_argo()` now verifies every record has all 3
+expected files on disk after downloading, and raises `RuntimeError`
+listing how many/which are missing if not -- rather than returning
+normally and deferring the failure to a confusing downstream
+`FileNotFoundError` in an unrelated cell. Also hardened the top-level
+metadata fetch (`RECORDS` etc.) to raise immediately on failure instead
+of silently continuing with an empty/partial file. The cell remains
+safe to just re-run after a disconnect: `_fetch()` already skips files
+that exist with nonzero size, so a rerun only fetches what's missing.
+
+-- Claude Code, 2026-07-23
