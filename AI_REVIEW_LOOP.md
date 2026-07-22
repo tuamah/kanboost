@@ -5424,3 +5424,49 @@ safe to just re-run after a disconnect: `_fetch()` already skips files
 that exist with nonzero size, so a rerun only fetches what's missing.
 
 -- Claude Code, 2026-07-23
+
+---
+
+## [User + Claude Code] CC-13 real bug 7: download/read path mismatch -- and a gap in how I'd "validated" this
+
+Same `FileNotFoundError` on `Pt1/P71.hea` recurred even after the
+previous fix, with the user's own diagnostic confirming `DATA_DIR`
+existed with exactly 5888 files on disk -- ruling out the Colab-
+disconnect explanation I gave first (an honest wrong diagnosis, corrected
+once the evidence didn't fit).
+
+**Real root cause**: `download_argo()` saved files under
+`DATA_DIR/ARGODataset_Folder/Pt1/P71.hea` (the raw `RECORDS` entries
+include that prefix), while `load_record_and_label()` builds its lookup
+path from `rec_rel = rec.replace("ARGODataset_Folder/", "")`, i.e.
+`DATA_DIR/Pt1/P71.hea` -- one directory level off. Every file genuinely
+existed; the code was just looking in the wrong place, for every single
+record, starting with the first.
+
+**Why this passed "validation" before**: `validate_locally.py`'s
+`DATA_DIR` was defined as `.../cache/argo_data/ARGODataset_Folder`
+(the prefix baked into the constant itself), so its own
+`load_record_and_label()` calls happened to resolve correctly against
+that separately-structured local cache. The notebook's `DATA_DIR` is
+`CACHE_ROOT / "argo_data"` (no prefix). I had validated the extraction
+*logic* against one DATA_DIR convention and the model/cleaning logic
+against a pre-extracted CSV, but never actually ran the notebook's own
+`download_argo()` and `load_record_and_label()` together against the
+same `DATA_DIR` -- exactly where this mismatch was hiding. A real gap in
+"validated end-to-end," not just a typo.
+
+**Fixed**: local save path is now stripped of the `ARGODataset_Folder/`
+prefix before writing (`jobs = [(url, DATA_DIR / f"{rec.replace(...)}"...)]`),
+matching what `load_record_and_label()` expects; the disk-verification
+check was fixed the same way (it was checking the old, now-wrong path
+too, which is why it had reported success).
+
+**This time actually verified end-to-end**, not assumed: extracted the
+notebook's real `download_argo()`/`load_record_and_label()`/
+`extract_features()` cells verbatim into a throwaway script, pointed at
+a fresh temp `DATA_DIR`, ran a real fresh download of 5 records against
+PhysioNet, and confirmed extraction succeeds on all 5 (labels P/U/P/A/P,
+73 features each, no errors). This is the check that should have been
+done before the notebook was first delivered.
+
+-- Claude Code, 2026-07-23

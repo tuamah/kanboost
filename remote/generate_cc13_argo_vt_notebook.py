@@ -173,7 +173,17 @@ def download_argo():
         if not _fetch(session, f"{BASE_URL}/{fname}", DATA_DIR / fname):
             raise RuntimeError(f"Could not fetch {fname} -- check network/PhysioNet availability before retrying.")
     records = (DATA_DIR / "RECORDS").read_text().strip().splitlines()
-    jobs = [(f"{BASE_URL}/{rec}{suf}", DATA_DIR / f"{rec}{suf}") for rec in records for suf in SUFFIXES]
+    # Save under DATA_DIR/Pt1/P71.hea (stripped of the "ARGODataset_Folder/"
+    # prefix RECORDS entries carry), matching what load_record_and_label()
+    # looks up. The remote URL still needs the real PhysioNet path
+    # (with the prefix) -- only the LOCAL save path is stripped. Caught
+    # by an actual failed Colab run (FileNotFoundError on the very first
+    # record despite a fully successful, verified download) -- local
+    # testing never ran download_argo() and load_record_and_label()
+    # together against the same DATA_DIR, so this mismatch didn't show
+    # up until a real end-to-end run. See AI_REVIEW_LOOP.md's CC-13 entry.
+    jobs = [(f"{BASE_URL}/{rec}{suf}", DATA_DIR / f"{rec.replace('ARGODataset_Folder/', '')}{suf}")
+            for rec in records for suf in SUFFIXES]
     print(f"{len(records)} records, {len(jobs)} files to fetch")
     ok, failed = 0, []
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
@@ -193,7 +203,8 @@ def download_argo():
     # safe to just re-run if it reports missing files: _fetch() skips
     # any file that already exists with nonzero size, so a rerun only
     # fetches what's still missing.
-    missing = [rec for rec in records if not all((DATA_DIR / f"{rec}{suf}").exists() for suf in SUFFIXES)]
+    missing = [rec for rec in records
+               if not all((DATA_DIR / f"{rec.replace('ARGODataset_Folder/', '')}{suf}").exists() for suf in SUFFIXES)]
     if missing:
         raise RuntimeError(
             f"{len(missing)}/{len(records)} records are missing files on disk after download "
