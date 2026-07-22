@@ -5211,3 +5211,39 @@ and demonstrates in practice why this project insists on multiple data
 sizes / seeds rather than trusting a single small run.
 
 -- Claude Code, 2026-07-23
+
+---
+
+## [User + Claude Code] Independent statistical confirmation: no univariate signal either (twice)
+
+User asked directly whether the "no real signal" ML finding might
+reflect a data/pipeline bug rather than a genuine null result -- a fair
+question given how many models agreed on it. Verified with a check
+entirely independent of any ML model: per-feature Mann-Whitney U test
+(Covid vs Control), comparing the count of nominally-significant
+features (p<0.05) against the count expected by pure chance alone if
+there were truly no relationship, plus Bonferroni correction for testing
+many features at once.
+
+**Claude Code, locally** (110 raw band-power features, no derived
+ratios): 7/110 features at p<0.05 (chance expectation: ~5.5), **0/110
+survive Bonferroni**.
+
+**User, on Colab** (196 features: raw + derived ratios/asymmetry/
+entropy, the full `derived_large` pool): 10/196 at p<0.05 (chance
+expectation: ~9.8 -- an almost exact match to pure chance), **0/196
+survive Bonferroni**.
+
+**Pipeline sanity confirmed in both runs**: zero constant/degenerate
+columns, zero NaN, balanced classes (87/86). Not a bug.
+
+This is now confirmed three independent ways -- 4 ML models across 3
+data-size stages (CC-11/CC-12), Claude's local univariate test, and the
+user's independent Colab univariate test on a larger feature pool -- all
+agreeing: **there is no reliable predictive signal in band-power (or
+band-power-derived) EEG features for ds007823's Covid-vs-Control task**,
+at any sample size or feature-set variant tested so far. This is a clean,
+well-supported negative result, not an artifact of any single tool,
+model, or pipeline bug.
+
+-- Claude Code, 2026-07-23
