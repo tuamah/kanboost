@@ -24,13 +24,21 @@ class TabularPreprocessor:
       percentile), RobustScaler'd, then clipped to [-1, 1] (KAN's default
       spline grid range).
     - Categorical columns: target-mean encoding (smoothed toward the
-      global mean). `fit()`/`transform()` compute and apply this mapping
-      on disjoint data (e.g. fit on train, transform held-out val/test),
-      which is leakage-free. `fit_transform()` additionally encodes each
-      *fitting* row out-of-fold (K-fold, similar in spirit to CatBoost's
-      ordered target statistics), since encoding a row with a mapping
-      that includes its own label would otherwise leak target
-      information into the very rows being trained on.
+      global mean, or toward a parent category's smoothed mean if
+      `hierarchy` names one -- see below). `fit()`/`transform()` compute
+      and apply this mapping on disjoint data (e.g. fit on train,
+      transform held-out val/test), which is leakage-free.
+      `fit_transform()` additionally encodes each *fitting* row
+      out-of-fold (K-fold, similar in spirit to CatBoost's ordered
+      target statistics), since encoding a row with a mapping that
+      includes its own label would otherwise leak target information
+      into the very rows being trained on.
+    - Optional `hierarchy`: `{fine_col: coarse_col}` -- backs a sparse
+      fine-grained category (e.g. `city`) off to its parent's smoothed
+      mean (e.g. `region`) instead of the flat global mean, which is a
+      better prior when many fine categories have few samples. Only
+      applies to columns named as keys; any categorical column not in
+      `hierarchy` keeps the original flat-global-mean backoff.
     """
 
     def __init__(
@@ -40,12 +48,14 @@ class TabularPreprocessor:
         add_missing_indicator: bool = True,
         cv_folds: int = 5,
         random_state: int = 42,
+        hierarchy: dict = None,
     ):
         self.categorical_cols = categorical_cols or []
         self.smoothing = smoothing
         self.add_missing_indicator = add_missing_indicator
         self.cv_folds = cv_folds
         self.random_state = random_state
+        self.hierarchy = hierarchy or {}
         self.numeric_cols_ = None
         self.scaler_ = None
         self.clip_low_ = None
@@ -53,6 +63,7 @@ class TabularPreprocessor:
         self.numeric_medians_ = None
         self.missing_indicator_cols_ = []
         self.cat_maps_ = {}
+        self.coarse_maps_ = {}
         self.global_mean_ = None
 
     def fit(self, X: pd.DataFrame, y: np.ndarray):
@@ -83,14 +94,35 @@ class TabularPreprocessor:
 
         # --- categorical: smoothed target-mean encoding ---
         for col in self.categorical_cols:
-            self.cat_maps_[col] = self._smoothed_map(X[col].astype(str).values, y)
+            if col in self.hierarchy:
+                coarse_col = self.hierarchy[col]
+                coarse_values = X[coarse_col].astype(str).values
+                coarse_map = self._smoothed_map(
+                    coarse_values, y, np.full(len(y), self.global_mean_)
+                )
+                self.coarse_maps_[col] = (coarse_col, coarse_map)
+                fine_prior = np.array(
+                    [coarse_map.get(v, self.global_mean_) for v in coarse_values]
+                )
+            else:
+                fine_prior = np.full(len(y), self.global_mean_)
+            self.cat_maps_[col] = self._smoothed_map(
+                X[col].astype(str).values, y, fine_prior
+            )
 
         return self
 
-    def _smoothed_map(self, col_values, y) -> dict:
-        stats = pd.DataFrame({"col": col_values, "y": y}).groupby("col")["y"].agg(["mean", "count"])
+    def _smoothed_map(self, col_values, y, prior_by_row) -> dict:
+        """Smooth each category's target-mean toward `prior_by_row`
+        (per-row backoff target -- the flat global mean, or a parent
+        category's smoothed mean when `hierarchy` applies)."""
+        stats = (
+            pd.DataFrame({"col": col_values, "y": y, "prior": prior_by_row})
+            .groupby("col")
+            .agg(mean=("y", "mean"), count=("y", "count"), prior=("prior", "first"))
+        )
         smoothed = (
-            stats["mean"] * stats["count"] + self.global_mean_ * self.smoothing
+            stats["mean"] * stats["count"] + stats["prior"] * self.smoothing
         ) / (stats["count"] + self.smoothing)
         return smoothed.to_dict()
 
@@ -111,7 +143,13 @@ class TabularPreprocessor:
 
         for col in self.categorical_cols:
             mapping = self.cat_maps_[col]
-            encoded = X[col].astype(str).map(mapping).fillna(self.global_mean_)
+            encoded = X[col].astype(str).map(mapping)
+            if col in self.hierarchy:
+                coarse_col, coarse_map = self.coarse_maps_[col]
+                fallback = X[coarse_col].astype(str).map(coarse_map).fillna(self.global_mean_)
+                encoded = encoded.fillna(fallback)
+            else:
+                encoded = encoded.fillna(self.global_mean_)
             parts.append(encoded.to_numpy(dtype=float).reshape(-1, 1))
 
         return np.hstack(parts) if parts else np.empty((len(X), 0))
@@ -127,12 +165,35 @@ class TabularPreprocessor:
             cat_start = len(self.numeric_cols_ or []) + len(self.missing_indicator_cols_)
             for j, col in enumerate(self.categorical_cols):
                 col_values = X[col].astype(str).values
+                is_hier = col in self.hierarchy
+                if is_hier:
+                    coarse_values = X[self.hierarchy[col]].astype(str).values
+
                 oof = np.empty(n, dtype=float)
                 for tr_idx, va_idx in cv.split(X):
-                    mapping = self._smoothed_map(col_values[tr_idx], y[tr_idx])
-                    oof[va_idx] = np.array(
-                        [mapping.get(v, self.global_mean_) for v in col_values[va_idx]]
-                    )
+                    if is_hier:
+                        coarse_map_fold = self._smoothed_map(
+                            coarse_values[tr_idx], y[tr_idx],
+                            np.full(len(tr_idx), self.global_mean_),
+                        )
+                        fine_prior_tr = np.array(
+                            [coarse_map_fold.get(v, self.global_mean_) for v in coarse_values[tr_idx]]
+                        )
+                        mapping = self._smoothed_map(col_values[tr_idx], y[tr_idx], fine_prior_tr)
+                        fallback_va = np.array(
+                            [coarse_map_fold.get(v, self.global_mean_) for v in coarse_values[va_idx]]
+                        )
+                        oof[va_idx] = [
+                            mapping.get(v, fallback_va[k])
+                            for k, v in enumerate(col_values[va_idx])
+                        ]
+                    else:
+                        mapping = self._smoothed_map(
+                            col_values[tr_idx], y[tr_idx], np.full(len(tr_idx), self.global_mean_)
+                        )
+                        oof[va_idx] = np.array(
+                            [mapping.get(v, self.global_mean_) for v in col_values[va_idx]]
+                        )
                 X_arr[:, cat_start + j] = oof
 
         return X_arr
