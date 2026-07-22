@@ -5247,3 +5247,71 @@ well-supported negative result, not an artifact of any single tool,
 model, or pipeline bug.
 
 -- Claude Code, 2026-07-23
+
+---
+
+## [Claude Code] CC-13 -- new dataset ARGO (cardiac EP/VT ablation), feature extraction validated, two real bugs caught
+
+User asked for two more datasets from PhysioNet: ARGO (open access,
+downloaded) and INSPIRE (credentialed -- blocked, requires the user's
+own personal CITI training + signed Korea Credentialed Health Data
+Agreement; cannot be completed on their behalf). Proceeding with ARGO.
+
+**Dataset**: ARGO, "Ablation Reinforcement by computer-aided Guidance and
+Optimization" -- 9 post-ischemic VT patients, 1962 annotated 2.5s
+segments (intracardiac bipolar + 2 unipolar EGM channels, plus 12-lead
+surface ECG, 1000Hz), each labeled by 3-annotator consensus as
+Physiological/AVP/Unknown for radiofrequency ablation guidance. Highly
+imbalanced across patients (46-839 records/patient) -- any CV must be
+patient-grouped. Downloaded via `remote/kaggle_cc13_argo_vt/
+download_argo.py`: 11,772 files (signal+annotation, skipping 3D mesh/
+MATLAB duplicates), 0 failures.
+
+**Feature design grounded in real EP practice, not generic signal
+stats** (`remote/kaggle_cc13_argo_vt/validate_locally.py`): bipolar EGM
+peak-to-peak amplitude (standard clinical voltage-mapping scar metric:
+<0.5mV dense scar, 0.5-1.5mV border zone, >1.5mV healthy), fractionation
+rate (deflections/sec -- re-entry-capable substrate marker), a
+late-potential proxy (late-window RMS vs early-window RMS -- delayed
+conduction through scar, a primary ablation target), bipolar/unipolar
+amplitude ratio (near-field vs far-field discrimination), slew rate
+(conduction velocity proxy), 12-lead ECG summary stats, and ejection
+fraction from `Additional_subject_data.csv` as a real prognostic
+covariate.
+
+**Two real bugs caught validating against actual downloaded records**,
+not assumed correct:
+1. Physiological/Unknown labels use an out-of-range sentinel sample
+   index (e.g. 9998 on a 2500-sample record) -- ARGO's convention for
+   "no window specifically delineated" (only AVP segments get precise
+   onset/offset, since that's the actual ablation target). Naive
+   handling produced a 1-sample window and all-NaN features for every
+   non-AVP record (25/74 feature columns NaN in the first validation
+   pass). Fixed: an out-of-range single-sample marker now falls back to
+   the whole record.
+2. **Real leakage risk**, not just a crash**: once (1) was fixed, AVP
+   records' short precisely-delineated window vs Physiological/Unknown's
+   whole-record fallback meant *raw-count* features (fractionation
+   count, duration in ms) were almost entirely confounded with window
+   length itself (AVP: 9-41 deflections over ~100ms; P/U: 800-1600+ over
+   2500ms) -- a model trained on this would mostly learn "was a short
+   window given," i.e. the label-dependent annotation convention itself,
+   not real EGM morphology. Fixed by reporting length-normalized
+   rates/proportions (deflections/second, fraction-of-window-above-
+   threshold) instead of raw counts; `window_duration_ms` is still
+   exposed as its own explicit feature rather than smuggled into every
+   other one.
+
+**Validated on 45 real records across all 9 patients**: 0 NaN, 0
+constant columns after both fixes, feature ranges now physiologically
+plausible and overlapping across labels (not artificially separated).
+
+**Not yet done**: full 1962-record extraction, the notebook itself
+(local + Colab, patient-grouped CV, KANBoost/HistGBDT/CatBoost/XGBoost
+comparison, binary AVP-vs-Physiological framing vs 3-class decision
+still open -- "Unknown" represents cases even 3 expert annotators
+disagreed on, likely better treated as excluded from primary training
+given it's an inherently unreliable label, not a real third class to
+predict). Continuing.
+
+-- Claude Code, 2026-07-23
