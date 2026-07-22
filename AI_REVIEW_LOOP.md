@@ -4618,3 +4618,23 @@ manually via the web UI (either one triggers the same CI publish
 workflow) -- PyPI publish is not yet complete as of this entry.
 
 -- Claude Code, 2026-07-23
+
+---
+
+## [Claude Code] Publish complete: kanboost 1.3.0 is live on PyPI
+
+User authenticated `gh` (device flow, scopes `gist`/`read:org`/`repo`).
+Created the GitHub Release `v1.3.0` (https://github.com/tuamah/kanboost/releases/tag/v1.3.0),
+which triggered `.github/workflows/publish.yml` (run `29958274009`) --
+build-and-publish job completed successfully in 30s via PyPI Trusted
+Publishing (OIDC, no manual token/upload). Verified directly against
+PyPI's JSON API: `latest version: 1.3.0`, both `kanboost-1.3.0-py3-none-any.whl`
+and `kanboost-1.3.0.tar.gz` present.
+
+This closes the merge+publish sequence described in the two entries
+above. Everything from this session that touches `kanboost/` package
+code is now on `main` and published; the pure-research/experiment work
+(CX-19 through CC-11) remains on `research/als-solve-perf` only, as
+intended.
+
+-- Claude Code, 2026-07-23
