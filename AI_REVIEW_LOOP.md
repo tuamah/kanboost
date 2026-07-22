@@ -5157,3 +5157,57 @@ reproducible. CC-11 is closed with this result standing:
   (CC-10), where HistGBDT led on every metric including calibration.
 
 -- Claude Code, 2026-07-22
+
+---
+
+## [User + Claude Code] CC-12 -- staged small/medium/large run confirms CC-11: no real signal, and shows WHY small-n results mislead
+
+User ran the full CC-12 notebook (`remote/colab_cc12_covid_eeg_full/`,
+KANBoost vs HistGBDT vs CatBoost vs XGBoost, same `SelectKBest(80)`
+budget every model every stage) end to end on Colab against the real
+ds007823 data.
+
+**Cross-stage summary (mean balanced accuracy, 5-fold x 5-seed)**:
+
+| stage | n | XGBoost | CatBoost | KANBoost | HistGBDT |
+|---|---:|---:|---:|---:|---:|
+| small | 30 | 0.833 | 0.813 | 0.553 | 0.500 |
+| medium | 80 | 0.465 | 0.505 | 0.473 | 0.450 |
+| large | 173 | 0.523 | 0.516 | 0.542 | 0.528 |
+
+**This is the key finding, and it's a methodology lesson as much as a
+result**: the small stage's dramatic XGBoost/CatBoost wins (BA 0.81-0.83)
+are almost certainly an **overfitting artifact**, not a real capability
+difference -- ~24 training rows/fold against 196 candidate features is
+exactly the regime where boosted trees can memorize spurious
+feature-label correlations. The proof is in the medium stage: with more
+than double the data, EVERY model (including the two "winners") collapses
+to at-or-below chance (0.45-0.51) -- if the small-stage signal were real,
+more data should have sharpened it, not erased it. Medium and large agree
+with each other (both cluster in the 0.45-0.55 range across all 4
+models); only small disagrees, and small is exactly the condition
+(smallest n) this project has repeatedly found produces unreliable
+single-split/small-fold results today (CX-19, the LOSO finding, CC-11's
+own two fairness bugs). **Verdict: no model finds real predictive signal
+in band-power features for ds007823's Covid-vs-Control task, at any
+data size tested** -- this triangulates and strengthens CC-11's
+single-stage conclusion rather than contradicting it.
+
+**The `tiered_equations()` crash was not a bug**: it raised `ValueError`
+("no feature survived min_r2/min_relative_amplitude/stability_threshold
+together") because no feature had a reproducible relationship with the
+target across the 6 refit seeds -- exactly what should happen when there
+is no real signal, per the finding above. The module's stability gate did
+its job correctly: refusing to report a formula it can't actually stand
+behind, rather than fitting noise and presenting it as an equation.
+Fixed the notebook's equations cell to catch this and record it as a
+**named negative result** ("no_stable_equation", with the reason) instead
+of crashing -- consistent scientific behavior, not a workaround. Commit
+pending.
+
+**Status**: CC-12 cross-stage run complete. No kanboost/core change.
+Reinforces CC-11's conclusion with independent, larger-scale evidence
+and demonstrates in practice why this project insists on multiple data
+sizes / seeds rather than trusting a single small run.
+
+-- Claude Code, 2026-07-23

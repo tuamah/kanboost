@@ -423,23 +423,47 @@ def build_and_fit_gam(X_train, y_train, seed):
                                kan_steps=large_stage["kanboost_steps"], early_stopping_rounds=None,
                                random_state=seed).fit(X_train, y_train)
 
-tiers = tiered_equations(build_and_fit_gam, X_large_selected, y_large, simple_max_terms=5, detailed_max_terms=12,
-                          n_seeds=6, random_state=RANDOM_STATE)
+try:
+    tiers = tiered_equations(build_and_fit_gam, X_large_selected, y_large, simple_max_terms=5, detailed_max_terms=12,
+                              n_seeds=6, random_state=RANDOM_STATE)
+    equations_ok = True
+except ValueError as exc:
+    # distill_equation()'s stability gate correctly refuses to report an
+    # equation when no feature has a reproducible relationship with the
+    # target across seeds -- this is a meaningful negative result, not a
+    # bug, and is consistent with near-chance classification performance
+    # (see the cross-stage summary above): don't invent a formula for a
+    # model that found no stable signal.
+    print("No stable symbolic equation found (min_r2/amplitude/stability gates all failed):")
+    print(f"  {exc}")
+    print("This is consistent with near-chance classification performance above --")
+    print("the model has no reproducible feature-target relationship to report.")
+    tiers = None
+    equations_ok = False
 
-for tier_name in ["simple", "detailed", "full"]:
-    tier = tiers[tier_name]
-    print(f"=== {tier_name.upper()} ({len(tier['kept_features'])} terms) ===")
-    print("formula:", tier["formula"])
-    print("fidelity:", tier["fidelity"])
-    print()
+if equations_ok:
+    for tier_name in ["simple", "detailed", "full"]:
+        tier = tiers[tier_name]
+        print(f"=== {tier_name.upper()} ({len(tier['kept_features'])} terms) ===")
+        print("formula:", tier["formula"])
+        print("fidelity:", tier["fidelity"])
+        print()
 
-equations_path = OUT_DIR / f"cc12-ds007823-tiered-equations_{STAMP}.json"
-equations_path.write_text(json.dumps({
-    tier_name: {"latex": tiers[tier_name]["latex"], "kept_features": tiers[tier_name]["kept_features"],
-                "fidelity": tiers[tier_name]["fidelity"]}
-    for tier_name in ["simple", "detailed", "full"]
-}, indent=2, default=str), encoding="utf-8")
-print("wrote", equations_path)
+    equations_path = OUT_DIR / f"cc12-ds007823-tiered-equations_{STAMP}.json"
+    equations_path.write_text(json.dumps({
+        tier_name: {"latex": tiers[tier_name]["latex"], "kept_features": tiers[tier_name]["kept_features"],
+                    "fidelity": tiers[tier_name]["fidelity"]}
+        for tier_name in ["simple", "detailed", "full"]
+    }, indent=2, default=str), encoding="utf-8")
+    print("wrote", equations_path)
+else:
+    equations_path = OUT_DIR / f"cc12-ds007823-tiered-equations_{STAMP}.json"
+    equations_path.write_text(json.dumps({
+        "status": "no_stable_equation",
+        "reason": "no feature survived the min_r2/min_relative_amplitude/stability_threshold gates together",
+        "interpretation": "consistent with near-chance classification performance in the cross-stage comparison above",
+    }, indent=2), encoding="utf-8")
+    print("wrote", equations_path, "(negative result recorded, not a crash)")
 """),
 ]
 
