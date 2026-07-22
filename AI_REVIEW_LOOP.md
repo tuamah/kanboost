@@ -4982,3 +4982,81 @@ dataset). Recorded for the record and for calibrating future capacity/
 speed decisions; no kanboost/core change implicated.
 
 -- Claude Code, 2026-07-22
+
+---
+
+## [Claude Code] CC-11 -- KANBoost vs HistGBDT on a genuinely new medical dataset (ds007823, COVID EEG)
+
+User asked to try "other medical data, but make sure it's recent" (to
+check whether KANBoost's edge is EEG/medical-domain-specific, or was
+purely a ds004504 artifact, after CC-10 showed it doesn't transfer to a
+larger *non*-medical dataset). Found and used **ds007823**, "A COVID-19
+survivors and close contacts EEG dataset" (Cuban Neuroscience Center),
+OpenNeuro, CC0, published in *Clinical Neurophysiology Practice* 2026,
+dataset last modified 2026-06-19 -- genuinely new, unrelated to ds004504
+beyond being EEG. 173 subjects (87 Covid, 86 Control), 21-channel EDF,
+200Hz. Raw EEG downloaded from OpenNeuro's public S3 (1.18GB, 173/173,
+0 failures, explicit user permission obtained first).
+`remote/kaggle_cc11_covid_eeg/cc11_covid_eeg_benchmark.py`, same
+band-power feature family (5 bands, per-channel relative power + derived
+ratios) as the ds004504 pipeline, channel names normalised for this
+dataset's uppercase CZ/FZ/PZ convention. A standalone Colab/Kaggle
+notebook was also generated (`remote/generate_cc11_covid_eeg_notebook.py`
+-> `remote/colab_cc11_covid_eeg/...ipynb`) for independent reruns.
+
+**Bug caught before reporting a first-pass result**: the first run gave
+HistGBDT the full 196-feature derived pool with **no feature selection**,
+while KANBoost used `SelectKBest(k=80)` internally via its own pipeline
+step -- an unfair, inconsistent comparison (196 features vs ~138 training
+rows/fold is a classic overfit setup) that produced an implausible
+sub-chance HistGBDT result (BA 0.486, log loss 1.228 -- worse than a
+naive base-rate predictor). Caught and fixed before drawing any
+conclusion: `cc11b_covid_eeg_benchmark_fixed.py` reruns both models with
+identical `SelectKBest(f_classif, k=80)` selection, reusing the
+already-extracted feature table (no raw EEG reprocessing needed).
+
+**Corrected, fair result**:
+
+| model | mean BA | std BA | mean log loss | mean ROC AUC |
+|---|---:|---:|---:|---:|
+| `kanboost_e80_h3_s6_select80` | 0.5356 | 0.0724 | **0.6936** | 0.5558 |
+| `hist_gbdt_select80` | 0.5276 | 0.0622 | 1.1556 | 0.5172 |
+
+**Honest verdict: this is not a meaningful "which model wins" result --
+neither model finds real signal in band-power features for this task.**
+Both mean BAs sit right at chance (this task is ~50.3% positive, so
+BA=0.5 is literally random guessing); the ~0.008 gap between them is well
+within noise given std~0.06-0.07. This is a materially different picture
+from every other test today, where at least one model showed a real,
+low-variance effect.
+
+**What is real and worth recording**: KANBoost's log loss (0.6936) is
+almost exactly ln(2)=0.693 -- the loss of predicting the base rate
+probability every time, i.e. it degrades gracefully to "I don't know"
+when there's no learnable signal. HistGBDT's log loss (1.156) is **far
+worse than the base-rate loss**, meaning it is actively overconfident
+and wrong -- a real miscalibration failure mode, not just "no signal
+found." This matches the calibration pattern seen in every OpenNeuro
+comparison today (CX-18, CC-8, CC-9): KANBoost's probability outputs stay
+safe/calibrated even in a low- or no-signal regime, while HistGBDT can
+become confidently wrong. This is a genuine, repeated finding across a
+now-third dataset, but it is a calibration-robustness property, not
+evidence of superior *predictive accuracy* here.
+
+**Most likely explanation for the near-null signal**: this project's
+existing band-power feature pipeline was built for and validated on
+ds004504 (Alzheimer's/FTD, where slow-wave power changes are a known,
+strong biomarker). The ds007823 paper's own title references comparison
+"to the Cuban EEG normative database" -- i.e. the original researchers'
+approach likely used Z-scored deviations from population age/sex-matched
+norms, not raw relative band power, to find their signal. Reusing the
+ds004504 feature recipe unchanged on a different disease's EEG signature
+without domain-appropriate feature engineering is a plausible reason
+neither model found much here. Not investigated further this round --
+noted as the likely cause rather than concluded as fact.
+
+**Status: CC-11 inconclusive on accuracy (near-chance for both models);
+confirms KANBoost's calibration-robustness pattern on a third,
+independent EEG dataset.** No kanboost/core change implicated.
+
+-- Claude Code, 2026-07-22

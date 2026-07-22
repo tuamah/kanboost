@@ -1,0 +1,174 @@
+participant_id	sex	group	COVID_symptoms	COVID_severity	Days_in_hospital
+sub-CUCOV001	F	Covid	Asymptomatic	Asymptomatic	14.0
+sub-CUCOV002	M	Covid	Asymptomatic	Asymptomatic	
+sub-CUCOV003	F	Control			
+sub-CUCOV005	F	Covid	Symptomatic	Mild	15.0
+sub-CUCOV006	F	Covid	Symptomatic	Mild	30.0
+sub-CUCOV007	F	Covid	Asymptomatic	Asymptomatic	15.0
+sub-CUCOV008	M	Covid	Symptomatic	Severe	33.0
+sub-CUCOV009	F	Covid	Symptomatic	Mild	18.0
+sub-CUCOV010	F	Covid	Symptomatic	Severe	16.0
+sub-CUCOV011	F	Covid	Asymptomatic	Asymptomatic	14.0
+sub-CUCOV012	F	Covid	Asymptomatic	Asymptomatic	6.0
+sub-CUCOV013	F	Covid	Symptomatic	Mild	19.0
+sub-CUCOV014	M	Covid	Symptomatic	Mild	20.0
+sub-CUCOV015	M	Covid	Symptomatic	Mild	24.0
+sub-CUCOV016	F	Covid	Symptomatic	Severe	29.0
+sub-CUCOV017	M	Covid	Symptomatic	Mild	35.0
+sub-CUCOV018	F	Covid	Asymptomatic	Asymptomatic	16.0
+sub-CUCOV019	F	Covid	Symptomatic	Mild	17.0
+sub-CUCOV020	F	Covid	Asymptomatic	Asymptomatic	17.0
+sub-CUCOV021	F	Covid	Symptomatic	Mild	20.0
+sub-CUCOV022	M	Covid	Symptomatic	Mild	28.0
+sub-CUCOV023	F	Covid	Symptomatic	Mild	14.0
+sub-CUCOV024	F	Covid	Asymptomatic	Asymptomatic	18.0
+sub-CUCOV025	M	Covid	Symptomatic	Mild	18.0
+sub-CUCOV026	F	Covid	Symptomatic	Mild	16.0
+sub-CUCOV027	F	Covid	Symptomatic	Mild	16.0
+sub-CUCOV028	M	Covid	Symptomatic	Mild	15.0
+sub-CUCOV029	F	Covid	Asymptomatic	Asymptomatic	18.0
+sub-CUCOV030	M	Covid	Asymptomatic	Asymptomatic	17.0
+sub-CUCOV031	F	Covid	Asymptomatic	Asymptomatic	18.0
+sub-CUCOV032	F	Covid	Asymptomatic	Asymptomatic	19.0
+sub-CUCOV033	F	Control			
+sub-CUCOV035	F	Covid	Symptomatic	Mild	21.0
+sub-CUCOV036	M	Covid	Symptomatic	Mild	12.0
+sub-CUCOV037	F	Covid	Asymptomatic	Asymptomatic	
+sub-CUCOV038	F	Covid	Symptomatic	Mild	23.0
+sub-CUCOV039	M	Covid	Asymptomatic	Asymptomatic	
+sub-CUCOV040	M	Covid	Asymptomatic	Asymptomatic	14.0
+sub-CUCOV041	F	Covid	Asymptomatic	Asymptomatic	
+sub-CUCOV042	F	Covid	Symptomatic	Mild	23.0
+sub-CUCOV043	F	Covid	Asymptomatic	Asymptomatic	12.0
+sub-CUCOV044	M	Covid	Symptomatic	Mild	15.0
+sub-CUCOV045	M	Covid	Asymptomatic	Asymptomatic	24.0
+sub-CUCOV046	M	Covid	Asymptomatic	Asymptomatic	6.0
+sub-CUCOV047	F	Covid	Asymptomatic	Asymptomatic	12.0
+sub-CUCOV048	M	Covid	Asymptomatic	Asymptomatic	11.0
+sub-CUCOV049	F	Covid	Asymptomatic	Asymptomatic	15.0
+sub-CUCOV051	F	Control			
+sub-CUCOV052	F	Covid	Asymptomatic	Asymptomatic	14.0
+sub-CUCOV053	F	Covid	Asymptomatic	Asymptomatic	14.0
+sub-CUCOV054	F	Covid	Symptomatic	Mild	15.0
+sub-CUCOV055	M	Control			
+sub-CUCOV056	M	Control			
+sub-CUCOV057	F	Control			
+sub-CUCOV058	M	Covid	Symptomatic	Severe	22.0
+sub-CUCOV059	F	Control			
+sub-CUCOV060	F	Control			
+sub-CUCOV061	F	Covid	Asymptomatic	Asymptomatic	16.0
+sub-CUCOV062	M	Covid	Asymptomatic	Asymptomatic	12.0
+sub-CUCOV063	F	Control			
+sub-CUCOV064	F	Covid	Symptomatic	Mild	14.0
+sub-CUCOV065	F	Covid	Symptomatic	Mild	12.0
+sub-CUCOV066	M	Covid	Asymptomatic	Asymptomatic	9.0
+sub-CUCOV067	F	Covid	Asymptomatic	Asymptomatic	19.0
+sub-CUCOV068	F	Control			
+sub-CUCOV069	M	Covid	Asymptomatic	Asymptomatic	10.0
+sub-CUCOV070	F	Covid	Asymptomatic	Asymptomatic	12.0
+sub-CUCOV071	M	Covid	Symptomatic	Mild	11.0
+sub-CUCOV072	F	Control			
+sub-CUCOV073	F	Covid	Symptomatic	Mild	14.0
+sub-CUCOV074	F	Covid	Asymptomatic	Asymptomatic	14.0
+sub-CUCOV075	M	Control			
+sub-CUCOV076	M	Covid	Symptomatic	Mild	24.0
+sub-CUCOV077	F	Covid	Symptomatic	Mild	28.0
+sub-CUCOV079	M	Covid	Symptomatic	Mild	14.0
+sub-CUCOV080	F	Covid	Symptomatic	Severe	18.0
+sub-CUCOV081	M	Covid	Symptomatic	Severe	24.0
+sub-CUCOV082	F	Covid	Symptomatic	Severe	19.0
+sub-CUCOV083	M	Covid	Symptomatic	Severe	14.0
+sub-CUCOV084	F	Covid	Symptomatic	Severe	
+sub-CUCOV085	F	Control			
+sub-CUCOV086	F	Control			
+sub-CUCOV087	F	Control			
+sub-CUCOV088	F	Control			
+sub-CUCOV089	F	Covid	Symptomatic	Mild	
+sub-CUCOV090	F	Control			
+sub-CUCOV091	F	Covid	Symptomatic	Mild	
+sub-CUCOV092	M	Control			
+sub-CUCOV093	M	Control			
+sub-CUCOV094	F	Covid	Asymptomatic	Asymptomatic	
+sub-CUCOV095	M	Covid	Symptomatic	Mild	
+sub-CUCOV096	M	Covid	Symptomatic	Mild	
+sub-CUCOV097	F	Control			
+sub-CUCOV098	F	Control			
+sub-CUCOV099	F	Control			
+sub-CUCOV100	F	Covid	Symptomatic	Mild	
+sub-CUCOV101	F	Control			
+sub-CUCOV102	M	Control			
+sub-CUCOV103	F	Control			
+sub-CUCOV104	F	Covid	Asymptomatic	Asymptomatic	16.0
+sub-CUCOV105	F	Covid	Asymptomatic	Asymptomatic	16.0
+sub-CUCOV106	M	Control			
+sub-CUCOV107	F	Control			
+sub-CUCOV108	F	Control			
+sub-CUCOV109	F	Control			
+sub-CUCOV110	F	Covid	Asymptomatic	Asymptomatic	
+sub-CUCOV111	M	Covid	Symptomatic	Mild	
+sub-CUCOV112	F	Control			
+sub-CUCOV113	F	Covid	Symptomatic	Mild	
+sub-CUCOV114	F	Covid	Asymptomatic	Asymptomatic	
+sub-CUCOV115	F	Control			
+sub-CUCOV116	F	Control			
+sub-CUCOV117	F	Covid	Asymptomatic	Asymptomatic	
+sub-CUCOV118	M	Covid	Asymptomatic	Asymptomatic	
+sub-CUCOV119	F	Control			
+sub-CUCOV120	F	Covid	Symptomatic	Mild	14.0
+sub-CUCOV121	F	Control			
+sub-CUCOV122	F	Control			
+sub-CUCOV123	F	Covid	Symptomatic	Mild	20.0
+sub-CUCOV124	F	Control			
+sub-CUCOV125	F	Control			
+sub-CUCOV126	F	Control			
+sub-CUCOV127	F	Control			
+sub-CUCOV128	F	Control			
+sub-CUCOV129	F	Control			
+sub-CUCOV130	F	Control			
+sub-CUCOV131	F	Control			
+sub-CUCOV132	F	Control			
+sub-CUCOV133	F	Control			
+sub-CUCOV134	F	Control			
+sub-CUCOV135	F	Control			
+sub-CUCOV136	F	Control			
+sub-CUCOV137	F	Control			
+sub-CUCOV138	F	Control			
+sub-CUCOV139	F	Control			
+sub-CUCOV140	F	Control			
+sub-CUCOV141	M	Control			
+sub-CUCOV142	M	Control			
+sub-CUCOV143	F	Control			
+sub-CUCOV144	F	Control			
+sub-CUCOV145	M	Control			
+sub-CUCOV146	M	Covid	Symptomatic	Mild	
+sub-CUCOV147	F	Control			
+sub-CUCOV149	M	Control			
+sub-CUCOV150	M	Control			
+sub-CUCOV151	F	Covid	Symptomatic	Severe	
+sub-CUCOV152	M	Control			
+sub-CUCOV153	M	Control			
+sub-CUCOV154	M	Control			
+sub-CUCOV155	M	Control			
+sub-CUCOV156	M	Control			
+sub-CUCOV157	M	Control			
+sub-CUCOV158	M	Control			
+sub-CUCOV159	M	Control			
+sub-CUCOV160	M	Control			
+sub-CUCOV161	M	Control			
+sub-CUCOV162	M	Covid	Symptomatic	Mild	
+sub-CUCOV163	M	Control			
+sub-CUCOV164	M	Control			
+sub-CUCOV165	M	Control			
+sub-CUCOV166	M	Control			
+sub-CUCOV167	M	Control			
+sub-CUCOV168	M	Control			
+sub-CUCOV169	M	Control			
+sub-CUCOV170	M	Control			
+sub-CUCOV171	M	Control			
+sub-CUCOV172	M	Control			
+sub-CUCOV173	M	Control			
+sub-CUCOV174	M	Control			
+sub-CUCOV175	M	Control			
+sub-CUCOV176	M	Control			
+sub-CUCOV177	M	Control			
+sub-CUCOV178	M	Control			
