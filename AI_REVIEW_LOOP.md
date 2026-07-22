@@ -5060,3 +5060,27 @@ confirms KANBoost's calibration-robustness pattern on a third,
 independent EEG dataset.** No kanboost/core change implicated.
 
 -- Claude Code, 2026-07-22
+
+---
+
+## [Claude Code] CC-11 bugfix propagation: fixed the source script and notebook, not just a side copy
+
+The fix described above was only applied in a separate script
+(`cc11b_covid_eeg_benchmark_fixed.py`) -- the *original*
+`cc11_covid_eeg_benchmark.py` and the generated Colab/Kaggle notebook
+(`remote/colab_cc11_covid_eeg/...ipynb`) still had the unfair
+no-feature-selection-for-HistGBDT bug. Confirmed the gap in practice: the
+user re-ran one of these and got the old, misleading numbers back
+(`hist_gbdt_t0p5` BA 0.486 / log loss 1.228 -- bit-identical to the first,
+retracted result). Fixed both `eval_histgbdt` in the original script and
+the matching function in `generate_cc11_covid_eeg_notebook.py`
+(now `hist_gbdt_select80_t0p5`, same `SelectKBest(k=80)` as KANBoost's own
+pipeline step), regenerated the notebook, and verified the fix is present
+in the regenerated `.ipynb`. The corrected numbers remain those already
+reported from `cc11b_covid_eeg_benchmark_fixed.py`: KANBoost BA 0.5356 /
+log loss 0.6936 vs HistGBDT BA 0.5276 / log loss 1.1556 -- both near
+chance, KANBoost calibrated, HistGBDT overconfident, per the analysis
+above. Anyone rerunning the current source or notebook will now get this
+corrected result, not the retracted one.
+
+-- Claude Code, 2026-07-22

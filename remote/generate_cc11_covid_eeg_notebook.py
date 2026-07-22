@@ -238,16 +238,22 @@ def eval_kanboost(X, y, n_est=80, hid=3, steps=6, k=80):
                          "roc_auc": roc_auc_score(y[va], p), "fit_seconds": fit_s})
     return rows
 
-def eval_histgbdt(X, y):
+def eval_histgbdt(X, y, k=80):
+    # Must match eval_kanboost's SelectKBest(k) exactly -- giving HistGBDT
+    # the full unselected feature pool while KANBoost gets a selected
+    # subset is an unfair comparison (196 features vs ~138 training
+    # rows/fold caused HistGBDT to badly overfit in an earlier version of
+    # this notebook; see AI_REVIEW_LOOP.md CC-11).
     rows = []
     for seed in SEEDS:
         cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)
         for fold, (tr, va) in enumerate(cv.split(X, y), start=1):
-            model = make_pipeline(*clean_prefix(), HistGradientBoostingClassifier(max_iter=300, learning_rate=0.05, random_state=seed))
+            model = make_pipeline(*clean_prefix(), SelectKBest(f_classif, k=min(k, X.shape[1])),
+                                   HistGradientBoostingClassifier(max_iter=300, learning_rate=0.05, random_state=seed))
             model.fit(X[tr], y[tr])
             p = model.predict_proba(X[va])[:, 1]
             pred = (p >= 0.5).astype(int)
-            rows.append({"model": "hist_gbdt_t0p5", "cv_seed": seed, "fold": fold,
+            rows.append({"model": "hist_gbdt_select80_t0p5", "cv_seed": seed, "fold": fold,
                          "balanced_accuracy": balanced_accuracy_score(y[va], pred),
                          "f1_macro": f1_score(y[va], pred, average="macro"),
                          "log_loss": log_loss(y[va], np.column_stack([1 - p, p]), labels=[0, 1]),
