@@ -10,6 +10,7 @@ similar to how CatBoost handles categorical columns internally.
 
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import KFold
 from sklearn.preprocessing import RobustScaler
 
 
@@ -22,10 +23,14 @@ class TabularPreprocessor:
       at least one missing value during fit), outlier-clipped (1st/99th
       percentile), RobustScaler'd, then clipped to [-1, 1] (KAN's default
       spline grid range).
-    - Categorical columns: target-mean encoding (smoothed), computed on
-      the training fold only, to avoid leakage -- similar in spirit to
-      CatBoost's ordered target statistics (simplified, non-ordered
-      version). Missing/unseen categories fall back to the global mean.
+    - Categorical columns: target-mean encoding (smoothed toward the
+      global mean). `fit()`/`transform()` compute and apply this mapping
+      on disjoint data (e.g. fit on train, transform held-out val/test),
+      which is leakage-free. `fit_transform()` additionally encodes each
+      *fitting* row out-of-fold (K-fold, similar in spirit to CatBoost's
+      ordered target statistics), since encoding a row with a mapping
+      that includes its own label would otherwise leak target
+      information into the very rows being trained on.
     """
 
     def __init__(
@@ -33,10 +38,14 @@ class TabularPreprocessor:
         categorical_cols=None,
         smoothing: float = 10.0,
         add_missing_indicator: bool = True,
+        cv_folds: int = 5,
+        random_state: int = 42,
     ):
         self.categorical_cols = categorical_cols or []
         self.smoothing = smoothing
         self.add_missing_indicator = add_missing_indicator
+        self.cv_folds = cv_folds
+        self.random_state = random_state
         self.numeric_cols_ = None
         self.scaler_ = None
         self.clip_low_ = None
@@ -74,17 +83,16 @@ class TabularPreprocessor:
 
         # --- categorical: smoothed target-mean encoding ---
         for col in self.categorical_cols:
-            stats = (
-                pd.DataFrame({col: X[col].astype(str), "y": y})
-                .groupby(col)["y"]
-                .agg(["mean", "count"])
-            )
-            smoothed = (
-                stats["mean"] * stats["count"] + self.global_mean_ * self.smoothing
-            ) / (stats["count"] + self.smoothing)
-            self.cat_maps_[col] = smoothed.to_dict()
+            self.cat_maps_[col] = self._smoothed_map(X[col].astype(str).values, y)
 
         return self
+
+    def _smoothed_map(self, col_values, y) -> dict:
+        stats = pd.DataFrame({"col": col_values, "y": y}).groupby("col")["y"].agg(["mean", "count"])
+        smoothed = (
+            stats["mean"] * stats["count"] + self.global_mean_ * self.smoothing
+        ) / (stats["count"] + self.smoothing)
+        return smoothed.to_dict()
 
     def transform(self, X: pd.DataFrame) -> np.ndarray:
         parts = []
@@ -109,7 +117,25 @@ class TabularPreprocessor:
         return np.hstack(parts) if parts else np.empty((len(X), 0))
 
     def fit_transform(self, X: pd.DataFrame, y: np.ndarray) -> np.ndarray:
-        return self.fit(X, y).transform(X)
+        self.fit(X, y)
+        X_arr = self.transform(X)
+
+        if self.categorical_cols:
+            n = len(X)
+            n_splits = max(2, min(self.cv_folds, n))
+            cv = KFold(n_splits=n_splits, shuffle=True, random_state=self.random_state)
+            cat_start = len(self.numeric_cols_ or []) + len(self.missing_indicator_cols_)
+            for j, col in enumerate(self.categorical_cols):
+                col_values = X[col].astype(str).values
+                oof = np.empty(n, dtype=float)
+                for tr_idx, va_idx in cv.split(X):
+                    mapping = self._smoothed_map(col_values[tr_idx], y[tr_idx])
+                    oof[va_idx] = np.array(
+                        [mapping.get(v, self.global_mean_) for v in col_values[va_idx]]
+                    )
+                X_arr[:, cat_start + j] = oof
+
+        return X_arr
 
     @property
     def output_width(self) -> int:
