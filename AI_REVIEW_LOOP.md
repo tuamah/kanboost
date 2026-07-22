@@ -4843,3 +4843,74 @@ KANBoost library change. Awaiting Codex/ChatGPT/user review before
 deciding whether to run the inner-threshold follow-up.
 
 -- Claude Code, 2026-07-22
+
+---
+
+## [Claude Code] CC-9 follow-up: inner-threshold tuning -- final verdict REJECT (accuracy), note calibration benefit
+
+`cc9b_openneuro_connectivity_threshold.py` -- reused the already-extracted
+feature table (no raw EEG re-processing), applied CX-18's exact inner-OOF
+global threshold-tuning protocol to both the band-power-only and combined
+(band-power + PLV/PLI) arms, compared against CX-18's real accepted
+number (the actual bar this project uses for decisions, not the
+fixed-0.5-threshold number the first CC-9 pass was mistakenly gated
+against).
+
+| model | mean BA | std BA | mean log loss | mean ROC AUC |
+|---|---:|---:|---:|---:|
+| CX-18 accepted (`kanboost_select80_inner_global_fine`, original extraction) | **0.7183** | 0.1207* | 0.5757 | 0.7812 |
+| `kanboost_bandpower_inner_global` (this reimplementation, inner-tuned) | 0.7051 | 0.1224 | 0.5770 | 0.7810 |
+| `kanboost_combined_inner_global` (band-power + PLV/PLI, inner-tuned) | 0.6991 | 0.0887 | 0.5619 | 0.8026 |
+| `hist_gbdt_raw_t0p5` | 0.6707 | 0.1055 | 0.7860 | 0.7517 |
+
+*std BA for the original CX-18 run reported here from its own 25-fold
+metrics, not re-derived.
+
+**Honest verdict, apples-to-apples within this reimplementation** (same
+extraction code, only the feature pool differs between the two KANBoost
+rows): adding PLV/PLI connectivity features to band-power **did not
+improve balanced accuracy once inner-threshold tuning was applied to
+both arms** -- combined BA (0.6991) is *below* band-power-only BA (0.7051)
+under the same tuning, reversing the fixed-threshold-only result from
+the previous entry (there, combined beat band-power-only by +0.0064 BA).
+Neither arm beats CX-18's actual accepted 0.7183.
+
+**What *did* hold up consistently, across both the fixed-threshold and
+inner-threshold comparisons run today**: connectivity features
+improve **log loss and ROC AUC** every time they're added (fixed:
+-0.0138 log loss / +0.0216 ROC AUC; inner-tuned: -0.0151 log loss /
++0.0216 ROC AUC vs this reimplementation's own band-power-only arm) --
+this is a repeated, not one-off, pattern, and points at genuine
+calibration signal even where it doesn't move the balanced-accuracy
+needle. The earlier fixed-threshold variance-reduction finding (std BA
+nearly halved) also shrank substantially once threshold-tuning was
+applied (0.0887 vs 0.1224, a real but much smaller gap than the 0.068 vs
+0.121 seen without tuning) -- suggesting some of that apparent
+stabilization was itself a fixed-threshold artifact, similar in spirit
+to CX-19's fold-composition lesson.
+
+**FINAL VERDICT (per rule 12: reject when the primary target isn't met,
+even though a secondary signal looked promising)**:
+- **REJECT as a balanced-accuracy improvement** -- does not beat CX-18's
+  accepted 0.7183, under the actual accepted evaluation protocol
+  (inner-threshold tuning), which is the correct bar, not the
+  fixed-threshold number used in the first CC-9 pass.
+- **Note, not a promotion**: PLV/PLI connectivity features show a
+  repeated, consistent calibration benefit (log loss, ROC AUC) across
+  every comparison run today. This could matter for a future
+  calibration-focused proposal (e.g. as an input to CX-8-style
+  probability blending, which was rejected for accuracy but also showed
+  KANBoost's calibration edge) -- but is not, on its own, evidence for
+  promoting connectivity features into the standard OpenNeuro feature
+  pipeline for accuracy purposes.
+- No kanboost/core change was ever proposed for CC-9; this closes the
+  proposal as a documented negative result on the primary metric, per
+  rule 13 (remove/close rejected experimental proposals -- code kept
+  under `remote/kaggle_cc9_openneuro_connectivity/` for the record,
+  matching this project's standing practice, since nothing here touched
+  `kanboost/core/`).
+
+**Status: CC-9 CLOSED (rejected for accuracy; calibration finding noted
+for possible future use).**
+
+-- Claude Code, 2026-07-22
