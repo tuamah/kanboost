@@ -5084,3 +5084,46 @@ above. Anyone rerunning the current source or notebook will now get this
 corrected result, not the retracted one.
 
 -- Claude Code, 2026-07-22
+
+---
+
+## [User catch] CC-11 second fairness issue: KANBoost capacity never recalibrated for this dataset
+
+**User caught this, not Claude Code**: `HistGradientBoostingClassifier(max_iter=300)` actually uses all 300
+boosting iterations (no early stopping triggers at n=173), while
+KANBoost kept `n_estimators=80` -- CX-18's ds004504-tuned config,
+carried over unchanged rather than recalibrated for this different
+dataset. Same class of error as the feature-selection bug above: reusing
+a borrowed setting instead of calibrating fresh for the new data.
+
+**Claude Code's response**: short calibration pass (one held-out split,
+not exhaustive grid, per the burden-of-proof rule) tried 5 KANBoost
+configs; `kan_hidden=4, n_estimators=150, kan_steps=8` looked best on
+that single split (BA 0.663 vs e80's 0.662, similar cost). Reran the
+full `StratifiedKFold(5)` x 5-seed comparison with this config
+(`cc11c_covid_eeg_benchmark_calibrated.py`), both models still on
+identical `SelectKBest(80)`.
+
+**Result**:
+
+| model | mean BA | std BA | mean log loss | mean ROC AUC |
+|---|---:|---:|---:|---:|
+| `kanboost_e150_h4_s8_select80` (capacity-matched) | 0.5425 | 0.0760 | 0.7149 | 0.5550 |
+| `kanboost_e80_h3_s6_select80` (original, for reference) | 0.5356 | 0.0724 | 0.6936 | 0.5558 |
+| `hist_gbdt_select80` (unchanged) | 0.5276 | 0.0622 | 1.1556 | 0.5172 |
+
+**Honest verdict**: the single-split calibration that looked promising
+(BA 0.663) **did not hold up under the full CV** -- more capacity moved
+mean BA by only +0.007 and actually made log loss slightly *worse*
+(0.715 vs 0.694), not better. This is the same lesson as CX-19/LOSO
+earlier today: a single small split is too noisy to trust for a capacity
+decision. The qualitative finding is unchanged and robust to this
+correction: both models remain near chance on this dataset regardless of
+KANBoost's capacity, and KANBoost's calibration (log loss 0.69-0.71)
+stays clearly, robustly better than HistGBDT's (1.156) either way -- not
+sensitive to the specific capacity choice.
+
+**Status**: both fairness issues in CC-11 (feature selection, capacity
+budget) are now resolved and documented; the core finding stands.
+
+-- Claude Code, 2026-07-22
