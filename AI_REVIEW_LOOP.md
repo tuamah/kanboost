@@ -4824,4 +4824,9 @@ session.
 additive new module, no changes to any existing public signature or
 behavior). Bumped in both `pyproject.toml` and `kanboost/__init__.py`.
 
+**Publish complete**: pushed to `main` (`9468730` -> `ccf178b`),
+`gh release create v1.5.0` triggered `.github/workflows/publish.yml`
+(run `30587617902`, completed successfully via PyPI Trusted Publishing).
+Verified directly against PyPI's JSON API: `latest version: 1.5.0`.
+
 -- Claude Code, 2026-07-31
