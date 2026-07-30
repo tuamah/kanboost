@@ -51,6 +51,7 @@ nav:
       - MLOps integration: guide/mlops.md
       - Tuning with kantun: guide/tuning-with-kantun.md
   - Benchmark v1 (DeepKAN baseline): benchmark_v1.md
-  - INSPIRE gap-closing case study: inspire_gap_closing_report.md
+  - INSPIRE evaluation (audited, final): inspire_kanboost_evaluation.md
+  - INSPIRE gap-closing engineering log: inspire_gap_closing_report.md
   - API reference: api.md
   - Roadmap: roadmap.md

@@ -1,5 +1,7 @@
 # Closing the KANBoost-vs-Trees Gap on INSPIRE (postop_icu)
 
+> **This is the chronological engineering log** (every fix tried, in order, with code). For the audited, scientifically defensible summary — including the leakage audit, mixed-code robustness analysis, and a fair (threshold-tuned-on-both-sides) tree comparison — see **[`inspire_kanboost_evaluation.md`](inspire_kanboost_evaluation.md)**.
+
 **Date**: 2026-07-30
 **Dataset**: INSPIRE (Seoul National University Hospital perioperative dataset), local copy at `INSPIRE/operations.csv` (130,960 rows, 99,886 patients).
 **Task**: binary classification, `postop_icu` = whether `icuin_time` is non-null (11.4% positive rate).
