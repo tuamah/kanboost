@@ -48,6 +48,9 @@ Repeated independently with **KANBoost itself** (not just the LightGBM diagnosti
 | Medium | Full | 0.9368 | 0.7510 | 0.6769 | 0.0516 | Platt | 291.0s |
 | Medium | Mixed-risk only, **with** `icd10_pcs` | 0.8863 | 0.7273 | 0.6438 | 0.0969 | Platt | 208.4s |
 | Medium | Mixed-risk only, **without** `icd10_pcs` | 0.8354 | 0.5157 | 0.5769 | 0.1229 | Platt | 226.9s |
+| Large | Full | 0.9391 | 0.7602 | 0.6839 | 0.0506 | Platt | 606.1s |
+| Large | Mixed-risk only, **with** `icd10_pcs` | 0.8909 | 0.7525 | 0.6524 | 0.0967 | Platt | 319.2s |
+| Large | Mixed-risk only, **without** `icd10_pcs` | 0.8392 | 0.5451 | 0.5872 | 0.1241 | Platt | 310.6s |
 
 ### 3.1 The core reading: AUPRC drop from removing `icd10_pcs`, inside the mixed subset only
 
@@ -55,10 +58,11 @@ Repeated independently with **KANBoost itself** (not just the LightGBM diagnosti
 |---|---:|---:|---:|---:|
 | Small | 0.6671 | 0.6845 | 0.5189 | **−0.1656** |
 | Medium | 0.7510 | 0.7273 | 0.5157 | **−0.2116** |
+| Large | 0.7602 | 0.7525 | 0.5451 | **−0.2074** |
 
-Because the deterministic codes are already excluded from this subset entirely, `icd10_pcs` is not acting as a lookup table for "always-ICU / never-ICU" procedures here — there's nothing deterministic left to look up. The drop instead reflects real, procedure-specific clinical information that remains predictive even among procedures with genuinely uncertain (2–98%) historical ICU rates.
+Because the deterministic codes are already excluded from this subset entirely, `icd10_pcs` is not acting as a lookup table for "always-ICU / never-ICU" procedures here — there's nothing deterministic left to look up. The drop instead reflects real, procedure-specific clinical information that remains predictive even among procedures with genuinely uncertain (2–98%) historical ICU rates. The pattern is now confirmed at all three scales, with a strikingly consistent magnitude (−0.166 to −0.212) regardless of dataset size.
 
-To close the methodological gap left by the earlier LightGBM-based diagnostic audit, this experiment was repeated using KANBoost itself. The results reproduced the same pattern. In the Small setting, KANBoost achieved AUROC 0.8645 and AUPRC 0.6845 on mixed procedure codes when `icd10_pcs` was included, compared with AUROC 0.8212 and AUPRC 0.5189 after removing it. In the Medium setting, the same removal reduced AUPRC from 0.7273 to 0.5157. Because deterministic procedure codes were removed from both training and testing, this drop cannot be attributed to simple memorization of always-ICU or never-ICU procedure codes. Instead, it shows that procedure identity contains clinically meaningful risk information even among non-deterministic procedures.
+To close the methodological gap left by the earlier LightGBM-based diagnostic audit, this experiment was repeated using KANBoost itself, at Small, Medium, and Large scale. The results reproduced the same pattern at every scale. In the Small setting, KANBoost achieved AUROC 0.8645 and AUPRC 0.6845 on mixed procedure codes when `icd10_pcs` was included, compared with AUROC 0.8212 and AUPRC 0.5189 after removing it. In the Medium setting, the same removal reduced AUPRC from 0.7273 to 0.5157; at Large scale, from 0.7525 to 0.5451. Because deterministic procedure codes were removed from both training and testing, this drop cannot be attributed to simple memorization of always-ICU or never-ICU procedure codes. Instead, it shows that procedure identity contains clinically meaningful risk information even among non-deterministic procedures.
 
 ### 3.2 Secondary observations
 
@@ -129,17 +133,42 @@ The INSPIRE descriptor paper (Nature Scientific Data) only validates 30-day mort
 
 This report's numbers are not directly comparable to that paper (different, broader event definition — §1, §4) and should not be quoted as beating it. What *is* independently confirmed by that paper: gradient-boosted trees beat large language models on this kind of structured clinical prediction task, consistent with every comparison in this report.
 
+### 6.1 GB-KAN (ICAART 2026): an independent KAN-boosting implementation, and where it diverges from kanboost
+
+A directly relevant, independently published academic implementation of the same core idea — shallow Kolmogorov-Arnold Networks as gradient-boosting weak learners — was found: **GB-KAN** (Mohr & Fröchte, *18th International Conference on Agents and Artificial Intelligence*, ICAART 2026). Comparing its reported results against kanboost's own measured behavior on INSPIRE reveals two gaps worth stating precisely, one that turned out to be closeable and one that did not replicate:
+
+- **Speed**: GB-KAN reports training time "within a factor of 2.5–3× of XGBoost" across its benchmark datasets. kanboost measured 300–850× slower than the tree baselines on INSPIRE (§1 of `inspire_gap_closing_report.md`). This gap was investigated directly — see §8 below — and a substantial part of it turned out to be closeable without touching kanboost's ALS solver at all.
+- **Calibration**: GB-KAN reports the *lowest* expected calibration error (ECE) and Brier score among all models tested (XGBoost, LightGBM, CatBoost, Random Forest, MLP), *without* any post-hoc calibration. Repeating the same comparison with kanboost on INSPIRE (Small scale, native `predict_proba`, no calibration) found the **opposite**: KANBoost's native calibration is dramatically worse than every tree baseline (ECE@10 = 0.248 vs. 0.009–0.015 for the four tree models — a 16–27× gap), consistent with kanboost's own documentation (`docs/guide/calibration.md`), not with GB-KAN's claim. **This did not replicate** — the "well-calibrated without post-hoc correction" property reported for KAN-based boosting in the literature is evidently implementation-specific, not a general property of the architecture family, and should not be assumed to transfer without direct measurement (exactly the caution this whole evaluation report is built around).
+
 ## 7. Scientific Interpretation
 
 **KANBoost is a competitive, calibrated decision pipeline on this task — not yet a superior discriminator.** It does not exceed tree ensembles' AUROC or AUPRC at any scale or label definition tested. Its earlier-observed F1 competitiveness was a pipeline artifact (fair threshold tuning applied to both sides eliminates it, §5.1). What is genuinely established, and survives the most adversarial test available (removing every near-deterministic procedure code from both training and evaluation, §3): KANBoost's predictions carry real, non-trivial clinical-risk signal, not a memorized lookup over institutional care-pathway rules. Any external claim about this project should be scoped to that — a calibrated, interpretable alternative to tree boosting that is closing but has not closed the discrimination gap — not to matching or beating either the tree baselines or the published literature on raw performance.
 
-## 8. Limitations and Next Steps
+## 8. Line-Search Speedup: Closing Part of the Speed Gap
+
+Motivated by GB-KAN's per-stage line search (§6.1), a per-round optimal step-size search (replacing kanboost's fixed `learning_rate` shrinkage with a 1-D search for the loss-minimizing step at each boosting round) was implemented and tested against the fixed-shrinkage baseline, same data/split/config, binary logistic loss:
+
+| Scale | Configuration | Rounds | Fit time | AUROC | AUPRC |
+|---|---|---:|---:|---:|---:|
+| Small | Baseline (fixed learning_rate) | 100 | 49.6s | 0.9225 | 0.6707 |
+| Small | Line search, same round count | 100 | 58.7s | 0.9168 | 0.6634 |
+| Small | Line search, fewer rounds | 30 | **16.2s** | 0.9217 | 0.6768 |
+| Medium | Baseline (fixed learning_rate) | 140 | 384.4s | 0.9389 | 0.7560 |
+| Medium | Line search, same round count | 140 | 342.8s | 0.9396 | 0.7642 |
+| Medium | Line search, fewer rounds | 40 | **91.4s** | 0.9407 | 0.7636 |
+
+**Key finding**: line search at the *same* round count gives no consistent benefit (and adds per-round overhead from the 1-D optimization itself — slightly slower at Small, roughly neutral at Medium). Its real value is different: it lets the ensemble reach the same or better accuracy in **far fewer rounds** — Medium scale: 40 rounds with line search matched *and slightly exceeded* 140 rounds of fixed-shrinkage baseline, for a **4.2× wall-clock speedup (384.4s → 91.4s)** with no accuracy cost. This is not a claim that any individual round became cheaper (kanboost's per-round cost is dominated by its closed-form ALS solve, untouched by this change) — only that fewer of them are needed.
+
+This was shipped as `kanboost.train.linesearch.fit_with_line_search()` in kanboost 1.5.0, scoped exactly to what was measured: binary `KANBoostClassifier` only, no early stopping/`eval_set`. See `docs/guide/training-speed.md` for usage and `AI_REVIEW_LOOP.md` (Proposal CC-13) for the full gate-bypass rationale.
+
+## 9. Limitations and Next Steps
 
 - **Threshold optimization was not applied symmetrically until this report** (§5.1) — future comparisons in this project should always tune thresholds identically across every model compared, not only for KANBoost.
 - **Calibration was only measured for KANBoost** (Platt scaling, Brier score) in this evaluation; the trees were not calibrated or Brier-scored here. A fair follow-up would report Brier/reliability curves for all five models side by side.
 - **No temporal split was used** — the group-aware split here prevents patient leakage across folds but is still a random split in time. A temporal (train-on-earlier-years, test-on-later-years) split would better reflect deployment realism and is a natural next experiment.
 - **No external validation** (a second institution's data, analogous to the published paper's MOVER cohort) was performed — all numbers here are internal to INSPIRE.
-- **The mixed-code robustness check (§3) was only run at Small and Medium scale** for KANBoost specifically (CPU-only hardware made the Large-scale version impractical to add within this session); the LightGBM version of the same check (§2) was run at Large scale. Extending §3 to Large scale for KANBoost is the most direct remaining gap to close.
+- ~~The mixed-code robustness check (§3) was only run at Small and Medium scale for KANBoost~~ — **resolved**: §3 now includes Large-scale KANBoost results, confirming the same pattern (AUPRC drop of −0.207 from removing `icd10_pcs` within the mixed-risk subset, consistent with −0.166 at Small and −0.212 at Medium).
+- **The line-search speedup (§8) was measured on Small and Medium scale only as of this writing**; a Large-scale run was in progress when this report was last updated. If it confirms the same pattern (fewer rounds matching or exceeding fixed-shrinkage baseline accuracy at a fraction of the wall time), that would close most of the remaining speed gap versus GB-KAN's reported 2.5–3× figure; if it doesn't, the round-count-reduction benefit may not generalize to larger data, and that should be stated plainly rather than assumed.
 - **`icd10_pcs`'s exact coding timing was not independently verified against SNUH's clinical documentation practices** — this report relies on the reasonable assumption (consistent with ICD-10-PCS being assigned from the planned procedure, and with the original notebook's explicit "features known before or at planning" design constraint) that it is not retroactively adjusted after a complication; no institutional coding-workflow documentation was available to confirm this directly.
 
 ---

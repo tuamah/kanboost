@@ -4741,3 +4741,87 @@ uncommitted work from other sessions (`examples/brfss2024_kanboost_benchmark.ipy
 and unstaged -- not part of this commit.
 
 -- Claude Code, 2026-07-30
+
+---
+
+## [Claude Code] Proposal CC-13 -- `fit_with_line_search()`, published ahead of the normal review gate -- explicit user override, 2026-07-31
+
+**Competitor/gap**: an independently published academic implementation
+of the same core idea as kanboost -- GB-KAN (Mohr & Frochte, ICAART
+2026, "Gradient Boosting with Interpretable Kolmogorov-Arnold
+Networks") -- reports training time "within a factor of 2.5-3x of
+XGBoost" across its benchmark datasets. kanboost measured 300-850x
+slower than tree baselines on INSPIRE (see
+`docs/inspire_gap_closing_report.md`), a far larger gap than the
+literature suggests is necessary for this class of model. Separately,
+GB-KAN's paper claims the *best* native calibration (lowest ECE/Brier)
+among all models tested, without post-hoc correction -- the opposite of
+kanboost's own documented finding (worst calibration, requires Platt
+scaling). Both claims were checked directly against kanboost rather
+than assumed to transfer.
+
+**Hypothesis**: GB-KAN's per-stage line search (its `gamma_t`, eq. 3)
+might close part of the speed gap -- not by making kanboost's
+per-round closed-form ALS solve cheaper (untouched by this change), but
+by letting fewer total rounds reach the same accuracy as the current
+fixed-`learning_rate` shrinkage.
+
+**Scope**: training speed only, binary `KANBoostClassifier`, no
+`eval_set`/early stopping (matching exactly what was measured -- not a
+general early-stopping-compatible replacement for `fit()`).
+
+**Acceptance gate**: fewer-round line-search ensemble's AUROC/AUPRC
+must not meaningfully regress versus a fixed-shrinkage baseline at
+the baseline's own (larger) round count, on the same INSPIRE
+group-aware split used throughout this evaluation, at both Small and
+Medium scale independently.
+
+**Evidence** (full tables in `docs/inspire_kanboost_evaluation.md` §8):
+
+| Scale | Baseline (fixed lr) | Line search, fewer rounds | Speedup | Accuracy |
+|---|---|---|---|---|
+| Small | 100 rounds, 49.6s, AUROC 0.9225/AUPRC 0.6707 | 30 rounds, 16.2s, AUROC 0.9217/AUPRC 0.6768 | 3.1x | matched |
+| Medium | 140 rounds, 384.4s, AUROC 0.9389/AUPRC 0.7560 | 40 rounds, 91.4s, AUROC 0.9407/AUPRC 0.7636 | 4.2x | slightly exceeded |
+
+At the *same* round count, line search gave no consistent benefit (Small:
+100 rounds, 58.7s, AUROC 0.9168/AUPRC 0.6634 -- slightly worse and
+slower than fixed shrinkage, from the added per-round 1-D optimization
+cost). **Accepted**: the round-count-reduction effect, not the
+same-round-count case.
+
+The calibration hypothesis was tested and **rejected**: KANBoost's
+native (uncalibrated) ECE@10 on INSPIRE Small was 0.248 vs. 0.009-0.015
+for the four tree baselines -- a 16-27x gap in the *opposite* direction
+GB-KAN's paper reports for their own implementation. Documented in
+`docs/inspire_kanboost_evaluation.md` §6.1 as a claim from the
+literature that did not replicate; no code change proposed or made for
+this half of the investigation.
+
+**What was added to `kanboost/`**: `kanboost/train/linesearch.py`
+(`fit_with_line_search()` / `predict_proba_line_search()`),
+`tests/test_linesearch.py` (5 tests: fit+predict roundtrip, fewer-rounds
+competitiveness, multiclass rejection, regressor rejection,
+sample_weight handling), docs in `docs/guide/training-speed.md` and
+`docs/inspire_kanboost_evaluation.md` (§6.1, §8).
+
+**Verification before publishing**: full test suite on `main` after
+adding the new files -- 175 passed, 1 failed
+(`test_accel.py::test_fast_fit_is_faster_and_preserves_accuracy`), 3
+skipped. The failure was a timing-based assertion (`t_fast < t_normal`,
+measured 0.608s vs. 0.601s) coinciding with a separate CPU-heavy
+background experiment (an unrelated Large-scale line-search run for
+this same proposal's evidence-gathering) competing for the same
+machine's cores -- re-ran in isolation immediately after: passed
+(10.44s). Not a regression from this proposal's code (`accel.py` was
+not touched).
+
+**Gate bypass**: same override as the 1.4.0/CC-12 entry above -- user
+explicitly authorized skipping the standing Codex-review-then-ChatGPT-
+judgment gate (`CLAUDE.md` rule 8) for this proposal too, in the same
+session.
+
+**Version bump**: `1.4.0` -> `1.5.0` (minor, per semver -- purely
+additive new module, no changes to any existing public signature or
+behavior). Bumped in both `pyproject.toml` and `kanboost/__init__.py`.
+
+-- Claude Code, 2026-07-31

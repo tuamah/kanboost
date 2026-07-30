@@ -77,3 +77,41 @@ fitted classifier/regressor and mutates `learners_` in place — no new
 object, no editability, just fewer learners to evaluate at predict time.
 As with `fast_fit`, this is a lossy approximation: compare accuracy
 before/after on your own held-out data before relying on it.
+
+## Training speed via fewer rounds: `fit_with_line_search()`
+
+`kanboost.train.linesearch.fit_with_line_search()` replaces the fixed
+`learning_rate` shrinkage with a per-round line search for the
+loss-minimizing step size, inspired by
+[GB-KAN](https://www.scitepress.org/Papers/2026/142468/142468.pdf) (an
+independently published KAN-based boosting framework). It does **not**
+make any individual round cheaper — the benefit is that fewer rounds
+are needed to reach the same accuracy, which cuts total wall time
+close to linearly in the round-count reduction:
+
+```python
+from kanboost import KANBoostClassifier
+from kanboost.train.linesearch import fit_with_line_search, predict_proba_line_search
+
+model = KANBoostClassifier(n_estimators=40)  # a fraction of what a
+                                              # fixed-shrinkage fit() would need
+fit_with_line_search(model, X_train, y_train)
+proba = predict_proba_line_search(model, X_test)  # NOT model.predict_proba --
+                                                    # each round has its own
+                                                    # step size, not a shared
+                                                    # learning_rate
+```
+
+Measured on INSPIRE (`postop_icu`, Medium scale, 50K rows): 40
+line-search rounds matched *and slightly exceeded* 140 rounds of a
+fixed-shrinkage baseline (AUROC 0.9407 vs. 0.9389, AUPRC 0.7636 vs.
+0.7560) in **91.4s vs. 384.4s — a 4.2x wall-clock speedup**. At the
+*same* round count, line search gives no consistent benefit (the 1-D
+search itself adds a small per-round cost) — its value is specifically
+in letting you use fewer rounds, not in improving each one.
+
+**Scope**: binary `KANBoostClassifier` only (not multiclass, not
+`KANBoostRegressor`), no `eval_set`/early stopping. Use
+`predict_proba_line_search()`, not the base model's own
+`predict_proba()` — each learner has its own step size here, unlike a
+normal `fit()` where every learner shares `learning_rate`.
