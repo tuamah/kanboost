@@ -130,13 +130,55 @@ The unusually high AUPRC (0.76–0.82 here vs. 0.11–0.21 in the published mort
 - The **absolute numbers should not be quoted as beating the published literature** — the tasks are not equivalent. A fair one-line summary: *on this dataset's broader "immediate postoperative ICU transfer" definition (which is partly a deterministic function of procedure type), KANBoost with the fixes above reaches AUROC/AUPRC competitive with strong tree ensembles; on the published paper's narrower, rarer "ICU admission" definition, both this project's models and the published XGBoost baseline would be expected to score substantially lower — a hypothesis current CPB-exclusion experiments (see the repository's benchmark scripts) are testing directly.*
 - Recommended before any external claim of matching or beating a published benchmark: patient-grouped split (already done here), a temporal (not random) split if the goal is deployment realism, and reporting the full metric suite (AUROC/AUPRC/F1/Brier/calibration, already done here) *plus* a feature-ablation/leakage check like §6.3 as standard practice — not an afterthought.
 
-## 7. What was NOT done, and why
+## 7. Beyond deterministic procedure codes: mixed-code robustness analysis
+
+§6.3 showed that many procedure codes are perfectly deterministic w.r.t. `postop_icu` (institutional protocol, not patient-specific risk). That alone doesn't tell us whether the model's overall accuracy is *just* a lookup over those deterministic codes, or whether it retains genuine discriminative signal once that shortcut is unavailable. This section tests that directly, following the same methodology as §6.3 (LightGBM, same group-aware split, Large scale).
+
+### 7.1 Performance by procedure-code category
+
+Every test-row's procedure code is tagged by its **train-set-only** ICU rate (no leakage from test), into four tiers:
+
+| Code tier | n (test) | Positive rate | AUROC | AUPRC |
+|---|---:|---:|---:|---:|
+| Deterministic-negative (≤2% ICU rate in train) | 13,101 | 0.60% | 0.851 | 0.074 |
+| Deterministic-positive (≥98% ICU rate in train) | 420 | 98.57% | 0.535 | 0.984 |
+| **Mixed-risk (2–98% ICU rate in train)** | **10,860** | **20.92%** | **0.9155** | **0.7993** |
+| Rare (<20 occurrences in train) | 1,886 | 12.94% | 0.909 | 0.662 |
+
+The deterministic tiers behave exactly as expected for a near-constant target (AUROC near chance in the ≥98% tier, since there's almost nothing left to rank). The finding that matters: **within the mixed-risk tier — the codes that carry no deterministic shortcut at all — the model still reaches AUROC 0.9155 and AUPRC 0.7993**, both close to the full-dataset numbers (0.956 / 0.818).
+
+### 7.2 Full-data ablation without `icd10_pcs`
+
+Repeated from §6.3 for direct comparison: with `icd10_pcs` removed entirely, AUROC = **0.9209**, AUPRC = **0.6295** (vs. 0.956 / 0.818 with it). A large, genuine signal survives even with no procedure-code information at all — coming from `department`, `asa`, `emop`, and demographics alone.
+
+### 7.3 Mixed-codes-only retraining (the decisive test)
+
+The strongest test: **remove every deterministic code from both training and test**, retrain from scratch on only the mixed-risk subset (train n=32,322, test n=10,860, test positive rate 20.92%), then check whether `icd10_pcs` still helps *within* this subset:
+
+| Configuration | AUROC | AUPRC |
+|---|---:|---:|
+| Mixed-codes-only, **with** `icd10_pcs` | **0.9163** | **0.8012** |
+| Mixed-codes-only, **without** `icd10_pcs` | 0.8541 | 0.5908 |
+
+Two things follow from this table. First, restricting to mixed-risk codes barely moves performance relative to evaluating the full model on that same subset (§7.1: 0.9155/0.7993) — the model isn't relying on deterministic codes leaking into training in some indirect way. Second, `icd10_pcs` still adds a real, substantial improvement (AUROC +0.062, AUPRC +0.210) *even after every deterministic code has been removed* — so the procedure code is not merely a protocol-lookup key; at the fidelity level of "which specific procedure, among procedures with genuinely uncertain ICU outcomes," it carries real, additional clinical-risk signal beyond department/demographics.
+
+### 7.4 Conclusion
+
+Not "there is no issue here" — the more precise, defensible statement is:
+
+> The original results should be interpreted as **protocol-aware ICU pathway prediction** (§6.4), since a meaningful share of the label is institutionally near-deterministic given procedure type. However, the mixed-code robustness analysis shows the model does **not** depend solely on deterministic protocol lookups: restricted entirely to procedures with genuinely uncertain (2–98%) historical ICU rates, it still achieves AUROC 0.9163 / AUPRC 0.8012 with `icd10_pcs`, dropping to 0.8541 / 0.5908 without it — evidence of real clinical-risk signal captured within the non-deterministic procedure space, not just a lookup table over institutional routing rules.
+
+Combined with the group-aware split (no patient leakage across folds), the ablation study (§6.3/§7.2), calibration and Brier-score reporting (§3), and the CPB-exclusion sensitivity check (§6.2), this gives a reasonably rigorous verification bundle before any external claim about this dataset: **split integrity + feature ablation + mixed-code-only retraining + calibration + a documented sensitivity analysis on the label definition itself.**
+
+**Caveat, stated plainly**: §6.3 and §7 use LightGBM, not KANBoost, as the diagnostic tool — chosen deliberately because it fits in seconds, making many ablation variants (stratified tiers, mixed-only retrain, with/without `icd10_pcs`) practical to run at all on CPU-only hardware. Throughout this report KANBoost and the tree ensembles track each other closely on every metric measured on the same data (§1–§5), which is suggestive but not proof that KANBoost's *specific* fitted function relies on the same non-deterministic procedure-code signal in the same way. Repeating §7.1/§7.3 with KANBoost itself (not just LightGBM) is flagged as the natural next step for full rigor, not yet done as of this writing.
+
+## 8. What was NOT done, and why
 
 - **No GPU run**: this machine's torch build has no CUDA support (`torch.version.cuda is None`), despite an NVIDIA GPU + driver being present. All numbers above are CPU-only; installing a CUDA-enabled torch build was out of scope for this exercise but would likely help the trees marginally and KANBoost more (per kanboost's own device-selection code path).
 - **No true GrowNet joint-corrective boosting**: a faithful implementation (joint backprop across multiple weak learners against a fully corrective objective) was judged too large a change to build safely, correctly, and quickly against kanboost's closed-form ALS solver in this session. The post-hoc consolidation step adopted here is an explicitly-labeled, safer stand-in that captures the "reduce redundant small corrections" idea without touching the training loop's math.
 - **This work has not been through kanboost's own review pipeline** (see `AI_REVIEW_LOOP.md`: ChatGPT hypothesis → Claude Code implementation → Codex independent review → ChatGPT scientific judgment → user merge approval). All code here lives in a personal scratchpad directory outside the `kanboost/` package, uses monkeypatching and private (`_`-prefixed) methods not covered by the test suite, and has not been added to `kanboost/tests/`.
 
-## 8. Reproducing this report
+## 9. Reproducing this report
 
 Scripts (scratchpad, not part of the `kanboost` package):
 - `inspire_three_scales.py` — baseline (one-hot, no fixes), all 3 scales vs. trees.
