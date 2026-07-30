@@ -4782,6 +4782,12 @@ Medium scale independently.
 |---|---|---|---|---|
 | Small | 100 rounds, 49.6s, AUROC 0.9225/AUPRC 0.6707 | 30 rounds, 16.2s, AUROC 0.9217/AUPRC 0.6768 | 3.1x | matched |
 | Medium | 140 rounds, 384.4s, AUROC 0.9389/AUPRC 0.7560 | 40 rounds, 91.4s, AUROC 0.9407/AUPRC 0.7636 | 4.2x | slightly exceeded |
+| Large | 180 rounds, 761.2s, AUROC 0.9413/AUPRC 0.7643 | 50 rounds, 195.0s, AUROC 0.9432/AUPRC 0.7708 | 3.9x | slightly exceeded |
+
+Large-scale confirmation added 2026-07-31, after this proposal's initial
+publish (Small/Medium evidence only at that point) -- the pattern holds
+at every scale tested, with accuracy exceeded (not just matched) in
+every case, not just at Small/Medium.
 
 At the *same* round count, line search gave no consistent benefit (Small:
 100 rounds, 58.7s, AUROC 0.9168/AUPRC 0.6634 -- slightly worse and
