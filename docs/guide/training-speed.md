@@ -50,3 +50,30 @@ data — it's a good fit for fast iteration during tuning
 ([`kantun`](tuning-with-kantun.md)), less clear-cut for a final
 production model where the small accuracy delta matters more than
 training wall-clock.
+
+## Prediction speed: `consolidate_learners()`
+
+`fast_fit` only addresses *training* time. For a model you're about to
+deploy, `kanboost.train.consolidate.consolidate_learners()` shrinks the
+already-fitted ensemble itself, cutting *prediction* time (and saved
+model size) — it replaces consecutive groups of weak learners with one,
+least-squares-refit to reproduce the group's summed output:
+
+```python
+from kanboost.train.consolidate import consolidate_learners
+
+model.fit(X_train, y_train)
+consolidate_learners(model, X_train, group_size=5)  # mutates model in place
+model.predict_proba(X_test)  # same interface, fewer learners underneath
+```
+
+Measured on a real clinical benchmark (INSPIRE, `postop_icu`, 78K rows;
+see the [INSPIRE gap-closing case study](../inspire_gap_closing_report.md)):
+ensemble size 180→36, prediction time cut ~5x (54.1s→10.8s), for a small
+accuracy cost (AUROC −0.0026, AUPRC −0.0056). Unlike
+[`kanboost.interpret.editing.consolidate()`](editing-dashboard.md) (which
+requires `gam=True` and returns a new `EditableGAM`), this works on any
+fitted classifier/regressor and mutates `learners_` in place — no new
+object, no editability, just fewer learners to evaluate at predict time.
+As with `fast_fit`, this is a lossy approximation: compare accuracy
+before/after on your own held-out data before relying on it.
