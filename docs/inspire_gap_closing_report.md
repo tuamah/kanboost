@@ -85,13 +85,58 @@ All five adopted fixes + `categorical_hierarchy` + post-hoc consolidation (group
 
 **Tradeoff, stated honestly**: ULTIMATE trades a small amount of AUROC/AUPRC (vs. the 5-fixes-only variant) for a much smaller, much faster-to-predict model. Use "5 fixes only" if peak ranking accuracy is the sole priority; use ULTIMATE if repeated/deployed inference matters (the more realistic scenario for a clinical postop_icu predictor).
 
-## 6. What was NOT done, and why
+## 6. External benchmark comparison and a leakage audit
+
+Before treating the numbers above as competitive with the literature, they were checked against published work on the same task and dataset, and the unusually high AUPRC was independently audited for leakage rather than assumed innocent.
+
+### 6.1 The only directly comparable published benchmark
+
+The INSPIRE descriptor paper itself (Nature Scientific Data) only validates a **30-day mortality** task (best model: gradient boosting, AUROC 0.944, 1.21% event rate) — it does not benchmark ICU admission at all. The one paper found that benchmarks the same `postop_icu` task on the same dataset is **"Comparison of large language models and conventional machine learning in postoperative outcome prediction"** (*Korean J Anesthesiol*, `10.4097/kja.25646`), which compares XGBoost against GPT-4o/Llama-3-70B/OpenBioLLM-70B:
+
+| Model | AUROC | AUPRC | Event rate | Test n |
+|---|---:|---:|---:|---:|
+| XGBoost (that paper) | 0.851 | 0.208 | 5.62% | 8,099 |
+| GPT-4o / Llama-3-70B / OpenBioLLM-70B | 0.70–0.76 | 0.11–0.14 | 5.62% | 8,099 |
+| **This report's LightGBM (Large)** | 0.956 | 0.816 | 11.41% | 26,267 |
+| **This report's KANBoost, 5 fixes (Large)** | 0.941 | 0.764 | 11.41% | 26,267 |
+
+Two things worth noting on their own: (1) even frontier LLMs lose to plain XGBoost on this structured task — independent confirmation that gradient-boosted trees (and, by extension, KANBoost's boosting-of-splines design) are the right family for this kind of clinical tabular problem, not large language models; (2) this report's numbers are substantially higher on every metric — large enough to demand scrutiny before drawing any "we beat the literature" conclusion.
+
+### 6.2 Why the event rate differs: confirmed from PhysioNet's own documentation
+
+PhysioNet's INSPIRE page states explicitly: *"Only ICU admissions within 24 hours of surgery were included in the `icuin_time` and `icuout_time` columns to focus on ICU admissions immediately after surgery."* Measuring the gap between `orout_time` (OR exit) and `icuin_time` directly on the local data confirms this: median gap is exactly 0 hours, essentially 100% of ICU admissions occur within an hour of leaving the OR. There is **no field anywhere in the schema distinguishing "planned/routine" from "unplanned/unanticipated" ICU admission** — `postop_icu` as defined here (`icuin_time.notna()`, 11.41% positive) is structurally an "immediate-transfer" flag, not a "complication occurred" flag.
+
+The one data-grounded correction available is excluding cardiopulmonary bypass cases (`cpbon_time` not null — on-pump cardiac surgery is essentially always routed to ICU as routine care, not as a complication): this drops the positive rate from 11.41% to 9.69%, narrowing but not closing the gap to the published paper's 5.62% — the remainder is most likely additional cohort-construction criteria in that specific study (e.g., excluding whole departments/procedure classes) that aren't recoverable from this table alone.
+
+### 6.3 Leakage audit: is `icd10_pcs` leaking outcome information?
+
+The unusually high AUPRC (0.76–0.82 here vs. 0.11–0.21 in the published mortality/ICU papers) was checked directly rather than dismissed. A feature-ablation run (LightGBM, same group-aware split, Large scale) isolates exactly where the signal comes from:
+
+| Feature set | AUROC | AUPRC |
+|---|---:|---:|
+| `department + emop + asa + age` only (no `icd10_pcs`) | 0.914 | 0.603 |
+| + `antype` | 0.918 | 0.618 |
+| + full demographics (still no `icd10_pcs`) | 0.921 | 0.630 |
+| **Full feature set (incl. `icd10_pcs`)** | **0.956** | **0.818** |
+| **`icd10_pcs` alone** (only feature) | 0.923 | **0.728** |
+
+`icd10_pcs` (the procedure code) alone very nearly reproduces the full model's performance. Digging further: of 2,253 unique procedure codes, **162 out of 486 codes with ≥20 occurrences (33%) have a perfectly deterministic ICU rate — exactly 0% or exactly 100%**. Example: code `00B00` (n=1,659) has a 95.8% ICU rate; several others sit at exactly 0%.
+
+**Verdict: this is not classical data leakage (no post-outcome information reaches the model), but a task-definition mismatch worth stating plainly.** `icd10_pcs` is known at surgical planning time, not assigned retroactively from what happened during/after surgery — so nothing here violates the "features available before or at planning" design constraint the original notebook set out. But because `icuin_time` (per §6.2) only captures the *immediate, routine, protocol-driven* OR→ICU transfer — not a downstream complication — a large share of `postop_icu` is close to a **deterministic function of procedure type** (certain procedures are *always* or *never* followed by immediate ICU transfer as a matter of institutional care pathway, not patient-specific risk). That is a fundamentally easier statistical target than "will this patient die within 30 days" or "will this patient unexpectedly need ICU after an uneventful-seeming operation" — which is exactly why this report's AUPRC is not comparable to the mortality-prediction literature's AUPRC, and only partially comparable to the ekja.org ICU-admission paper (whose narrower, rarer cohort likely excludes more of the "deterministic by procedure type" cases this report's broader definition retains).
+
+### 6.4 What this means for the report's conclusions
+
+- The **relative comparisons in this report are still valid**: KANBoost vs. baseline, KANBoost vs. trees, and the effect of each individual fix were all measured on the *same* label and *same* splits throughout, so the gap-closing conclusions (§3–§5) hold regardless of how "easy" the underlying task turns out to be.
+- The **absolute numbers should not be quoted as beating the published literature** — the tasks are not equivalent. A fair one-line summary: *on this dataset's broader "immediate postoperative ICU transfer" definition (which is partly a deterministic function of procedure type), KANBoost with the fixes above reaches AUROC/AUPRC competitive with strong tree ensembles; on the published paper's narrower, rarer "ICU admission" definition, both this project's models and the published XGBoost baseline would be expected to score substantially lower — a hypothesis current CPB-exclusion experiments (see the repository's benchmark scripts) are testing directly.*
+- Recommended before any external claim of matching or beating a published benchmark: patient-grouped split (already done here), a temporal (not random) split if the goal is deployment realism, and reporting the full metric suite (AUROC/AUPRC/F1/Brier/calibration, already done here) *plus* a feature-ablation/leakage check like §6.3 as standard practice — not an afterthought.
+
+## 7. What was NOT done, and why
 
 - **No GPU run**: this machine's torch build has no CUDA support (`torch.version.cuda is None`), despite an NVIDIA GPU + driver being present. All numbers above are CPU-only; installing a CUDA-enabled torch build was out of scope for this exercise but would likely help the trees marginally and KANBoost more (per kanboost's own device-selection code path).
 - **No true GrowNet joint-corrective boosting**: a faithful implementation (joint backprop across multiple weak learners against a fully corrective objective) was judged too large a change to build safely, correctly, and quickly against kanboost's closed-form ALS solver in this session. The post-hoc consolidation step adopted here is an explicitly-labeled, safer stand-in that captures the "reduce redundant small corrections" idea without touching the training loop's math.
 - **This work has not been through kanboost's own review pipeline** (see `AI_REVIEW_LOOP.md`: ChatGPT hypothesis → Claude Code implementation → Codex independent review → ChatGPT scientific judgment → user merge approval). All code here lives in a personal scratchpad directory outside the `kanboost/` package, uses monkeypatching and private (`_`-prefixed) methods not covered by the test suite, and has not been added to `kanboost/tests/`.
 
-## 7. Reproducing this report
+## 8. Reproducing this report
 
 Scripts (scratchpad, not part of the `kanboost` package):
 - `inspire_three_scales.py` — baseline (one-hot, no fixes), all 3 scales vs. trees.
@@ -99,5 +144,7 @@ Scripts (scratchpad, not part of the `kanboost` package):
 - `inspire_kanboost_hierarchy.py` — 5 fixes + `categorical_hierarchy`.
 - `inspire_kanboost_v2.py` — RBF-basis toggle + post-hoc consolidation (used to isolate each technique).
 - `inspire_kanboost_ultimate.py` — final combined configuration (Large only).
+- `inspire_kanboost_ultimate_v2.py` — final combined configuration with an `--exclude-cpb`-style toggle (§6.2), run across all three scales for both label definitions.
+- `leakage_audit.py` — the feature-ablation/leakage check in §6.3.
 
-Raw result CSVs are alongside these scripts in the same scratchpad directory.
+Raw result CSVs are alongside these scripts in the same scratchpad directory. The reusable, package-side pieces from this work (`consolidate_learners()`, the reproducible `examples/inspire_kanboost_benchmark.py`) are the ones actually shipped in `kanboost` 1.4.0 — see `AI_REVIEW_LOOP.md`, Proposal CC-12.
