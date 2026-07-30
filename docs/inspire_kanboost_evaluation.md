@@ -9,7 +9,7 @@ This document supersedes the earlier narrative in [`inspire_gap_closing_report.m
 
 ## Executive Summary
 
-**KANBoost does not outperform tree-based models (XGBoost/LightGBM/CatBoost/HistGradientBoosting) in raw discrimination metrics (AUROC, AUPRC) on this task, at any scale, under either label definition tested.** With its integrated calibration (Platt scaling) and F1-oriented threshold optimization (`find_threshold`), it can produce competitive *operational* decisions — but that advantage disappears once the same threshold optimization is applied fairly to the tree baselines too (§6). The one property that survives every audit performed here is that KANBoost's predictions carry genuine, non-trivial clinical-risk signal — verified by removing the dataset's easiest, near-deterministic cases entirely (§4) — not merely a memorized lookup over institutional care-pathway rules.
+**KANBoost does not outperform tree-based models (XGBoost/LightGBM/CatBoost/HistGradientBoosting) in raw discrimination metrics (AUROC, AUPRC) on this task, at any scale, under either label definition tested.** With its integrated calibration (Platt scaling) and F1-oriented threshold optimization (`find_threshold`), it can produce competitive *operational* decisions — but that advantage disappears once the same threshold optimization is applied fairly to the tree baselines too (§6). The one property that survives every audit performed here is that KANBoost's predictions carry genuine, non-trivial clinical-risk signal — verified by removing the dataset's easiest, near-deterministic cases entirely (§3) — not merely a memorized lookup over institutional care-pathway rules.
 
 ## 1. Task Definition
 
@@ -32,7 +32,7 @@ The unusually high AUPRC obtained here (0.66–0.82 depending on scale/label) re
 
 **Verdict**: this is **not classical data leakage** — `icd10_pcs` is assigned at surgical planning time, not retroactively from what happened during/after surgery, so no post-outcome information reaches the model. It is a **task-definition effect**: because the label captures institutional care-pathway routing (§1), and procedure type is a strong determinant of that routing, a large share of `postop_icu` is close to a deterministic function of procedure type. Results using `icd10_pcs` should therefore be read as **protocol-aware ICU pathway prediction**, not pure unanticipated-complication prediction.
 
-## 3. Mixed-Code Robustness Analysis
+## 3. KANBoost Mixed-Code Robustness Validation
 
 This is the most important section for KANBoost's clinical credibility: does the model's accuracy depend *only* on memorizing which procedure codes are institutionally routed to ICU, or does real risk signal survive once that shortcut is removed entirely?
 
@@ -49,7 +49,29 @@ Repeated independently with **KANBoost itself** (not just the LightGBM diagnosti
 | Medium | Mixed-risk only, **with** `icd10_pcs` | 0.8863 | 0.7273 | 0.6438 | 0.0969 | Platt | 208.4s |
 | Medium | Mixed-risk only, **without** `icd10_pcs` | 0.8354 | 0.5157 | 0.5769 | 0.1229 | Platt | 226.9s |
 
-**Interpretation**: restricting KANBoost entirely to procedures with genuinely uncertain (2–98%) historical ICU rates barely moves its AUROC/AUPRC relative to evaluating the full model on that same subset — it is not relying on deterministic codes leaking into training indirectly. And `icd10_pcs` still adds a large, consistent improvement *within this hard subset specifically* — Medium scale: AUROC +0.051, AUPRC +0.212 versus removing it. This is the direct evidence that KANBoost captures real clinical-risk signal, not just a lookup table over institutional routing rules. (Brier score is visibly worse in the mixed-only subsets — expected, since removing near-constant-target rows removes exactly the cases a calibrated model finds easiest to get right, leaving proportionally harder, more genuinely uncertain cases.)
+### 3.1 The core reading: AUPRC drop from removing `icd10_pcs`, inside the mixed subset only
+
+| Scale | Full AUPRC | Mixed + PCS AUPRC | Mixed − PCS AUPRC | Drop from removing PCS (within mixed) |
+|---|---:|---:|---:|---:|
+| Small | 0.6671 | 0.6845 | 0.5189 | **−0.1656** |
+| Medium | 0.7510 | 0.7273 | 0.5157 | **−0.2116** |
+
+Because the deterministic codes are already excluded from this subset entirely, `icd10_pcs` is not acting as a lookup table for "always-ICU / never-ICU" procedures here — there's nothing deterministic left to look up. The drop instead reflects real, procedure-specific clinical information that remains predictive even among procedures with genuinely uncertain (2–98%) historical ICU rates.
+
+To close the methodological gap left by the earlier LightGBM-based diagnostic audit, this experiment was repeated using KANBoost itself. The results reproduced the same pattern. In the Small setting, KANBoost achieved AUROC 0.8645 and AUPRC 0.6845 on mixed procedure codes when `icd10_pcs` was included, compared with AUROC 0.8212 and AUPRC 0.5189 after removing it. In the Medium setting, the same removal reduced AUPRC from 0.7273 to 0.5157. Because deterministic procedure codes were removed from both training and testing, this drop cannot be attributed to simple memorization of always-ICU or never-ICU procedure codes. Instead, it shows that procedure identity contains clinically meaningful risk information even among non-deterministic procedures.
+
+### 3.2 Secondary observations
+
+1. **Full is higher on AUROC, but Mixed+PCS is comparable or higher on AUPRC** (Small: 0.6671 Full vs. 0.6845 Mixed+PCS). This is not a contradiction — the mixed subset has a different positive-class prevalence (22.1% at Small, 19.9% at Medium, vs. 11.4% for the full data), and AUPRC is highly sensitive to prevalence. Full and Mixed-only AUPRC values are not directly comparable as if drawn from the same distribution.
+2. **Brier is worse in Mixed than Full** (Small: 0.0606 → 0.1157; Medium: 0.0516 → 0.0969) — expected, since the mixed subset is inherently harder and less deterministic; this signals that calibration quality specifically within the mixed-risk region deserves ongoing monitoring, even though discrimination (ranking) remains strong there.
+3. **Medium clearly improves over Small on the Full task** (AUROC 0.9207→0.9368, AUPRC 0.6671→0.7510, F1 0.6128→0.6769, Brier 0.0606→0.0516) — KANBoost benefits from more data on the full task as expected.
+4. **Mixed−PCS does not improve much from Small to Medium** (AUPRC 0.5189 → 0.5157, essentially flat). This suggests the signal available *without* procedure-code information, within the mixed-risk subset, is limited relative to what more data alone can recover — reinforcing, from a different angle, that procedure-type information itself (not just sample size) is what carries the missing signal.
+
+### 3.3 Interpretation
+
+Restricting KANBoost entirely to procedures with genuinely uncertain (2–98%) historical ICU rates barely moves its AUROC/AUPRC relative to evaluating the full model on that same subset — it is not relying on deterministic codes leaking into training indirectly. And `icd10_pcs` still adds a large, consistent improvement *within this hard subset specifically*. This is the direct evidence that KANBoost captures real clinical-risk signal, not just a lookup table over institutional routing rules.
+
+**KANBoost is not merely exploiting deterministic ICU-protocol codes; it retains and uses procedure-specific risk information within genuinely mixed-risk procedures.**
 
 ## 4. CPB Exclusion Sensitivity
 
