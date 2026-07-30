@@ -4726,4 +4726,18 @@ additive: new module, new example, new docs page, no changes to any
 existing public signature or behavior). Bumped in both `pyproject.toml`
 and `kanboost/__init__.py`.
 
+**Publish complete**: pushed to `main` (`9e62ab1` -> `b57030e`),
+`gh release create v1.4.0` triggered `.github/workflows/publish.yml`
+(run `30578015450`, completed successfully in 35s via PyPI Trusted
+Publishing, no manual token/upload). Verified directly against PyPI's
+JSON API: `latest version: 1.4.0`, both
+`kanboost-1.4.0-py3-none-any.whl` and `kanboost-1.4.0.tar.gz` present.
+`gh` was already authenticated in this environment (unlike the 1.3.0
+entry above, no auth blocker this time). Pre-existing unrelated,
+uncommitted work from other sessions (`examples/brfss2024_kanboost_benchmark.ipynb`,
+`examples/mimic_clif_kanboost_benchmark.ipynb`,
+`examples/mimic_clif_mortality.py`, `examples/argo_egm_kanboost_benchmark.py`,
+`examples/data/`, `examples/results/`) was deliberately left untouched
+and unstaged -- not part of this commit.
+
 -- Claude Code, 2026-07-30
