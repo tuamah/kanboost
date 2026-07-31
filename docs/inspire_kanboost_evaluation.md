@@ -3,13 +3,13 @@
 **Date**: 2026-07-31
 **Dataset**: INSPIRE (PhysioNet, Seoul National University Hospital perioperative dataset), local copy `INSPIRE/operations.csv` (130,960 rows, 99,886 patients).
 **Split**: group-aware (`StratifiedGroupKFold` by `subject_id`, 60/20/20 train/val/test), fixed across all scales and both label definitions below. Three nested training scales (Small ⊂ Medium ⊂ Large): 10,000 / 50,000 / 78,496 rows.
-**kanboost version**: 1.4.0. **Hardware**: CPU-only (no CUDA torch build available on this machine).
+**kanboost version**: 1.4.0 at the start of this evaluation, 1.12.0 as of the final results in §16.1. **Hardware**: CPU-only (no CUDA torch build available on this machine).
 
 This document supersedes the earlier narrative in [`inspire_gap_closing_report.md`](inspire_gap_closing_report.md) as the primary scientific record for this dataset — that report remains as the chronological methodology/engineering log (which fixes were tried, in what order, with what code); this one is the audited, defensible scientific summary.
 
 ## Executive Summary
 
-**KANBoost does not outperform tree-based models (XGBoost/LightGBM/CatBoost/HistGradientBoosting) in raw discrimination metrics (AUROC, AUPRC) on this task, at any scale, under either label definition tested.** With its integrated calibration (Platt scaling) and F1-oriented threshold optimization (`find_threshold`), it can produce competitive *operational* decisions — but that advantage disappears once the same threshold optimization is applied fairly to the tree baselines too (§6). The one property that survives every audit performed here is that KANBoost's predictions carry genuine, non-trivial clinical-risk signal — verified by removing the dataset's easiest, near-deterministic cases entirely (§3) — not merely a memorized lookup over institutional care-pathway rules. Beyond configuration fixes and literature-claim checks, this evaluation also produced two genuine algorithmic contributions: Newton-step (second-order) boosting (§9), closing a gap GB-KAN's own paper lists as unsolved for KAN-based boosting; and RF-KAN (§10), a rebuilt weak-learner engine (random-projection input layer, one closed-form solve per round instead of up to ten alternating sweeps) that cuts fit time 3.7–5.3x at matching accuracy — at the cost of the model's native interpretability, a tradeoff stated explicitly, not hidden.
+**KANBoost does not outperform tree-based models (XGBoost/LightGBM/CatBoost/HistGradientBoosting) in raw discrimination metrics (AUROC, AUPRC) on this task, at any scale, under either label definition tested.** With its integrated calibration (Platt scaling) and F1-oriented threshold optimization (`find_threshold`), it can produce competitive *operational* decisions — but that advantage disappears once the same threshold optimization is applied fairly to the tree baselines too (§6). The one property that survives every audit performed here is that KANBoost's predictions carry genuine, non-trivial clinical-risk signal — verified by removing the dataset's easiest, near-deterministic cases entirely (§3) — not merely a memorized lookup over institutional care-pathway rules. Beyond configuration fixes and literature-claim checks, this evaluation also produced several genuine algorithmic contributions: Newton-step (second-order) boosting (§9), closing a gap GB-KAN's own paper lists as unsolved for KAN-based boosting; RF-KAN (§10), a rebuilt weak-learner engine (random-projection input layer, one closed-form solve per round instead of up to ten alternating sweeps) that cuts fit time 3.7–5.3x at matching accuracy, at the cost of native interpretability; GA2M (§11), which recovers that interpretability while matching or exceeding RF-KAN's accuracy; and, finally, an optional native (C++) prediction accelerator (§16) that cut predict time a further ~2.3-2.7x on top of everything else. By the final measurement in this document (§16.1), fit time had closed from 300–850x slower than trees at the start of this evaluation to ~9–24x, and predict time from the original unoptimized ~30-77x to ~10-24x — while KANBoost's structurally-native dual attribution (per-feature main effects AND named pairwise interactions, unavailable by default in either tree baseline) remained the one property that never regressed across any fix or audit in this evaluation.
 
 ## 1. Task Definition
 
@@ -387,6 +387,30 @@ Both interventions were correctly motivated by peer-reviewed theory and, in §11
 AUROC/AUPRC were bit-identical between backends (same computation, just faster), and notably this speedup is **more stable across scales than `n_jobs`** (which ranged from a slowdown to a 1.4x speedup depending on data size) — the C++ path has no per-call process-spawn overhead to amortize. `main_effect_contributions()`/`pairwise_interaction_contributions()` were verified unaffected, since they read the fitted coefficients directly regardless of which backend computed predictions.
 
 **Shipped as fully optional**: the extension requires `pybind11` and a C++17 compiler *at build time only* (`pip install pybind11 && python setup.py build_ext --inplace`) and is **not part of the published PyPI wheel** — installing/using kanboost normally is entirely unaffected; this is an opt-in local build for users who want the extra speed and have a compiler available. A build failure for any reason falls back to pure-Python silently (see `setup.py`'s docstring).
+
+### 16.1 Updated Head-to-Head vs. Trees, with the C++ Backend
+
+§14's comparison was re-run with KANBoost 1.12.0 using `backend="auto"` (the C++ extension, built and available in this environment), at all three scales, same split/threshold-tuning procedure:
+
+**Accuracy (unchanged from §14, as expected — same computation, just faster)**:
+
+| Scale | KANBoost | XGBoost | HistGradientBoosting |
+|---|---|---|---|
+| Small | 0.9244 / 0.6804 | **0.9333 / 0.7099** | 0.9319 / 0.7148 |
+| Medium | 0.9472 / 0.7844 | **0.9536 / 0.8073** | 0.9517 / 0.8033 |
+| Large | 0.9504 / 0.7942 | **0.9561 / 0.8156** | 0.9551 / 0.8127 |
+
+**Speed — the largest improvement of this entire evaluation**:
+
+| Scale | Fit | Predict (C++) | Predict (original, §14 baseline) | Predict speedup | Remaining gap vs. XGBoost |
+|---|---|---|---|---:|---:|
+| Small | 2.0s | **3.66s** | 9.36s | 2.56x | ~10x (was ~31x) |
+| Medium | 16.4s | **6.80s** | 16.27s | 2.39x | ~18x (was ~38x) |
+| Large | 37.5s | **9.49s** | 25.48s | 2.68x | ~24x (was ~46x) |
+
+**Interpretability**: `main_effect_contributions()`/`pairwise_interaction_contributions()` bit-identical to §14 (`icd10_pcs`, `department`, `age` dominate main effects; `department × icd10_pcs` remains the top-ranked interaction at Medium/Large) — as expected, since only the forward-pass implementation changed, not the fitted coefficients.
+
+**Overall**: trees retain a small but real accuracy edge (~0.007-0.03 AUROC/AUPRC) at every scale, unchanged across this entire evaluation. But the speed gap — both fit (closed from 300-850x at the start of this evaluation to ~9-24x) and predict (now ~10-24x, down from ~30-77x with the original unoptimized Python path) — has narrowed substantially through the accumulated fixes in §8-§16, while KANBoost's structurally-native dual attribution (per-feature main effects AND named pairwise interactions, unavailable by default in either tree baseline) remains the differentiator that survives every fix and audit performed in this evaluation.
 
 ## 17. Limitations and Next Steps
 
