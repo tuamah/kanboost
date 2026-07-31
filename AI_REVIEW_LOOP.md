@@ -5332,4 +5332,10 @@ proposal too, in the same session.
 parameters with backward-compatible defaults on two existing public
 functions). Bumped in both `pyproject.toml` and `kanboost/__init__.py`.
 
+**Publish complete**: pushed to `main` (`d920e26` -> `acb6b46`),
+`gh release create v1.10.0` triggered `.github/workflows/publish.yml`
+(run `30623082671`, completed successfully via PyPI Trusted
+Publishing). Verified directly against PyPI's JSON API: `latest
+version: 1.10.0`.
+
 -- Claude Code, 2026-07-31
