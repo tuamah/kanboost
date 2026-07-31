@@ -42,6 +42,23 @@ does fit time, since the reweighting's cost compounds across all
 `n_classes` chains on this engine (see `kanboost.train.rfkan` for a
 combination where that compounding cost disappears).
 
+**Hessian floor options** (`hessian_floor_mode`): two alternatives to
+the default hard `clip(p*(1-p), min_hessian, None)` were tested in
+`kanboost.train.ga2m`'s closed-form engine (see
+`docs/inspire_kanboost_evaluation.md` §12) and found accuracy-neutral
+there while being 7-12% faster at Medium/Large scale: `"adaptive"`
+(floor scales with the round's own mean hessian instead of a fixed
+constant) and `"soft_lm"` (additive damping instead of a hard clip).
+Exposed here with the same options for consistency -- same reweighting
+formula, not independently re-measured in this ALS-based chain, but
+expected to generalize since only the floor/damping arithmetic changes,
+not the solver. The line-search consistency fix that WAS a clear,
+consistent win in the GA2M engine (Armijo backtracking from `gamma=1`,
+"Variant A") is not exposed here: this module has no per-round line
+search step at all (it uses `model.learning_rate` directly), so there
+is nothing to make "consistent" -- see `kanboost.train.ga2m`'s
+`line_search_mode="armijo"` for that fix where it applies.
+
 **Tested and explicitly rejected**: combining this with
 `kanboost.train.linesearch.fit_with_line_search()`'s per-round line
 search. At every scale tested, the combination underperformed EITHER
@@ -66,17 +83,34 @@ from kanboost.core.losses import LogisticLoss, _sigmoid
 _MIN_HESSIAN = 1e-3  # floor on p(1-p); keeps Newton targets bounded as p -> 0/1
 
 
-def _fit_newton_chain(model, X_t, y_bin, n_features, sample_weight, min_hessian, seed_base):
+def _newton_target(y_bin, F, sample_weight, min_hessian, hessian_floor_mode, rel_floor_frac, damping):
+    p = _sigmoid(F)
+    hess_raw = p * (1 - p)
+    if hessian_floor_mode == "hard":
+        hess = np.clip(hess_raw, min_hessian, None)
+    elif hessian_floor_mode == "adaptive":
+        floor = max(1e-4, rel_floor_frac * float(np.mean(hess_raw)))
+        hess = np.clip(hess_raw, floor, None)
+    elif hessian_floor_mode == "soft_lm":
+        hess = hess_raw + damping
+    else:
+        raise ValueError(f"Unknown hessian_floor_mode: {hessian_floor_mode!r}")
+    target = (y_bin - p) / hess
+    fit_weight = hess * sample_weight
+    return target, fit_weight
+
+
+def _fit_newton_chain(model, X_t, y_bin, n_features, sample_weight, min_hessian, seed_base,
+                       hessian_floor_mode="hard", rel_floor_frac=0.05, damping=1e-3):
     loss = LogisticLoss()
     init_pred = loss.init_pred(y_bin, sample_weight)
     F = np.full(len(y_bin), init_pred)
     learners = []
 
     for t in range(model.n_estimators):
-        p = _sigmoid(F)
-        hess = np.clip(p * (1 - p), min_hessian, None)
-        target = (y_bin - p) / hess
-        fit_weight = hess * sample_weight
+        target, fit_weight = _newton_target(
+            y_bin, F, sample_weight, min_hessian, hessian_floor_mode, rel_floor_frac, damping,
+        )
 
         learner = model._new_learner(n_features, seed_offset=seed_base + t)
         update = model._fit_learner(learner, X_t, target, sample_weight=fit_weight, seed_offset=seed_base + t)
@@ -86,7 +120,9 @@ def _fit_newton_chain(model, X_t, y_bin, n_features, sample_weight, min_hessian,
     return learners, init_pred, len(learners)
 
 
-def fit_with_newton_boosting(model, X, y, sample_weight=None, min_hessian: float = _MIN_HESSIAN):
+def fit_with_newton_boosting(model, X, y, sample_weight=None, min_hessian: float = _MIN_HESSIAN,
+                              hessian_floor_mode: str = "hard", rel_floor_frac: float = 0.05,
+                              damping: float = 1e-3):
     """Fit `model` (an unfitted `KANBoostClassifier`, binary or
     multiclass) using Newton-step (second-order) boosting instead of
     its standard first-order `_boost_chain`.
@@ -99,7 +135,15 @@ def fit_with_newton_boosting(model, X, y, sample_weight=None, min_hessian: float
     `min_hessian`: floor applied to `p*(1-p)` before dividing to form
     the Newton target, to avoid exploding targets for samples the
     ensemble is already confident about. Default matches what was
-    measured.
+    measured. Only used when `hessian_floor_mode="hard"` (the default).
+
+    `hessian_floor_mode`: `"hard"` (default) clips at `min_hessian`.
+    `"adaptive"` floors at `max(1e-4, rel_floor_frac * mean(hess))`
+    instead (scales with the round's own average confidence).
+    `"soft_lm"` adds `damping` directly instead of clipping. See module
+    docstring -- both alternatives were accuracy-neutral and 7-12%
+    faster than the hard floor when measured in `kanboost.train.ga2m`'s
+    engine; not independently re-measured in this ALS-based chain.
 
     Returns `model`, fitted in place (same convention as `model.fit()`).
     Multiclass models populate `learners_`/`init_pred_`/`best_iteration_`
@@ -126,6 +170,7 @@ def fit_with_newton_boosting(model, X, y, sample_weight=None, min_hessian: float
         y_bin = (y_arr == model.classes_[1]).astype(float)
         model.learners_, model.init_pred_, model.best_iteration_ = _fit_newton_chain(
             model, X_t, y_bin, n_features, sample_weight, min_hessian, seed_base=0,
+            hessian_floor_mode=hessian_floor_mode, rel_floor_frac=rel_floor_frac, damping=damping,
         )
     else:
         model.learners_ = {}
@@ -136,6 +181,7 @@ def fit_with_newton_boosting(model, X, y, sample_weight=None, min_hessian: float
             learners, init_pred, best_iteration = _fit_newton_chain(
                 model, X_t, y_bin, n_features, sample_weight, min_hessian,
                 seed_base=i * model.n_estimators,
+                hessian_floor_mode=hessian_floor_mode, rel_floor_frac=rel_floor_frac, damping=damping,
             )
             model.learners_[c] = learners
             model.init_pred_[c] = init_pred

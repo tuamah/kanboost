@@ -82,6 +82,25 @@ def test_newton_boosting_multiclass():
     assert accuracy_score(y_te, model.predict(X_te)) > 0.85
 
 
+def test_newton_boosting_hessian_floor_modes_run_and_stay_finite():
+    X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
+    for mode in ["hard", "adaptive", "soft_lm"]:
+        model = KANBoostClassifier(
+            n_estimators=15, kan_hidden=8, kan_grid=3, random_state=0, verbose=False,
+        )
+        fit_with_newton_boosting(model, X_tr, y_tr, hessian_floor_mode=mode)
+        proba = model.predict_proba(X_te)
+        assert np.all(np.isfinite(proba)), mode
+        assert roc_auc_score(y_te, proba[:, 1]) > 0.85, mode
+
+
+def test_newton_boosting_rejects_unknown_hessian_floor_mode():
+    X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
+    model = KANBoostClassifier(n_estimators=5, random_state=0, verbose=False)
+    with pytest.raises(ValueError, match="hessian_floor_mode"):
+        fit_with_newton_boosting(model, X_tr, y_tr, hessian_floor_mode="bogus")
+
+
 def test_newton_boosting_rejects_regressor():
     from sklearn.datasets import fetch_california_housing
     data = fetch_california_housing()
@@ -110,6 +129,8 @@ if __name__ == "__main__":
     test_newton_boosting_fits_and_predicts_via_standard_api()
     test_newton_boosting_improves_on_first_order_at_same_round_count()
     test_newton_boosting_multiclass()
+    test_newton_boosting_hessian_floor_modes_run_and_stay_finite()
+    test_newton_boosting_rejects_unknown_hessian_floor_mode()
     test_newton_boosting_rejects_regressor()
     import tempfile
     from pathlib import Path

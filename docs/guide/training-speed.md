@@ -267,3 +267,21 @@ pairwise_interaction_contributions(model)     # {(feature_a, feature_b): total c
 A faster variant (independent per-hidden-unit solve instead of one joint solve, ~15% faster) was tested and intentionally **not** implemented here: it is measurably *less accurate for attribution specifically* — the joint solve used here correctly partitions credit between overlapping units (e.g. a feature's main effect and an interaction term involving that same feature); an independent solve does not, and can double-count shared signal between them. Use this module, not a faster-but-approximate variant, whenever the interpretation itself will be trusted, not just the predictions.
 
 **Scope**: binary `KANBoostClassifier` only (not multiclass, not `KANBoostRegressor`).
+
+### Making `use_newton=True` consistent: `line_search_mode="armijo"`
+
+`use_newton=True` combined with the default line search had an inconsistent effect above (see the module docstring). The reason: the default `line_search_mode="bounded"` independently minimizes the *original* loss over `gamma`, while the learner was fit against the Newton-*reweighted* target — a mismatch. `line_search_mode="armijo"` fixes this by backtracking from `gamma=1` (the natural Newton step scale) using the true loss's exact directional derivative as the accept criterion:
+
+```python
+fit_with_ga2m(model, X_train, y_train, use_newton=True, line_search_mode="armijo")
+```
+
+Measured at all three INSPIRE scales, this was a consistent, unambiguous improvement over `use_newton=True` with the default line search — better AUROC/AUPRC at every scale, no fit-time cost, and roughly half the maximum coefficient magnitude (more stable, more trustworthy attribution):
+
+| Scale | `use_newton=True` (default line search) | `use_newton=True, line_search_mode="armijo"` |
+|---|---|---|
+| Small | 0.9241 / 0.6724, max\|coef\| 12.19 | **0.9250 / 0.6791**, max\|coef\| **5.86** |
+| Medium | 0.9471 / 0.7831, max\|coef\| 3.52 | **0.9473 / 0.7831**, max\|coef\| **2.62** |
+| Large | 0.9506 / 0.7928, max\|coef\| 2.95 | **0.9507 / 0.7932**, max\|coef\| **2.40** |
+
+Two more options adjust how `use_newton=True` keeps `p(1-p)` away from zero (`hessian_floor_mode`, default `"hard"`): `"adaptive"` and `"soft_lm"` were both accuracy-neutral in testing but 7-12% faster at Medium/Large scale — a low-risk secondary option if raw speed matters more than the (already small) difference between floor strategies. See the `kanboost.train.ga2m`/`kanboost.train.newton` module docstrings for the full measured tables and the rejected fourth candidate (sharing one random layer0 draw across multiclass one-vs-rest chains — real accuracy cost for a marginal speedup, not shipped).

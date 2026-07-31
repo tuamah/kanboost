@@ -94,6 +94,39 @@ def test_ga2m_use_newton_runs_without_error():
     assert roc_auc_score(y_te, proba[:, 1]) > 0.85
 
 
+def test_ga2m_armijo_line_search_runs_and_stays_finite():
+    X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
+    model = KANBoostClassifier(n_estimators=15, kan_grid=3, random_state=0, verbose=False)
+    fit_with_ga2m(model, X_tr, y_tr, n_pairs_per_round=10, use_newton=True, line_search_mode="armijo")
+    proba = predict_proba_ga2m(model, X_te)
+    assert np.all(np.isfinite(proba))
+    assert roc_auc_score(y_te, proba[:, 1]) > 0.85
+
+
+def test_ga2m_hessian_floor_modes_run_and_stay_finite():
+    X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
+    for mode in ["hard", "adaptive", "soft_lm"]:
+        model = KANBoostClassifier(n_estimators=15, kan_grid=3, random_state=0, verbose=False)
+        fit_with_ga2m(model, X_tr, y_tr, n_pairs_per_round=10, use_newton=True, hessian_floor_mode=mode)
+        proba = predict_proba_ga2m(model, X_te)
+        assert np.all(np.isfinite(proba)), mode
+        assert roc_auc_score(y_te, proba[:, 1]) > 0.85, mode
+
+
+def test_ga2m_rejects_unknown_line_search_mode():
+    X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
+    model = KANBoostClassifier(n_estimators=5, random_state=0, verbose=False)
+    with pytest.raises(ValueError, match="line_search_mode"):
+        fit_with_ga2m(model, X_tr, y_tr, line_search_mode="bogus")
+
+
+def test_ga2m_rejects_unknown_hessian_floor_mode():
+    X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
+    model = KANBoostClassifier(n_estimators=5, random_state=0, verbose=False)
+    with pytest.raises(ValueError, match="hessian_floor_mode"):
+        fit_with_ga2m(model, X_tr, y_tr, use_newton=True, hessian_floor_mode="bogus")
+
+
 def test_ga2m_rejects_multiclass():
     X, y = load_iris(return_X_y=True)
     X = pd.DataFrame(X, columns=[f"f{i}" for i in range(4)])
@@ -124,6 +157,10 @@ if __name__ == "__main__":
     test_ga2m_fits_and_predicts()
     test_ga2m_beats_dense_rfkan_with_line_search()
     test_ga2m_use_newton_runs_without_error()
+    test_ga2m_armijo_line_search_runs_and_stays_finite()
+    test_ga2m_hessian_floor_modes_run_and_stay_finite()
+    test_ga2m_rejects_unknown_line_search_mode()
+    test_ga2m_rejects_unknown_hessian_floor_mode()
     test_main_effect_contributions_covers_every_feature()
     test_pairwise_interaction_contributions_returns_named_pairs()
     test_ga2m_rejects_multiclass()

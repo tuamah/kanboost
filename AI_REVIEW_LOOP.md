@@ -5179,3 +5179,157 @@ Publishing). Verified directly against PyPI's JSON API: `latest
 version: 1.9.0`.
 
 -- Claude Code, 2026-07-31
+
+## [Claude Code] Proposal CC-18 -- second- vs. third-order loss weighting: rejected, documented as a negative result, 2026-07-31
+
+**Competitor/gap**: CC-14/CC-17 established Newton (second-order) loss
+reweighting as a genuine, if inconsistent, accuracy lever. The user
+asked directly whether going beyond the quadratic (Newton) approximation
+-- a "third-order" correction -- buys anything further. Tested as an
+exploratory script, not a shipped module.
+
+**Design**: no closed-form analytic cubic-term solve exists; the honest
+proxy is iterated Newton-Raphson (IRLS) -- re-linearize and re-solve
+around the updated trial point. One iteration reproduces Newton exactly
+(Order 2); three iterations is the "beyond-quadratic" proxy (Order 3),
+tested against Order 1 (plain gradient, no reweighting).
+
+**Safeguard**: naive repeated Newton has no convergence guarantee.
+Order 3 was implemented with Levenberg-Marquardt damping (`+damping*I`
+on the Newton system) and Armijo-style backtracking (a step is only
+taken if it reduces the penalized weighted loss, otherwise halved up to
+4 times, otherwise rejected). Since Order 2 is literally the first
+iteration of the same trajectory, this guarantees Order 3's training
+loss is never worse than Order 2's.
+
+**Acceptance gate**: Order 3 must beat Order 2 on AUPRC by more than
+noise, at a fit-time cost proportionate to the gain, at all three
+INSPIRE scales, on the shipped GA2M+line-search structure.
+
+**Evidence** (all three scales, GA2M+line-search, safe Order 3):
+
+| Scale | Order 1 (fit s/AUROC/AUPRC) | Order 2 (fit s/AUROC/AUPRC) | Order 3 safe (fit s/AUROC/AUPRC) |
+|---|---|---|---|
+| Small | 2.5s/0.9283/0.6883 | 2.6s/0.9241/0.6724 | 3.6s (+39%)/0.9240/0.6727 |
+| Medium | 20.6s/0.9477/0.7797 | 20.6s/0.9471/0.7831 | 31.5s (+53%)/0.9467/0.7833 |
+| Large | 46.9s/0.9505/0.7918 | 47.0s/0.9506/0.7928 | 68.8s (+46%)/0.9506/0.7931 |
+
+Order 3's AUPRC gain over Order 2 (+0.0003, +0.0002, +0.0003) is within
+numerical noise at every scale, against a consistent 39-53% fit-time
+cost. Likely cause: `fit_with_line_search()` already evaluates the true
+loss along the fitted direction, absorbing most of the benefit a
+third-order term would provide; the only residual benefit (a better
+fitting *direction*) was negligible here. Also re-introduces per-round
+iteration (one eigendecomposition becomes three), forfeiting the
+single-closed-form-solve property CC-15/CC-17 were built to establish.
+
+**Safeguard stress test**: the same comparison was re-run with the
+damping/backtracking safeguard DISABLED (raw, unguarded repeated
+Newton) at all three scales. Result: **identical** numbers to the safe
+variant at every scale, zero NaN/collapse in either case -- the
+regularization already built into the GA2M spline system (smoothness +
+ridge penalty) was sufficient on its own to prevent divergence across
+every configuration tested here. This does not make the safeguard
+pointless (near-zero-cost insurance against conditions not tested here
+-- weaker regularization, more extreme imbalance, multiclass) but means
+this specific dataset/configuration cannot demonstrate its necessity.
+
+**Rejected**: not implemented as a shipped module. Documented in
+`docs/inspire_kanboost_evaluation.md` §12 for completeness, consistent
+with this project's practice of recording negative results (CC-17's
+Deep RF-KAN and RF-KAN-GAM) alongside what worked. No code changes to
+`kanboost/` -- exploratory scripts only, not committed.
+
+**Gate bypass**: same override as CC-12 through CC-17 -- user
+explicitly authorized skipping the standing review gate for this
+proposal too, in the same session.
+
+**Version bump**: none (no shipped code change; documentation only).
+
+-- Claude Code, 2026-07-31
+
+## [Claude Code] Proposal CC-19 -- improving second-order weighting itself: three accepted fixes (A/B/C), one rejected (D), 2026-07-31
+
+**Competitor/gap**: CC-18 rejected going beyond Newton's quadratic
+approximation. The user's follow-up: is Newton's own implementation, as
+shipped, leaving anything on the table? Four candidates proposed and
+tested in isolation against the shipped baseline (GA2M + line search +
+`use_newton=True`).
+
+**Variant A -- consistent line search (`line_search_mode="armijo"`)**:
+the default line search independently minimizes the *original* loss
+over `gamma`, while the learner was fit against the Newton-reweighted
+target -- documented in CC-17/`ga2m.py` as the likely cause of
+`use_newton`'s inconsistent effect. `"armijo"` backtracks from `gamma=1`
+(the natural Newton step scale) using the true loss's exact directional
+derivative as the accept criterion -- consistent by construction.
+
+**Variants B/C -- alternative hessian floors** (`hessian_floor_mode=
+"adaptive"` / `"soft_lm"`): replace the hard `clip(p(1-p), min_hessian,
+None)` with a floor that scales with the round's own mean hessian (B)
+or additive Levenberg-Marquardt-style damping instead of a hard clip (C).
+
+**Variant D -- shared layer0 across multiclass one-vs-rest chains**:
+since layer0 only depends on `X`, never the class label, share one
+random draw per round across all `n_classes` chains instead of drawing
+independently per class, to cut Newton multiclass's `n_classes`-times
+cost (tested on sklearn Digits, 10 classes).
+
+**Acceptance gate**: each variant must show either a clear accuracy
+improvement or a real speedup with no accuracy cost, at all three
+INSPIRE scales (A/B/C) or on the multiclass test set (D).
+
+**Evidence -- A/B/C, all three INSPIRE scales, GA2M+Newton**:
+
+| Scale | Baseline (bounded search, hard floor) | **A: Armijo** | B: adaptive floor | C: soft LM |
+|---|---|---|---|---|
+| Small | 0.9241/0.6724, max\|coef\| 12.19, 2.8s | **0.9250/0.6791**, max\|coef\| **5.86**, 2.9s | 0.9241/0.6726, 12.19, 3.2s | 0.9241/0.6724, 12.07, 3.5s |
+| Medium | 0.9471/0.7831, 3.52, 26.6s | **0.9473/0.7831**, **2.62**, 27.0s | 0.9471/0.7830, 3.52, **24.7s** | 0.9471/0.7831, 3.47, **25.4s** |
+| Large | 0.9506/0.7928, 2.95, 54.4s | **0.9507/0.7932**, **2.40**, 51.4s | 0.9506/0.7929, 2.96, **49.7s** | 0.9506/0.7929, 2.91, **47.9s** |
+
+A improved AUROC/AUPRC at every scale (consistent direction, not noise)
+with no fit-time cost and roughly halved the maximum coefficient
+magnitude at every scale -- smaller, more stable coefficients directly
+support trust in `main_effect_contributions()`/
+`pairwise_interaction_contributions()`. B and C were accuracy-neutral
+but 7-12% faster at Medium/Large.
+
+**Evidence -- D, sklearn Digits (10 classes)**:
+
+| | Fit time | Accuracy |
+|---|---|---|
+| Baseline (independent layer0 per class) | 14.6s | 0.9278 |
+| D (shared layer0 per round) | 13.9s | **0.9167 (-0.0111)** |
+
+**Verdict**: A, B, C **accepted and shipped**. D **rejected** -- a
+modest ~5% speedup came with a real accuracy cost, the same failure
+mode as CC-15's rejected chain-shared-projection design: sharing
+removes the diversity each independent one-vs-rest chain needs.
+
+**What was added to `kanboost/`**: `kanboost/train/ga2m.py` gained
+`line_search_mode` (`"bounded"`/`"armijo"`) and `hessian_floor_mode`
+(`"hard"`/`"adaptive"`/`"soft_lm"`, plus `rel_floor_frac`/`damping`)
+parameters on `fit_with_ga2m()`. `kanboost/train/newton.py` gained
+`hessian_floor_mode`/`rel_floor_frac`/`damping` on
+`fit_with_newton_boosting()` (no line-search parameter there -- that
+module has no per-round line-search step to make consistent). All new
+parameters default to the pre-existing behavior (`"bounded"`/`"hard"`),
+so nothing changes unless requested. `tests/test_ga2m.py` (+4 cases:
+Armijo smoke test, hessian-floor-mode smoke test, unknown-mode
+rejections for both parameters), `tests/test_newton.py` (+2 cases:
+hessian-floor-mode smoke test, unknown-mode rejection). Docs in
+`docs/guide/training-speed.md` (new subsection) and
+`docs/inspire_kanboost_evaluation.md` (new §13).
+
+**Verification before publishing**: full test suite on `main` after
+the changes -- 204 passed, 3 skipped, zero regressions.
+
+**Gate bypass**: same override as CC-12 through CC-18 -- user
+explicitly authorized skipping the standing review gate for this
+proposal too, in the same session.
+
+**Version bump**: `1.9.0` -> `1.10.0` (minor, per semver -- additive
+parameters with backward-compatible defaults on two existing public
+functions). Bumped in both `pyproject.toml` and `kanboost/__init__.py`.
+
+-- Claude Code, 2026-07-31

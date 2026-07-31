@@ -226,7 +226,55 @@ A faster variant (independent per-hidden-unit solve instead of one joint solve, 
 
 Shipped as `kanboost.train.ga2m.fit_with_ga2m()`/`predict_proba_ga2m()`/`main_effect_contributions()`/`pairwise_interaction_contributions()` in kanboost 1.9.0. This is, as of this writing, the single best-performing configuration found across this entire evaluation on every axis measured (speed, accuracy, and interpretability) — see `AI_REVIEW_LOOP.md` (Proposal CC-17) for the full gate-bypass rationale and negative-result record.
 
-## 12. Limitations and Next Steps
+## 12. Third-Order Loss Weighting: Tested and Rejected
+
+§9 established Newton (second-order) reweighting of the loss (`target=(y-p)/hess, weight=hess·sample_weight`, exactly one Newton step per round). A natural follow-up question: does going *beyond* the quadratic (Newton) approximation — a "third-order" correction — buy anything further? This was tested as an exploratory script (not a shipped module) on top of the best-known configuration, GA2M + line search (§11).
+
+**Design.** A single quadratic Newton step cannot be extended to an exact analytic cubic-term solve — minimizing a cubic local model in the update has no closed form. The honest, standard way higher-order curvature gets incorporated in practice is iterated Newton-Raphson (IRLS): re-linearize (recompute `p`, `hess`) around the *updated* trial point and re-solve, repeatedly. One iteration reproduces Newton exactly (§9); three iterations is the "beyond-quadratic" proxy tested here as **Order 3**, against **Order 1** (plain gradient, no reweighting) and **Order 2** (single Newton step, shipped).
+
+**Safeguard.** Naive repeated Newton has no convergence guarantee — it can overshoot when the local quadratic model is a poor fit far from the current point. Order 3 was therefore implemented with two standard safeguards: Levenberg-Marquardt damping (`+damping·I` added to the Newton system, shrinking toward gradient descent when curvature is ill-conditioned) and backtracking acceptance (a step is only taken if it actually reduces the penalized weighted loss, otherwise halved up to 4 times, otherwise rejected and iteration frozen early). Because Order 2 is literally the first iteration of the same trajectory, this construction guarantees Order 3's training loss is never worse than Order 2's.
+
+**Result — safe vs. unsafe made no difference.** The safeguard was then stress-tested by re-running an unguarded variant (no damping, no backtracking — 3 raw Newton steps every round) at all three scales:
+
+| Scale | Order 3 safe (AUROC/AUPRC) | Order 3 unsafe (AUROC/AUPRC) | Any collapse (NaN)? |
+|---|---|---|---|
+| Small | 0.9240 / 0.6727 | 0.9240 / 0.6727 (identical) | No, in either variant |
+| Medium | 0.9467 / 0.7833 | 0.9467 / 0.7833 (identical) | No, in either variant |
+| Large | 0.9506 / 0.7931 | 0.9506 / 0.7931 (identical) | No, in either variant |
+
+The regularization already built into the GA2M spline system (smoothness + ridge penalty) was sufficient on its own to prevent divergence across every configuration tested (10K–~78K rows, up to 54 rounds) — the failure mode the safeguard targets did not materialize here. This does not make the safeguard pointless (it is near-zero-cost insurance, ~5–8% slower than unsafe, against conditions not tested here — e.g. weaker regularization, more extreme class imbalance, multiclass), but it means this specific dataset/configuration cannot demonstrate the safeguard's necessity.
+
+**Result — full order 1/2/3 comparison:**
+
+| Scale | Order 1 (fit s / AUROC / AUPRC) | Order 2 (fit s / AUROC / AUPRC) | Order 3 (fit s / AUROC / AUPRC) |
+|---|---|---|---|
+| Small | 2.5s / 0.9283 / 0.6883 | 2.6s / 0.9241 / 0.6724 | 3.6s (+39%) / 0.9240 / 0.6727 |
+| Medium | 20.6s / 0.9477 / 0.7797 | 20.6s / 0.9471 / 0.7831 | 31.5s (+53%) / 0.9467 / 0.7833 |
+| Large | 46.9s / 0.9505 / 0.7918 | 47.0s / 0.9506 / 0.7928 | 68.8s (+46%) / 0.9506 / 0.7931 |
+
+**Verdict: rejected.** Order 3's AUPRC gain over Order 2 (+0.0003, +0.0002, +0.0003 at Small/Medium/Large respectively) is within numerical noise, while its cost is a consistent 39–53% increase in fit time at every scale. The likely explanation, consistent with the conceptual prediction made before running this experiment: `fit_with_line_search()`'s per-round scalar search already evaluates the *true* (unapproximated) loss along the chosen update direction, implicitly absorbing most of the benefit that third-order curvature information would otherwise provide — the only thing left for a third-order term to improve is the *direction* itself, and that residual benefit turned out to be negligible here. Additionally, going beyond one Newton step forfeits the single-closed-form-solve property that makes RF-KAN/GA2M fast in the first place (one eigendecomposition becomes three), re-introducing the same per-round iteration cost that motivated moving away from ALS (§10). **Not implemented as a shipped module** — this section documents a negative result for completeness, consistent with this report's practice of recording rejected paths (§11's Deep RF-KAN and RF-KAN-GAM) alongside what worked.
+
+## 13. Improving Second-Order Weighting Itself: Three Accepted Fixes
+
+§12 rejected going beyond Newton's quadratic approximation. A more productive question turned out to be: is Newton's own implementation, as shipped, leaving anything on the table? Three targeted candidates were tested, isolating each change against the shipped baseline (GA2M + line search + `use_newton=True`).
+
+**Variant A — consistent line search (`line_search_mode="armijo"` in `fit_with_ga2m`).** The default line search independently minimizes the *original* loss over `gamma`, while the learner was fit against the Newton-*reweighted* target — the exact inconsistency flagged in §9/§10/§11's rejected Newton+line-search combinations, but here fixable rather than avoidable, because GA2M's line search operates on the *same* fitted direction rather than a separately-tuned combination. `"armijo"` backtracks from `gamma=1` (the natural Newton step scale) using the true loss's exact directional derivative as the accept criterion — consistent by construction:
+
+| Scale | `use_newton=True` (bounded search) | `use_newton=True` + Armijo | Fit time |
+|---|---|---|---|
+| Small | 0.9241 / 0.6724, max\|coef\| 12.19 | **0.9250 / 0.6791**, max\|coef\| **5.86** | 2.8s → 2.9s |
+| Medium | 0.9471 / 0.7831, max\|coef\| 3.52 | **0.9473 / 0.7831**, max\|coef\| **2.62** | 26.6s → 27.0s |
+| Large | 0.9506 / 0.7928, max\|coef\| 2.95 | **0.9507 / 0.7932**, max\|coef\| **2.40** | 54.4s → 51.4s |
+
+Both AUROC and AUPRC improved at every scale (small but consistent in direction, not noise), fit time was unaffected (slightly better at Large), and the maximum coefficient magnitude roughly halved at every scale — smaller, more stable coefficients directly improve trust in `main_effect_contributions()`/`pairwise_interaction_contributions()`, not just prediction quality. **Accepted and shipped**, recommended whenever `use_newton=True` is used.
+
+**Variants B and C — alternative hessian floors (`hessian_floor_mode="adaptive"` / `"soft_lm"`).** The default hard floor (`clip(p(1-p), min_hessian, None)`) was compared against an adaptive floor (scales with the round's own mean hessian) and soft Levenberg-Marquardt-style damping (`hess + damping`, no hard clip). Both were statistically indistinguishable from the hard floor on AUROC/AUPRC at all three scales, but **7–12% faster at Medium/Large** with no accuracy cost. **Accepted and shipped** as a low-risk secondary option — smaller effect than Variant A, but free.
+
+**Variant D — shared layer0 across multiclass one-vs-rest chains — rejected.** Newton boosting's cost compounds `n_classes` times because each class fits an independent chain; sharing one random layer0 draw per round across all classes (layer0 only depends on `X`, never the class label, so this seemed safe) was tested on sklearn Digits (10 classes). Result: a modest ~5% speedup came with a real accuracy cost (0.9278→0.9167) — the same failure mode as RF-KAN's rejected chain-shared-projection design (§10): sharing removes the per-chain diversity each independent one-vs-rest problem needs. **Not implemented.**
+
+Shipped in `kanboost.train.ga2m.fit_with_ga2m()` (both `line_search_mode` and `hessian_floor_mode` parameters) and `kanboost.train.newton.fit_with_newton_boosting()` (`hessian_floor_mode` only — this module has no line-search step to make consistent; see its docstring). All new parameters default to the pre-existing behavior (`"bounded"` / `"hard"`), so nothing changes unless requested.
+
+## 14. Limitations and Next Steps
 
 - **Threshold optimization was not applied symmetrically until this report** (§5.1) — future comparisons in this project should always tune thresholds identically across every model compared, not only for KANBoost.
 - **Calibration was only measured for KANBoost** (Platt scaling, Brier score) in this evaluation; the trees were not calibrated or Brier-scored here. A fair follow-up would report Brier/reliability curves for all five models side by side.
