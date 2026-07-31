@@ -5075,4 +5075,10 @@ additive: existing binary behavior unchanged, multiclass previously
 raised `ValueError`, now works). Bumped in both `pyproject.toml` and
 `kanboost/__init__.py`.
 
+**Publish complete**: pushed to `main` (`30c9161` -> `56ab02d`),
+`gh release create v1.8.0` triggered `.github/workflows/publish.yml`
+(run `30617976224`, completed successfully via PyPI Trusted
+Publishing). Verified directly against PyPI's JSON API: `latest
+version: 1.8.0`.
+
 -- Claude Code, 2026-07-31
