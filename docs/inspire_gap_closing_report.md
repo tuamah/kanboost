@@ -192,3 +192,20 @@ Scripts (scratchpad, not part of the `kanboost` package):
 - `leakage_audit.py` — the feature-ablation/leakage check in §6.3.
 
 Raw result CSVs are alongside these scripts in the same scratchpad directory. The reusable, package-side pieces from this work (`consolidate_learners()`, the reproducible `examples/inspire_kanboost_benchmark.py`) are the ones actually shipped in `kanboost` 1.4.0 — see `AI_REVIEW_LOOP.md`, Proposal CC-12.
+
+## 10. Continued past 1.4.0: line search, Newton boosting, RF-KAN, GA2M, and a C++ accelerator (through 1.12.0)
+
+Everything above stopped at `kanboost` 1.4.0. Work continued well past this point in the same session and is tracked in full, proposal-by-proposal, in `AI_REVIEW_LOOP.md` (CC-13 through CC-21) and summarized scientifically in `inspire_kanboost_evaluation.md` (§8-§16); this section is a short chronological pointer, not a duplicate of that detail.
+
+In order: `fit_with_line_search()` (CC-13, per-round step-size search, 3.1-4.2x fewer-round speedup); `fit_with_newton_boosting()` (CC-14, second-order reweighting, closing a gap GB-KAN's paper lists as unsolved); `fit_with_rfkan()` (CC-15, rebuilt random-projection weak-learner engine, 3.7-5.3x faster fit at matching accuracy, at the cost of native interpretability); multiclass support for both (CC-16); `fit_with_ga2m()` (CC-17, GA2M-style main-effect + pairwise-interaction structure, recovering and then exceeding RF-KAN's accuracy while keeping full attribution — the single best-performing engine found in this evaluation); a rejected third-order loss-weighting experiment (CC-18); three accepted second-order-weighting refinements — consistent Armijo line search, adaptive/soft-LM hessian floors (CC-19); parallel (`n_jobs`) prediction across boosting rounds (CC-20, a real but scale-dependent ~2.1x in a repeated-call benchmark, ranging from a slowdown to 1.4x under a realistic cold-start pattern); and finally an optional C++ (pybind11) prediction accelerator (CC-21, a consistent ~2.3-2.7x across all three scales, the most stable speedup found in this whole investigation).
+
+**Cumulative result, this report's original baseline vs. the final `kanboost` 1.12.0 configuration (GA2M + Newton + Armijo line search, C++ backend), Large scale**:
+
+| | Fit time | Predict time | AUROC | AUPRC |
+|---|---:|---:|---:|---:|
+| §1 baseline (this report, v1.3.0, one-hot, no fixes) | 2295.0s | (slow, one-hot 255-col input) | 0.9189 | 0.6406 |
+| §5 ULTIMATE (this report, v1.3.0/1.4.0) | 879.7s | 10.8s | 0.9387 | 0.7580 |
+| **Final (v1.12.0, `inspire_kanboost_evaluation.md` §16.1)** | **37.5s** | **9.49s** | **0.9504** | **0.7942** |
+| Best tree (XGBoost, unchanged throughout) | ~4.1s | ~0.39s | 0.9561 | 0.8156 |
+
+Fit time dropped a further ~23x beyond this report's own "ULTIMATE" configuration (879.7s → 37.5s), predict time held roughly flat while the *model itself* got both faster-fitting and more accurate (AUROC +0.012, AUPRC +0.036 over ULTIMATE) — the remaining gap to the best tree narrowed to AUROC 0.0057 and AUPRC 0.0214, the closest this evaluation ever got. See `inspire_kanboost_evaluation.md` §16.1 for the full three-scale table and the tree-comparison caveats (threshold tuning, calibration) that still apply.
