@@ -5440,3 +5440,93 @@ pool) instead of the unqualified 2.1x claim. **Version bump: none**
 (documentation only, no behavior or code change).
 
 -- Claude Code, 2026-07-31
+
+## [Claude Code] Proposal CC-21 -- optional C++ (pybind11) accelerator for predict_proba_ga2m(), 2026-07-31
+
+**Competitor/gap**: CC-20's `n_jobs` closed part of the prediction-speed
+gap versus trees but was scale-dependent (a real win at Large, a wash
+at Medium, worse than sequential at Small -- `joblib` worker-spawn cost
+outweighing available per-round compute). The user asked to investigate
+a compiled C++ extension for the same forward pass instead.
+
+**First attempt: rejected.** A standalone (no Python binding) C++ port
+of the Cox-de-Boor basis evaluation, compiled with the only compiler
+available initially (32-bit MinGW.org GCC 6.3.0, from 2016), was
+*slower* than the existing numba path at every workload size tested --
+confirms a naive C++ port is not automatically faster; toolchain
+quality matters as much as language choice.
+
+**Second attempt, after installing a 64-bit toolchain** (MinGW-w64 GCC
+16.1.0 via `chocolatey`, user ran the elevated install): the same
+standalone benchmark reversed completely -- ~1.7-1.8x from the 64-bit
+compiler alone (same naive algorithm), a further 3.7-6.5x from
+eliminating per-call heap allocation and enabling `-O3 -march=native`
+vectorization. The isolated basis-evaluation computation became faster
+than kanboost's *entire* current Python+numba `predict_proba_ga2m` call.
+
+**Building the real extension**: `kanboost/_native/ga2m_ext.cpp`
+(pybind11) implements GA2M's full per-round forward pass (layer0 +
+layer1 + matmul), wired into `predict_proba_ga2m` via a new `backend`
+parameter (`"auto"` default, transparent fallback to pure Python/numba
+if not built). A first integrated version gave only ~1.5x; profiling
+revealed it recomputed each feature's basis once per edge (main effect
++ however many pairs reused that feature) instead of once per distinct
+feature reused via matmul, unlike `KANLayer.forward`'s own approach.
+Restructuring to share basis computation the same way roughly doubled
+the advantage, to ~2.3x. A real bug was also caught and fixed during
+integration testing: `n_in` was computed as `layer0.coef.shape[0] -
+len(pairs)` (wrong -- `coef.shape[0]` is already `n_in` directly),
+which silently produced a badly wrong prediction (AUROC 0.39 vs. 0.98)
+until caught by a correctness check against the Python path.
+
+**Acceptance gate**: must show a real, verified (bit-identical up to
+floating-point noise) speedup on the actual shipped API across all
+three INSPIRE scales, without touching accuracy or interpretability.
+
+**Evidence** (real `fit_with_ga2m()`/`predict_proba_ga2m()` API, all
+three scales):
+
+| Scale | Python | C++ | Speedup | Max prediction diff |
+|---|---|---|---:|---|
+| Small | 3.95s | 1.74s | 2.27x | 3.5e-15 |
+| Medium | 6.89s | 2.95s | 2.33x | 2.2e-15 |
+| Large | 10.15s | 4.49s | 2.26x | 2.2e-15 |
+
+AUROC/AUPRC bit-identical between backends; `main_effect_contributions()`
+/`pairwise_interaction_contributions()` verified unaffected (read
+directly from fitted coefficients, backend-independent). Notably more
+stable across scales than CC-20's `n_jobs` (which ranged from a
+slowdown to 1.4x depending on data size).
+
+**Accepted, shipped as fully optional**: requires `pybind11` and a
+C++17 compiler *at build time only* -- not part of the published PyPI
+wheel; installing/using kanboost normally is entirely unaffected. A
+build failure for any reason falls back to pure Python silently (see
+`setup.py`'s docstring and `OptionalBuildExt.build_extension`).
+
+**What was added to `kanboost/`**: `kanboost/_native/ga2m_ext.cpp` (new
+pybind11 extension source), `setup.py` (new, repo root -- optional
+best-effort extension build, MSVC/GCC-aware compile flags, never fails
+the overall install). `kanboost/train/ga2m.py` gained a `backend`
+parameter (`"auto"`/`"python"`/`"cpp"`) on `predict_proba_ga2m()` and a
+lazy `_cpp_ext` import. `tests/test_ga2m.py` (+3 cases: cpp-matches-
+python correctness when built, RuntimeError when `backend="cpp"` is
+forced but not built, unknown-backend rejection). Docs in
+`docs/guide/training-speed.md` (new subsection) and
+`docs/inspire_kanboost_evaluation.md` (new §16).
+
+**Verification before publishing**: full test suite on `main` after
+the changes -- 208 passed, 3 skipped, zero regressions (run with the
+extension built and importable in this environment).
+
+**Gate bypass**: same override as CC-12 through CC-20 -- user
+explicitly authorized skipping the standing review gate for this
+proposal too, in the same session.
+
+**Version bump**: `1.11.0` -> `1.12.0` (minor, per semver -- additive
+parameter with a backward-compatible default on an existing public
+function, plus a new fully-optional build artifact that does not
+change the published wheel). Bumped in both `pyproject.toml` and
+`kanboost/__init__.py`.
+
+-- Claude Code, 2026-07-31

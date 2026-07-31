@@ -297,3 +297,32 @@ predict_proba_ga2m(model, X_test, n_jobs=4)
 In a repeated-call microbenchmark, this gave a consistent ~2.1x speedup at all three INSPIRE scales (e.g. Large: 9.8s → 4.6s), identical predictions to `n_jobs=1` (the default, unchanged) up to floating-point noise.
 
 **Caveat, confirmed by a second, more realistic measurement — this is not a universal win.** `joblib`'s worker-process startup cost is a real, fixed overhead that has to be paid before round-level parallelism pays for itself. Re-measured under a cold-start pattern (fit once, then predict on validation and test — two calls, no warmup), `n_jobs=4` was scale-dependent: Large improved (~1.4x, 25.5s → 17.8s), Medium was roughly a wash (~7%), and Small got measurably *worse* (9.4s → 11.0s) — the worker-spawn cost outweighed the small amount of per-round compute available to parallelize. **Prefer `n_jobs=1` (default) for small data or one-off predictions; reserve `n_jobs>1` for larger data, or for long-running services that reuse the same warm worker pool across many prediction calls.** Installing `pip install kanboost[accel]` (numba) has no such caveat and is complementary — combining both gave the best result tested at Large scale.
+
+### An optional native accelerator: `predict_proba_ga2m(model, X, backend=...)`
+
+`n_jobs`'s inconsistency at small scale motivated investigating a C++ (pybind11) extension for the same forward pass — profiling had found ~79% of predict time inside B-spline basis evaluation, and a fair, apples-to-apples benchmark with a modern 64-bit compiler (the numba path's own JIT approach, but ahead-of-time-compiled and without repeated Python↔native call overhead) showed real promise. `kanboost/_native/ga2m_ext.cpp` implements the same GA2M forward pass (layer0 + layer1 + matmul) natively, sharing each distinct feature's basis computation exactly once per round — mirroring `KANLayer.forward`'s own efficiency, unlike a naive first attempt that recomputed a feature's basis once per pairwise unit that used it (a real bug, not a design choice: it made the naive C++ version only ~1.5x faster instead of ~2.3x).
+
+This extension is **entirely optional and not part of the published PyPI wheel** — it requires `pybind11` and a C++17 compiler *at build time* (not at runtime or install time otherwise):
+
+```bash
+pip install pybind11
+python setup.py build_ext --inplace   # builds kanboost/_ga2m_cpp if a C++17 compiler is found
+```
+
+If the build tools aren't present, or the compile fails for any reason, kanboost installs and works exactly as before — `kanboost.train.ga2m` auto-detects the compiled extension at import time (`backend="auto"`, the default) and only uses it when present:
+
+```python
+predict_proba_ga2m(model, X_test)                     # backend="auto" -- uses C++ if built, else Python
+predict_proba_ga2m(model, X_test, backend="python")    # force pure Python/numba
+predict_proba_ga2m(model, X_test, backend="cpp")       # force C++; raises RuntimeError if not built
+```
+
+Measured end-to-end on real INSPIRE data (the actual shipped `fit_with_ga2m()`/`predict_proba_ga2m()` API, not a standalone reimplementation) at all three scales — a consistent ~2.3x speedup, notably **more stable across scales than `n_jobs`** (which ranged from a slowdown to a 1.4x speedup depending on data size), with predictions identical to the pure-Python path up to floating-point noise:
+
+| Scale | Python | C++ | Speedup | Max prediction diff |
+|---|---|---|---:|---|
+| Small | 3.95s | 1.74s | **2.27x** | 3.5e-15 |
+| Medium | 6.89s | 2.95s | **2.33x** | 2.2e-15 |
+| Large | 10.15s | 4.49s | **2.26x** | 2.2e-15 |
+
+AUROC/AUPRC and `main_effect_contributions()`/`pairwise_interaction_contributions()` were bit-for-bit unaffected (interpretability is read directly from the fitted coefficients, independent of which backend computed the forward pass). Combines with `n_jobs` (parallelizes across rounds regardless of which backend computes each round). See `docs/inspire_kanboost_evaluation.md` §16 and `AI_REVIEW_LOOP.md` (CC-21) for the full investigation, including the rejected earlier attempts (32-bit compiler, naive per-edge basis recomputation).

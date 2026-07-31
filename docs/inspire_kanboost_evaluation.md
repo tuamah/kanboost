@@ -328,7 +328,67 @@ A fully-vectorized pure-numpy Cox-de-Boor basis evaluator (full array broadcasti
 
 The worker-spawn cost has to be paid before round-level parallelism pays for itself; Small's per-round compute is too little to cover it. **Practical guidance**: keep the default `n_jobs=1` for small data or one-off predictions; use `n_jobs>1` for larger data, or for long-running services that reuse the same warm worker pool across many prediction calls — the 2.1x figure is real, but only under that repeated-call condition, not a guarantee for every usage pattern. This caveat is documented directly in `predict_proba_ga2m`'s docstring.
 
-## 15. Limitations and Next Steps
+## 15. Closing the Remaining Gap vs. Trees: Two Literature-Motivated Attempts, Both Rejected
+
+§14 left a small but persistent AUROC/AUPRC gap versus XGBoost/HistGradientBoosting at every scale. Rather than assume this gap is unfixable, two concrete interventions were designed directly from Grinsztajn et al. (NeurIPS 2022, "Why do tree-based models still outperform deep learning on tabular data?"), which identifies three structural reasons smooth-basis models lose to trees: (1) sensitivity to uninformative features, (2) lack of axis-alignment (rotation invariance hurts), and (3) inability to represent irregular (non-smooth) target functions. Reason (2) already explains, post-hoc, why GA2M's axis-aligned main-effect/pair structure beat RF-KAN's dense random-projection mixing in §11 — RF-KAN's dense mixing is structurally a random rotation, exactly what the literature warns against. Reasons (1) and (3) were tested directly as candidate fixes, both on INSPIRE Small scale first per this project's standing practice of validating before scaling up.
+
+### 15.1 Adaptive knot placement (targeting irregular functions) — rejected
+
+kanboost's `TabularPreprocessor` encodes categorical columns via smoothed target-mean encoding, so `icd10_pcs` becomes one continuous scalar feature. Since ~33% of procedure codes have a deterministic (0%/100%) train-set ICU rate (§2), this encoded feature's true relationship to the target has a near-step shape at the boundary between deterministic-negative/positive codes — a textbook "irregular function." A related, more basic issue was found in passing: `_make_knots` builds a uniform grid on a fixed `[-1, 1]` range for every feature, but the target-mean-encoded columns are never rescaled to that range (observed range for `icd10_pcs`: `[0.0026, 0.8918]` on Small scale) — roughly half the spline's knot range goes unused for that feature.
+
+Two variants were tested against the shipped baseline (uniform `[-1, 1]` knots), Small scale, GA2M + Newton + Armijo:
+
+| Config | AUROC | AUPRC |
+|---|---:|---:|
+| Baseline (uniform `[-1, 1]` knots) | 0.9250 | **0.6791** |
+| Range-rescaled (uniform spacing, each feature's own `[min, max]`) | 0.9225 | 0.6775 |
+| Adaptive (quantile-based knot placement) | 0.9014 | 0.6191 |
+
+Both variants **underperformed the baseline** — the quantile variant substantially so. Likely cause: several categorical columns are low-cardinality after target-mean encoding, so quantile-based knot placement produces many near-duplicate knot positions (only jittered apart by a small epsilon), destabilizing the local B-spline basis for those features; the more conservative range-only fix avoided that failure mode but still showed no benefit, suggesting the "wasted grid range" was never actually costing representational capacity in practice (B-spline basis functions have local support — unused knots outside the observed range are simply inactive, not representationally costly). **Not implemented.**
+
+### 15.2 Adaptive-ridge "sparse gating" for main effects (targeting uninformative features) — rejected
+
+Trees ignore an uninformative feature at zero cost (never split on it); GA2M's main-effect units apply a spline to every feature every round, relying only on a fixed, uniform ridge/smoothness penalty to shrink irrelevant ones. Since GA2M's hidden unit `h=j` is always feature `j`'s main effect across every round (only its random coefficients differ round to round — the pairwise units are what get re-sampled), a persistent running "accumulated main-effect contribution" per feature is well-defined during fitting. An adaptive-ridge mechanism (in the spirit of adaptive lasso / iteratively-reweighted ridge, chosen specifically to stay inside a closed-form weighted-least-squares solve, unlike a true group-lasso which would need iterative proximal steps) applied progressively stronger ridge to features whose accumulated contribution stayed small.
+
+An initial version used a multiplicative adjustment on the existing `lam_ridge` and had **no measurable effect at all** — the shipped default penalty values (`lam_smooth≈1e-8`, `lam_ridge≈1e-7`) are already negligible relative to the data term, so multiplying them by any modest factor changes nothing. Corrected to an additive, independently-scaled gate and swept across four orders of magnitude, Small scale:
+
+| Gate strength | AUROC | AUPRC |
+|---:|---:|---:|
+| 0 (baseline) | 0.9250 | **0.6791** |
+| 1 | 0.9250 | 0.6790 |
+| 10 | 0.9252 | 0.6781 |
+| 100 | 0.9245 | 0.6726 |
+| 1000 | 0.9219 | 0.6640 |
+
+At strength 10, AUROC ticks up by a noise-level amount (+0.0002) while AUPRC drops (−0.001); at higher strengths both metrics decline as the gate increasingly suppresses main effects indiscriminately, including genuinely important ones (`department`, `icd10_pcs`), rather than selectively targeting truly uninformative features. No tested strength gave a real, unambiguous improvement. **Not implemented.**
+
+### 15.3 Interpretation
+
+Both interventions were correctly motivated by peer-reviewed theory and, in §11's case, that theory already explains an empirical result obtained earlier in this session (GA2M > RF-KAN). But neither translated into a measurable accuracy gain on this specific dataset. Combined with the EBM-vs-XGBoost literature (§6.1-adjacent finding: even well-tuned EBMs retain a small, persistent gap versus XGBoost across benchmarks), the remaining ~0.007-0.03 AUROC/AUPRC gap documented in §14 is plausibly close to a near-irreducible floor for GA2M-style additive models on this task, rather than a straightforwardly fixable engineering gap. Closing it further would likely require a structurally deeper change (e.g. three-way interactions, or a tree-like hard-partitioning mechanism inside the weak learner itself) rather than tuning knot placement or regularization strength — a larger undertaking flagged here as a direction for a future, separate investigation rather than pursued further in this session.
+
+## 16. An Optional Native (C++) Accelerator for Prediction
+
+§14.1 closed part of the prediction-speed gap via `n_jobs` (parallelizing across boosting rounds), but found it scale-dependent -- a real win at Large, a wash at Medium, and *worse* than sequential at Small (worker-process startup cost outweighing the small amount of per-round compute available to parallelize there). This motivated investigating a compiled, ahead-of-time C++ extension for the same forward pass instead.
+
+**First attempt: rejected.** A standalone (not Python-bound) C++ port of the same Cox-de-Boor basis evaluation, compiled with the only compiler available in the initial environment (a 32-bit MinGW.org GCC 6.3.0 from 2016), was *slower* than the existing numba path at every workload size tested — confirming that a naive C++ port is not an automatic win, and that toolchain quality matters as much as the language choice.
+
+**Second attempt: a fair comparison.** After installing a modern 64-bit MinGW-w64 toolchain (GCC 16.1.0, matching Python's own 64-bit ABI) via `chocolatey`, the same standalone benchmark reversed completely: ~1.7-1.8x faster from the 64-bit compiler alone (same naive algorithm), and a further 3.7-6.5x from eliminating per-call heap allocation and enabling `-O3 -march=native` vectorization — the isolated basis-evaluation computation became faster than the *entire* current Python+numba `predict_proba_ga2m` pipeline (which includes additional overhead beyond basis evaluation).
+
+**Building the real extension.** A `pybind11` extension (`kanboost/_native/ga2m_ext.cpp`) implementing GA2M's full per-round forward pass (layer0 + layer1 + matmul) was built and wired into `predict_proba_ga2m` via a new `backend` parameter (default `"auto"`, transparently falls back to pure Python/numba if the extension isn't built). A first integrated version gave only ~1.5x — profiling the *isolated* forward pass revealed why: it recomputed each feature's B-spline basis once per edge (main effect + however many pairwise units reused that feature), while `KANLayer.forward` itself computes each distinct feature's basis exactly once and reuses it via matmul across every hidden unit connected to it. Restructuring the extension to share basis computation the same way roughly doubled its advantage, to ~2.3x.
+
+**End-to-end result, using the actual shipped API** (`fit_with_ga2m()`/`predict_proba_ga2m()`, not a standalone reimplementation), all three INSPIRE scales:
+
+| Scale | Python | C++ | Speedup | Max prediction diff |
+|---|---|---|---:|---|
+| Small | 3.95s | 1.74s | **2.27x** | 3.5e-15 |
+| Medium | 6.89s | 2.95s | **2.33x** | 2.2e-15 |
+| Large | 10.15s | 4.49s | **2.26x** | 2.2e-15 |
+
+AUROC/AUPRC were bit-identical between backends (same computation, just faster), and notably this speedup is **more stable across scales than `n_jobs`** (which ranged from a slowdown to a 1.4x speedup depending on data size) — the C++ path has no per-call process-spawn overhead to amortize. `main_effect_contributions()`/`pairwise_interaction_contributions()` were verified unaffected, since they read the fitted coefficients directly regardless of which backend computed predictions.
+
+**Shipped as fully optional**: the extension requires `pybind11` and a C++17 compiler *at build time only* (`pip install pybind11 && python setup.py build_ext --inplace`) and is **not part of the published PyPI wheel** — installing/using kanboost normally is entirely unaffected; this is an opt-in local build for users who want the extra speed and have a compiler available. A build failure for any reason falls back to pure-Python silently (see `setup.py`'s docstring).
+
+## 17. Limitations and Next Steps
 
 - **Threshold optimization was not applied symmetrically until this report** (§5.1) — future comparisons in this project should always tune thresholds identically across every model compared, not only for KANBoost.
 - **Calibration was only measured for KANBoost** (Platt scaling, Brier score) in this evaluation; the trees were not calibrated or Brier-scored here. A fair follow-up would report Brier/reliability curves for all five models side by side.

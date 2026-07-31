@@ -113,6 +113,44 @@ def test_ga2m_hessian_floor_modes_run_and_stay_finite():
         assert roc_auc_score(y_te, proba[:, 1]) > 0.85, mode
 
 
+def test_predict_proba_ga2m_backend_cpp_matches_python_when_available():
+    from kanboost.train.ga2m import _cpp_ext
+    if _cpp_ext is None:
+        pytest.skip("kanboost._ga2m_cpp extension not built in this environment")
+
+    X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
+    model = KANBoostClassifier(n_estimators=15, kan_grid=3, random_state=0, verbose=False)
+    fit_with_ga2m(model, X_tr, y_tr, n_pairs_per_round=10)
+
+    proba_py = predict_proba_ga2m(model, X_te, backend="python")
+    proba_cpp = predict_proba_ga2m(model, X_te, backend="cpp")
+    proba_auto = predict_proba_ga2m(model, X_te, backend="auto")
+
+    assert np.allclose(proba_py, proba_cpp, atol=1e-8)
+    assert np.allclose(proba_py, proba_auto, atol=1e-8)
+    assert roc_auc_score(y_te, proba_cpp[:, 1]) > 0.9
+
+
+def test_predict_proba_ga2m_backend_cpp_raises_if_not_built():
+    from kanboost.train import ga2m as ga2m_module
+    if ga2m_module._cpp_ext is not None:
+        pytest.skip("kanboost._ga2m_cpp extension IS built in this environment; cannot test the missing-extension path")
+
+    X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
+    model = KANBoostClassifier(n_estimators=5, kan_grid=3, random_state=0, verbose=False)
+    fit_with_ga2m(model, X_tr, y_tr, n_pairs_per_round=5)
+    with pytest.raises(RuntimeError, match="_ga2m_cpp"):
+        predict_proba_ga2m(model, X_te, backend="cpp")
+
+
+def test_predict_proba_ga2m_rejects_unknown_backend():
+    X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
+    model = KANBoostClassifier(n_estimators=5, kan_grid=3, random_state=0, verbose=False)
+    fit_with_ga2m(model, X_tr, y_tr, n_pairs_per_round=5)
+    with pytest.raises(ValueError, match="backend"):
+        predict_proba_ga2m(model, X_te, backend="bogus")
+
+
 def test_predict_proba_ga2m_parallel_matches_sequential():
     X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
     model = KANBoostClassifier(n_estimators=15, kan_grid=3, random_state=0, verbose=False)

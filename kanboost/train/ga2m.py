@@ -163,6 +163,11 @@ from kanboost.core.kan.network import _make_knots, _penalty_block, _eigh_factor,
 from kanboost.core.kan.layer import KANLayer
 from kanboost.core.kan.bspline import _b_basis_1d, extend_grid
 
+try:
+    from kanboost import _ga2m_cpp as _cpp_ext
+except ImportError:
+    _cpp_ext = None
+
 _DEFAULT_GAMMA_BOUNDS = (0.0, 2.0)
 
 
@@ -406,7 +411,36 @@ def _round_contribution(layer0, knots1, coefs, n_hidden, k, x_np):
     return B1 @ coefs
 
 
-def predict_proba_ga2m(model, X, n_jobs: int = 1) -> np.ndarray:
+def _round_contribution_cpp(layer0, knots1, coefs, n_hidden, K1, gamma, pairs, x_np, k):
+    """Same computation as `_round_contribution`, via the optional C++
+    extension (`kanboost._ga2m_cpp`) -- only called when that extension
+    is present; see its module docstring and `predict_proba_ga2m`'s
+    `backend` parameter."""
+    n_in = layer0.coef.shape[0]
+    K0 = layer0.coef.shape[2]
+    coef0_main = np.ascontiguousarray(np.stack([layer0.coef[j, j, :] for j in range(n_in)]))
+    if pairs:
+        pair_a = np.array([a for a, b in pairs], dtype=np.int32)
+        pair_b = np.array([b for a, b in pairs], dtype=np.int32)
+        coef0_pair_a = np.ascontiguousarray(
+            np.stack([layer0.coef[a, n_in + idx, :] for idx, (a, b) in enumerate(pairs)]))
+        coef0_pair_b = np.ascontiguousarray(
+            np.stack([layer0.coef[b, n_in + idx, :] for idx, (a, b) in enumerate(pairs)]))
+    else:
+        pair_a = np.zeros(0, dtype=np.int32)
+        pair_b = np.zeros(0, dtype=np.int32)
+        coef0_pair_a = np.zeros((0, K0))
+        coef0_pair_b = np.zeros((0, K0))
+
+    z = _cpp_ext.layer0_forward_shared(
+        x_np, layer0.knots[0], k, coef0_main, pair_a, pair_b, coef0_pair_a, coef0_pair_b,
+    )
+    # gamma=1.0 here so this returns the UNSCALED contribution, matching
+    # _round_contribution's contract -- callers apply gamma uniformly.
+    return _cpp_ext.layer1_forward_sum(z, knots1, k, coefs, 1.0)
+
+
+def predict_proba_ga2m(model, X, n_jobs: int = 1, backend: str = "auto") -> np.ndarray:
     """`predict_proba` for a model fitted via `fit_with_ga2m`.
 
     `n_jobs`: prediction is embarrassingly parallel across boosting
@@ -438,21 +472,51 @@ def predict_proba_ga2m(model, X, n_jobs: int = 1) -> np.ndarray:
     a separate, complementary speedup with no such caveat -- the
     library's B-spline evaluation already uses numba automatically when
     it's installed.
+
+    `backend`: `"auto"` (default) uses the optional C++ extension
+    (`kanboost._ga2m_cpp`) if it was built (see `setup.py` -- requires
+    `pybind11` and a C++17 compiler at build time; not required to
+    install or use kanboost otherwise), falling back to pure Python/numba
+    if not. `"python"` forces the pure Python/numba path even if the
+    extension is available (useful for debugging/benchmarking).
+    `"cpp"` forces the C++ path and raises `RuntimeError` if the
+    extension isn't built. Measured on INSPIRE (Large scale, 54 rounds):
+    ~2.26x faster than the Python path, identical predictions up to
+    floating-point noise (~1e-15) -- see
+    `docs/inspire_kanboost_evaluation.md` and `AI_REVIEW_LOOP.md`
+    (CC-21). Combines with `n_jobs` (parallelizes across rounds
+    regardless of which per-round backend computes each one).
     """
     if not hasattr(model, "_ga2m_feature_names_"):
         raise RuntimeError("This model was not fitted with fit_with_ga2m().")
+    if backend not in ("auto", "python", "cpp"):
+        raise ValueError(f"Unknown backend: {backend!r}. Use 'auto', 'python', or 'cpp'.")
+    if backend == "cpp" and _cpp_ext is None:
+        raise RuntimeError(
+            "backend='cpp' requested but the kanboost._ga2m_cpp extension is not built. "
+            "Build it with pybind11 + a C++17 compiler installed (see setup.py), or use backend='auto'/'python'."
+        )
+    use_cpp = _cpp_ext is not None and backend in ("auto", "cpp")
+
     X_t = model._transform_X(X)
     x_np = X_t.cpu().numpy() if hasattr(X_t, "cpu") else np.asarray(X_t)
     F = np.full(x_np.shape[0], model.init_pred_)
     k = model.kan_k
 
+    contribution_fn = _round_contribution_cpp if use_cpp else _round_contribution
+
+    def _call(layer0, knots1, coefs, n_hidden, K1, gamma, pairs):
+        if use_cpp:
+            return contribution_fn(layer0, knots1, coefs, n_hidden, K1, gamma, pairs, x_np, k)
+        return contribution_fn(layer0, knots1, coefs, n_hidden, k, x_np)
+
     if n_jobs == 1:
         for layer0, knots1, coefs, n_hidden, K1, gamma, pairs in model.learners_:
-            F += gamma * _round_contribution(layer0, knots1, coefs, n_hidden, k, x_np)
+            F += gamma * _call(layer0, knots1, coefs, n_hidden, K1, gamma, pairs)
     else:
         from joblib import Parallel, delayed
         contribs = Parallel(n_jobs=n_jobs)(
-            delayed(_round_contribution)(layer0, knots1, coefs, n_hidden, k, x_np)
+            delayed(_call)(layer0, knots1, coefs, n_hidden, K1, gamma, pairs)
             for layer0, knots1, coefs, n_hidden, K1, gamma, pairs in model.learners_
         )
         gammas = np.array([r[5] for r in model.learners_])

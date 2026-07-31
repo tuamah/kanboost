@@ -8,3 +8,12 @@ build/
 site/
 mlruns/
 mlflow.db
+
+# Optional compiled C++ extension (kanboost/_native/ga2m_ext.cpp is the
+# source, kept in version control -- the compiled binary and its runtime
+# DLLs are build artifacts, platform-specific, never committed).
+kanboost/_ga2m_cpp*.pyd
+kanboost/_ga2m_cpp*.so
+kanboost/libgcc_s_seh-1.dll
+kanboost/libstdc++-6.dll
+kanboost/libwinpthread-1.dll
