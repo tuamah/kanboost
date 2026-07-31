@@ -294,4 +294,6 @@ Predicting with a GA2M model was the dominant remaining speed gap versus trees (
 predict_proba_ga2m(model, X_test, n_jobs=4)
 ```
 
-Measured at all three INSPIRE scales: a consistent ~2.1x speedup (e.g. Large: 9.8s → 4.6s), identical predictions to `n_jobs=1` (the default, unchanged) up to floating-point noise. Combined with `pip install kanboost[accel]`, this gave the best result tested overall (~2.5x total).
+In a repeated-call microbenchmark, this gave a consistent ~2.1x speedup at all three INSPIRE scales (e.g. Large: 9.8s → 4.6s), identical predictions to `n_jobs=1` (the default, unchanged) up to floating-point noise.
+
+**Caveat, confirmed by a second, more realistic measurement — this is not a universal win.** `joblib`'s worker-process startup cost is a real, fixed overhead that has to be paid before round-level parallelism pays for itself. Re-measured under a cold-start pattern (fit once, then predict on validation and test — two calls, no warmup), `n_jobs=4` was scale-dependent: Large improved (~1.4x, 25.5s → 17.8s), Medium was roughly a wash (~7%), and Small got measurably *worse* (9.4s → 11.0s) — the worker-spawn cost outweighed the small amount of per-round compute available to parallelize. **Prefer `n_jobs=1` (default) for small data or one-off predictions; reserve `n_jobs>1` for larger data, or for long-running services that reuse the same warm worker pool across many prediction calls.** Installing `pip install kanboost[accel]` (numba) has no such caveat and is complementary — combining both gave the best result tested at Large scale.

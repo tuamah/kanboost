@@ -5419,4 +5419,24 @@ Bumped in both `pyproject.toml` and `kanboost/__init__.py`.
 Publishing). Verified directly against PyPI's JSON API: `latest
 version: 1.11.0`.
 
+**Correction (same day, before any further release)**: the ~2.1x
+speedup table above came from a repeated-call microbenchmark (one
+warmup call, then several timed calls), which amortizes `joblib`'s
+worker-process startup cost across many calls. Re-measured immediately
+after publishing under the actual usage pattern KANBoost 1.11.0 was
+then re-benchmarked with (fit once, predict on validation and test --
+two calls, no warmup): `n_jobs=4` was scale-dependent, not a uniform
+win -- Large improved (~1.4x, 25.5s->17.8s), Medium was roughly a wash
+(+7%), and **Small got measurably worse** (9.4s->11.0s, the worker-
+spawn cost outweighing the small amount of per-round compute available
+to parallelize). No code change needed (the parameter and its default
+of `1` were already correct) -- this is a documentation correction only,
+updating `predict_proba_ga2m`'s docstring, the `ga2m.py` module
+docstring, `docs/guide/training-speed.md`, and
+`docs/inspire_kanboost_evaluation.md` §14.1 to state the honest,
+scale-dependent guidance (`n_jobs=1` for small/one-off predictions,
+`n_jobs>1` for larger data or long-running services with a warm worker
+pool) instead of the unqualified 2.1x claim. **Version bump: none**
+(documentation only, no behavior or code change).
+
 -- Claude Code, 2026-07-31

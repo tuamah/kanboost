@@ -139,11 +139,17 @@ than the shipped path at every scale, confirming independently what
 `kanboost.core.kan.bspline`'s own docstring already warns about hand-
 vectorized numpy alternatives; (3) parallelizing across boosting
 rounds (each round's contribution is fixed and independent once
-fitting completes) via `joblib.Parallel` was the clear, consistent
-winner -- ~2.1x faster at every scale, identical predictions up to
-floating-point noise. Numba + `n_jobs` together gave the best result
-tested (~2.5x total). Shipped as the `n_jobs` parameter on
-`predict_proba_ga2m` (default `1`, unchanged).
+fitting completes) via `joblib.Parallel` was the clear winner in a
+repeated-call microbenchmark -- ~2.1x faster at every scale, identical
+predictions up to floating-point noise. **Re-measured under a
+realistic cold-start pattern (fit once, predict twice, no warmup),
+the benefit was scale-dependent**: real at Large (~1.4x), a wash at
+Medium, and *worse* than sequential at Small -- `joblib`'s worker-
+process startup cost has to be paid before round-level parallelism
+pays for itself, and small data doesn't have enough per-round compute
+to cover it. See `predict_proba_ga2m`'s own docstring for when
+`n_jobs>1` is (and isn't) worth it. Shipped as the `n_jobs` parameter
+on `predict_proba_ga2m` (default `1`, unchanged).
 """
 
 from __future__ import annotations
@@ -407,14 +413,31 @@ def predict_proba_ga2m(model, X, n_jobs: int = 1) -> np.ndarray:
     rounds -- each round's `(layer0, coefs, gamma)` is already fixed
     after fitting, so its contribution to `F` can be computed
     independently of every other round and summed at the end. Default
-    `1` (sequential, unchanged from earlier releases). Measured on
-    INSPIRE at all three scales with `n_jobs=4`: a consistent ~2.1x
-    prediction speedup (e.g. Large: 9.8s -> 4.6s), identical predictions
-    to `n_jobs=1` up to floating-point noise (~1e-15). Installing the
-    optional `accel` extra (`pip install kanboost[accel]`, numba) is a
-    separate, complementary speedup -- the library's B-spline evaluation
-    already uses numba automatically when it's installed; combining
-    both gave the best results in testing (~2.5x total vs. neither).
+    `1` (sequential, unchanged from earlier releases). Identical
+    predictions to `n_jobs=1` up to floating-point noise (~1e-15)
+    regardless of scale.
+
+    **The measured speedup is scale- and usage-pattern-dependent, not a
+    universal win** -- read this before setting `n_jobs>1` blindly.
+    `joblib`'s worker-process startup cost (loky backend, spawned fresh
+    the first time `n_jobs>1` is used in a process) is a real, fixed
+    overhead that has to be paid before any round-level parallelism pays
+    for itself. In a repeated-call microbenchmark (many calls in the
+    same process, so the worker pool is warm) this gave a consistent
+    ~2.1x speedup at all three INSPIRE scales tested. In a realistic
+    cold-start pattern (fit once, then predict on validation and test --
+    two calls total, no warmup), the SAME `n_jobs=4` was re-measured and
+    the result was scale-dependent: Large improved (~1.4x, 25.5s ->
+    17.8s), Medium was roughly a wash (~7%), and Small got measurably
+    *worse* (9.4s -> 11.0s) -- the worker-spawn cost outweighed the
+    small amount of per-round compute available to parallelize. Prefer
+    `n_jobs=1` (default) for small data or one-off predictions; reserve
+    `n_jobs>1` for larger data, or for long-running services that reuse
+    the same warm worker pool across many prediction calls. Installing
+    the optional `accel` extra (`pip install kanboost[accel]`, numba) is
+    a separate, complementary speedup with no such caveat -- the
+    library's B-spline evaluation already uses numba automatically when
+    it's installed.
     """
     if not hasattr(model, "_ga2m_feature_names_"):
         raise RuntimeError("This model was not fitted with fit_with_ga2m().")

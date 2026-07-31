@@ -316,7 +316,17 @@ Four levers were tested at all three INSPIRE scales, each verified numerically i
 
 A fully-vectorized pure-numpy Cox-de-Boor basis evaluator (full array broadcasting, no scipy sparse machinery at all) was **tried and rejected**: 3.8-4.2x *slower* than the shipped path at every scale — the intermediate-array overhead of `numpy.where`/`numpy.clip` across many small per-round calls outweighs whatever sparse-construction cost it avoids. This independently confirms `kanboost.core.kan.bspline`'s own docstring, which already warns that a hand-written numpy alternative to scipy was tried before and found slower.
 
-**Parallelizing across boosting rounds was the clear, consistent winner**: each round's `(layer0, coefs, gamma)` is fixed and independent once fitting completes, so `joblib.Parallel` can compute every round's contribution on a separate core and sum them — ~2.1x faster at every scale, with no accuracy cost (by construction; the computation is identical, just reordered). **Shipped** as `predict_proba_ga2m(model, X, n_jobs=...)`, default `n_jobs=1` (sequential, unchanged). Combined with numba, this gave the best result tested (~2.5x total versus the original single-threaded, no-numba baseline).
+**Parallelizing across boosting rounds was the clear winner in this repeated-call microbenchmark**: each round's `(layer0, coefs, gamma)` is fixed and independent once fitting completes, so `joblib.Parallel` can compute every round's contribution on a separate core and sum them — ~2.1x faster at every scale in the table above, with no accuracy cost (by construction; the computation is identical, just reordered). **Shipped** as `predict_proba_ga2m(model, X, n_jobs=...)`, default `n_jobs=1` (sequential, unchanged).
+
+**Correction after a second, more realistic measurement — the ~2.1x figure does not transfer to typical one-off usage.** The table above used a repeated-call timing loop (one warmup call, then several timed calls), which amortizes `joblib`'s worker-process startup cost across many calls. Re-measured under the actual usage pattern from §14 (fit once, then predict on validation and test — two calls total, no warmup), the same `n_jobs=4` gave scale-dependent results instead of a uniform 2.1x:
+
+| Scale | `n_jobs=1` | `n_jobs=4` (cold-start, 2 calls) | Change |
+|---|---|---|---|
+| Small | 9.36s | 11.01s | **worse** (−18%) |
+| Medium | 16.27s | 15.16s | ~wash (+7%) |
+| Large | 25.48s | 17.84s | better (+43%, ~1.4x) |
+
+The worker-spawn cost has to be paid before round-level parallelism pays for itself; Small's per-round compute is too little to cover it. **Practical guidance**: keep the default `n_jobs=1` for small data or one-off predictions; use `n_jobs>1` for larger data, or for long-running services that reuse the same warm worker pool across many prediction calls — the 2.1x figure is real, but only under that repeated-call condition, not a guarantee for every usage pattern. This caveat is documented directly in `predict_proba_ga2m`'s docstring.
 
 ## 15. Limitations and Next Steps
 
