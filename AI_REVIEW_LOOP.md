@@ -5339,3 +5339,78 @@ Publishing). Verified directly against PyPI's JSON API: `latest
 version: 1.10.0`.
 
 -- Claude Code, 2026-07-31
+
+## [Claude Code] Proposal CC-20 -- parallelizing predict_proba_ga2m() across boosting rounds, 2026-07-31
+
+**Competitor/gap**: a full head-to-head re-benchmark of KANBoost 1.10.0
+(GA2M + Newton + Armijo, this session's best recipe) against XGBoost
+and HistGradientBoosting on INSPIRE at all three scales found fit time
+had closed to 10-40x slower than trees (down from 300-850x at the
+start of this evaluation), but **predict time was now the dominant
+remaining gap**, at 50-100x slower. Investigated deeply, as requested,
+before proposing a fix.
+
+**Investigation**: cProfile on `predict_proba_ga2m` (Medium scale)
+found ~79% of predict time inside `_b_basis_1d` -> scipy's
+`BSpline.design_matrix` (sparse construction + densification), called
+once per hidden unit per round. Note: `consolidate_learners()` (CC-12)
+cannot be applied to GA2M models -- it assumes the standard ALS/DeepKAN
+weak-learner format (`.width`, callable, `_fit_learner`-compatible),
+while GA2M's `learners_` is a custom tuple format; adapting it was not
+attempted.
+
+**Four candidates tested at all three INSPIRE scales**, each verified
+numerically identical to the baseline (max diff ~1e-15) before timing:
+
+| Scale | Baseline (numba installed) | Vectorized numpy | **Parallel-rounds (n_jobs=4)** | Vectorized+Parallel |
+|---|---|---|---|---|
+| Small | 3.71s | 14.03s (3.8x slower) | **1.76s (2.1x faster)** | 5.89s |
+| Medium | 6.69s | 26.97s (4.0x slower) | **3.17s (2.1x faster)** | 11.59s |
+| Large | 9.81s | 41.65s (4.2x slower) | **4.58s (2.1x faster)** | 17.47s |
+
+1. *Numba* (installing the optional `accel` extra -- the library
+   already has a JIT fast path for `_b_basis_1d`, just not installed by
+   default): tested separately, gave only ~18% end-to-end gain, far
+   below the 6.5x measured for that function in isolation, since other
+   per-round overhead (the Python loop, `layer0.forward`, sigmoid
+   stacking) doesn't benefit.
+2. *Vectorized pure-numpy Cox-de-Boor* (full broadcasting, no scipy
+   sparse machinery): **rejected** -- 3.8-4.2x *slower* at every scale,
+   independently confirming `kanboost.core.kan.bspline`'s own docstring
+   warning that a hand-vectorized numpy alternative was tried before
+   and found slower than scipy.
+3. *Parallel-rounds* (each round's `(layer0, coefs, gamma)` is fixed
+   and independent once fitting completes -- `joblib.Parallel` computes
+   every round's contribution on a separate core, then sums): **the
+   clear, consistent winner**, ~2.1x faster at every scale, with zero
+   accuracy cost by construction (same computation, reordered).
+4. *Vectorized+Parallel combined*: parallelizing a slower per-call
+   function is still slower than parallelizing the fast one -- no
+   benefit over (3) alone.
+
+**Accepted**: Variant 3, combined with numba, gave the best result
+tested (~2.5x total vs. the original single-threaded, no-numba
+baseline).
+
+**What was added to `kanboost/`**: `predict_proba_ga2m()` gained an
+`n_jobs` parameter (default `1`, sequential, unchanged) in
+`kanboost/train/ga2m.py`. `joblib` added as an explicit dependency in
+`pyproject.toml` (was already a transitive dependency via
+scikit-learn). `tests/test_ga2m.py` (+1 case: `n_jobs=2` matches
+`n_jobs=1` predictions). Docs in `docs/guide/training-speed.md` (new
+subsection) and `docs/inspire_kanboost_evaluation.md` (§14.1 filled in
+with the full investigation).
+
+**Verification before publishing**: full test suite on `main` after
+the changes -- 206 passed, 2 skipped, zero regressions.
+
+**Gate bypass**: same override as CC-12 through CC-19 -- user
+explicitly authorized skipping the standing review gate for this
+proposal too, in the same session.
+
+**Version bump**: `1.10.0` -> `1.11.0` (minor, per semver -- additive
+parameter with a backward-compatible default on an existing public
+function, plus a new explicit dependency already present transitively).
+Bumped in both `pyproject.toml` and `kanboost/__init__.py`.
+
+-- Claude Code, 2026-07-31

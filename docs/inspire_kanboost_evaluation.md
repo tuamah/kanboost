@@ -274,7 +274,51 @@ Both AUROC and AUPRC improved at every scale (small but consistent in direction,
 
 Shipped in `kanboost.train.ga2m.fit_with_ga2m()` (both `line_search_mode` and `hessian_floor_mode` parameters) and `kanboost.train.newton.fit_with_newton_boosting()` (`hessian_floor_mode` only — this module has no line-search step to make consistent; see its docstring). All new parameters default to the pre-existing behavior (`"bounded"` / `"hard"`), so nothing changes unless requested.
 
-## 14. Limitations and Next Steps
+## 14. Final Head-to-Head: KANBoost 1.10.0 vs. Trees
+
+With every accepted fix from §8-§13 combined (`fit_with_ga2m(..., use_newton=True, line_search_mode="armijo")` — GA2M's best validated recipe, this session's cumulative result), KANBoost was re-benchmarked against XGBoost and HistGradientBoosting at all three scales, same split, same threshold-tuning procedure (§5.1) applied symmetrically to all three models.
+
+**Accuracy (AUROC / AUPRC)**:
+
+| Scale | KANBoost 1.10.0 | XGBoost | HistGradientBoosting |
+|---|---|---|---|
+| Small | 0.9244 / 0.6804 | **0.9333 / 0.7099** | 0.9319 / 0.7148 |
+| Medium | 0.9472 / 0.7844 | **0.9536 / 0.8073** | 0.9517 / 0.8033 |
+| Large | 0.9504 / 0.7942 | **0.9561 / 0.8156** | 0.9551 / 0.8127 |
+
+Trees still win on raw discrimination at every scale (AUROC gap 0.007-0.012, AUPRC gap 0.02-0.03) — consistent with the Executive Summary's standing conclusion. The gap is materially narrower than at the start of this evaluation, purely from the accumulated fixes in §8-§13, with no change to the underlying task or data.
+
+**Speed (fit / predict, seconds)**:
+
+| Scale | KANBoost | XGBoost | HistGradientBoosting |
+|---|---|---|---|
+| Small | 2.4 / 9.4 | 1.5 / 0.36 | 3.1 / 0.19 |
+| Medium | 20.9 / 16.3 | 3.3 / 0.41 | 1.5 / 0.23 |
+| Large | 62.1 / 25.5 | 5.6 / 0.47 | 1.6 / 0.25 |
+
+Fit time has closed to roughly 10-40x slower than trees, down from the 300-850x reported for the original fixed-shrinkage baseline (§8). **Prediction time is now the dominant remaining bottleneck** — 50-100x slower than trees — since `fit_with_ga2m` was used here without `consolidate_learners()` (§ per CC-12); applying it to GA2M's round format is the next concrete lever (see §14.1).
+
+**Interpretability — the differentiator that survives**: KANBoost's GA2M gives genuine, structurally-native dual attribution — per-feature main effects AND named per-pair interactions, both directly read off the fitted coefficients (`main_effect_contributions()`/`pairwise_interaction_contributions()`), consistent across scales: `icd10_pcs`, `department`, `age`, `antype` dominate main effects, and **`department × icd10_pcs`** is consistently the top-ranked interaction at Medium and Large — directly corroborating §1-3's reading of `postop_icu` as institutional care-pathway routing (procedure type *and* department jointly determining the routing decision, not procedure type alone). XGBoost's `feature_importances_` and HistGradientBoosting's permutation importance give only a single global per-feature ranking, with no interaction terms available natively (SHAP interaction values would need a separate, more expensive post-hoc computation to approximate this). This structural difference, not a marginal accuracy edge, remains KANBoost's substantive contribution on this task.
+
+### 14.1 Prediction-Speed Investigation
+
+Profiling `predict_proba_ga2m` (cProfile, Medium scale) found ~79% of predict time inside `_b_basis_1d` — mostly scipy's `BSpline.design_matrix` sparse construction and its subsequent densification, called once per hidden unit per round. Note: `consolidate_learners()` (§CC-12) cannot be applied here — it assumes the standard ALS/DeepKAN weak-learner object format (`.width`, callable, compatible with `model._fit_learner`), while GA2M's `learners_` is a custom tuple format (`layer0, knots1, coefs, n_hidden, K1, gamma, pairs`); adapting consolidation to that format was not attempted.
+
+Four levers were tested at all three INSPIRE scales, each verified numerically identical to the unmodified baseline (max difference ~1e-15, floating-point noise) before timing:
+
+| Scale | Baseline | Vectorized numpy Cox-de-Boor | **Parallel-rounds (n_jobs=4)** | Vectorized+Parallel |
+|---|---|---|---|---|
+| Small | 3.71s | 14.03s (3.8x slower) | **1.76s (2.1x faster)** | 5.89s |
+| Medium | 6.69s | 26.97s (4.0x slower) | **3.17s (2.1x faster)** | 11.59s |
+| Large | 9.81s | 41.65s (4.2x slower) | **4.58s (2.1x faster)** | 17.47s |
+
+(Baseline here already includes `numba` — installing the optional `accel` extra, which the library already supports via a JIT-compiled fast path for `_b_basis_1d`, but which is not installed by default. Measured separately: numba alone gave only a modest ~18% end-to-end gain, well below the 6.5x measured for that function in isolation, since other per-round overhead — the Python loop itself, `layer0.forward`, sigmoid stacking — doesn't benefit from it.)
+
+A fully-vectorized pure-numpy Cox-de-Boor basis evaluator (full array broadcasting, no scipy sparse machinery at all) was **tried and rejected**: 3.8-4.2x *slower* than the shipped path at every scale — the intermediate-array overhead of `numpy.where`/`numpy.clip` across many small per-round calls outweighs whatever sparse-construction cost it avoids. This independently confirms `kanboost.core.kan.bspline`'s own docstring, which already warns that a hand-written numpy alternative to scipy was tried before and found slower.
+
+**Parallelizing across boosting rounds was the clear, consistent winner**: each round's `(layer0, coefs, gamma)` is fixed and independent once fitting completes, so `joblib.Parallel` can compute every round's contribution on a separate core and sum them — ~2.1x faster at every scale, with no accuracy cost (by construction; the computation is identical, just reordered). **Shipped** as `predict_proba_ga2m(model, X, n_jobs=...)`, default `n_jobs=1` (sequential, unchanged). Combined with numba, this gave the best result tested (~2.5x total versus the original single-threaded, no-numba baseline).
+
+## 15. Limitations and Next Steps
 
 - **Threshold optimization was not applied symmetrically until this report** (§5.1) — future comparisons in this project should always tune thresholds identically across every model compared, not only for KANBoost.
 - **Calibration was only measured for KANBoost** (Platt scaling, Brier score) in this evaluation; the trees were not calibrated or Brier-scored here. A fair follow-up would report Brier/reliability curves for all five models side by side.

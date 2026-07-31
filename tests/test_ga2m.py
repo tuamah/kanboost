@@ -113,6 +113,18 @@ def test_ga2m_hessian_floor_modes_run_and_stay_finite():
         assert roc_auc_score(y_te, proba[:, 1]) > 0.85, mode
 
 
+def test_predict_proba_ga2m_parallel_matches_sequential():
+    X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
+    model = KANBoostClassifier(n_estimators=15, kan_grid=3, random_state=0, verbose=False)
+    fit_with_ga2m(model, X_tr, y_tr, n_pairs_per_round=10)
+
+    proba_seq = predict_proba_ga2m(model, X_te, n_jobs=1)
+    proba_par = predict_proba_ga2m(model, X_te, n_jobs=2)
+
+    assert np.allclose(proba_seq, proba_par, atol=1e-8)
+    assert roc_auc_score(y_te, proba_par[:, 1]) > 0.9
+
+
 def test_ga2m_rejects_unknown_line_search_mode():
     X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
     model = KANBoostClassifier(n_estimators=5, random_state=0, verbose=False)
@@ -159,6 +171,7 @@ if __name__ == "__main__":
     test_ga2m_use_newton_runs_without_error()
     test_ga2m_armijo_line_search_runs_and_stays_finite()
     test_ga2m_hessian_floor_modes_run_and_stay_finite()
+    test_predict_proba_ga2m_parallel_matches_sequential()
     test_ga2m_rejects_unknown_line_search_mode()
     test_ga2m_rejects_unknown_hessian_floor_mode()
     test_main_effect_contributions_covers_every_feature()

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kanboost"
-version = "1.10.0"
+version = "1.11.0"
 description = "Gradient boosting with Kolmogorov-Arnold Network (KAN) learners -- an interpretable alternative to tree-based boosting (XGBoost/LightGBM/CatBoost)."
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -17,6 +17,7 @@ dependencies = [
     "numpy>=1.24",
     "pandas>=1.5",
     "scikit-learn>=1.3",
+    "joblib>=1.2",
     "scipy>=1.10",
     "sympy>=1.12",
     "pyyaml>=5.1",

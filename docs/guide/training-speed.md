@@ -285,3 +285,13 @@ Measured at all three INSPIRE scales, this was a consistent, unambiguous improve
 | Large | 0.9506 / 0.7928, max\|coef\| 2.95 | **0.9507 / 0.7932**, max\|coef\| **2.40** |
 
 Two more options adjust how `use_newton=True` keeps `p(1-p)` away from zero (`hessian_floor_mode`, default `"hard"`): `"adaptive"` and `"soft_lm"` were both accuracy-neutral in testing but 7-12% faster at Medium/Large scale — a low-risk secondary option if raw speed matters more than the (already small) difference between floor strategies. See the `kanboost.train.ga2m`/`kanboost.train.newton` module docstrings for the full measured tables and the rejected fourth candidate (sharing one random layer0 draw across multiclass one-vs-rest chains — real accuracy cost for a marginal speedup, not shipped).
+
+### Faster prediction: `predict_proba_ga2m(model, X, n_jobs=...)`
+
+Predicting with a GA2M model was the dominant remaining speed gap versus trees (profiling found ~79% of predict time inside B-spline basis evaluation). Two levers were tested: installing the optional `pip install kanboost[accel]` extra (numba — the library already has a JIT-compiled fast path for this, just not installed by default) gave a modest end-to-end gain; a hand-vectorized pure-numpy alternative was tried and **rejected** (3.8-4.2x *slower*, confirming `kanboost.core.kan.bspline`'s own docstring warning independently). The clear win was parallelizing across boosting rounds — each round's contribution is fixed and independent once fitting completes:
+
+```python
+predict_proba_ga2m(model, X_test, n_jobs=4)
+```
+
+Measured at all three INSPIRE scales: a consistent ~2.1x speedup (e.g. Large: 9.8s → 4.6s), identical predictions to `n_jobs=1` (the default, unchanged) up to floating-point noise. Combined with `pip install kanboost[accel]`, this gave the best result tested overall (~2.5x total).
