@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 from sklearn.datasets import load_breast_cancer, load_iris
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, accuracy_score
 
 from kanboost import KANBoostClassifier, KANBoostRegressor
 from kanboost.train.newton import fit_with_newton_boosting
@@ -63,12 +63,23 @@ def test_newton_boosting_improves_on_first_order_at_same_round_count():
     assert auc_newton > auc_baseline - 0.02
 
 
-def test_newton_boosting_rejects_multiclass():
+def test_newton_boosting_multiclass():
     X, y = load_iris(return_X_y=True)
     X = pd.DataFrame(X, columns=[f"f{i}" for i in range(4)])
-    model = KANBoostClassifier(n_estimators=5, random_state=0, verbose=False)
-    with pytest.raises(ValueError, match="binary"):
-        fit_with_newton_boosting(model, X, y)
+    X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.3, stratify=y, random_state=0)
+
+    model = KANBoostClassifier(
+        n_estimators=15, kan_hidden=8, kan_grid=3, random_state=0, verbose=False,
+    )
+    fit_with_newton_boosting(model, X_tr, y_tr)
+
+    assert isinstance(model.learners_, dict)
+    assert len(model.learners_) == 3  # one one-vs-rest chain per class
+    assert all(v == 15 for v in model.best_iteration_.values())
+    proba = model.predict_proba(X_te)
+    assert proba.shape == (len(y_te), 3)
+    assert np.allclose(proba.sum(axis=1), 1.0)
+    assert accuracy_score(y_te, model.predict(X_te)) > 0.85
 
 
 def test_newton_boosting_rejects_regressor():
@@ -98,7 +109,7 @@ def test_newton_boosting_then_save_load_roundtrip(tmp_path):
 if __name__ == "__main__":
     test_newton_boosting_fits_and_predicts_via_standard_api()
     test_newton_boosting_improves_on_first_order_at_same_round_count()
-    test_newton_boosting_rejects_multiclass()
+    test_newton_boosting_multiclass()
     test_newton_boosting_rejects_regressor()
     import tempfile
     from pathlib import Path

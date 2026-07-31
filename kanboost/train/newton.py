@@ -1,8 +1,8 @@
 """
 kanboost.train.newton -- Newton-step (second-order) boosting for
-KANBoostClassifier (binary only), instead of the standard first-order
-`_boost_chain` (each weak learner fit directly to the raw pseudo-residual
-`y - p`).
+KANBoostClassifier (binary and multiclass), instead of the standard
+first-order `_boost_chain` (each weak learner fit directly to the raw
+pseudo-residual `y - p`).
 
 GB-KAN (Mohr & Frochte, ICAART 2026) -- an independently published
 KAN-based boosting framework -- explicitly lists "second-order boosting"
@@ -16,7 +16,7 @@ weak learner instead of a tree split search.
 
 Measured on INSPIRE (`postop_icu`; see
 `docs/inspire_kanboost_evaluation.md` §9), same round count as a normal
-fixed-`learning_rate` fit, all three scales tested:
+fixed-`learning_rate` fit, all three scales tested (binary):
 
     Small  (10K rows, 100 rounds):  AUROC 0.9225->0.9246, AUPRC 0.6707->0.6879
     Medium (50K rows, 140 rounds):  AUROC 0.9389->0.9411, AUPRC 0.7560->0.7686
@@ -29,6 +29,18 @@ own early-stop tolerance triggers) appears to depend on how the
 reweighted target's curvature interacts with the dataset, not on a
 fixed multiplier. Treat this as an accuracy-oriented option, not a
 speed-oriented one.
+
+**Multiclass** (3+ classes): one binary Newton-step chain per class,
+one-vs-rest, mirroring exactly how `KANBoostClassifier.fit()` handles
+multiclass itself (`seed_base = i * n_estimators` per chain,
+`learners_`/`init_pred_`/`best_iteration_` keyed by class label). Each
+chain is fit independently -- this is `n_classes` times the binary cost,
+same as standard multiclass kanboost. Measured on Digits (sklearn, 10
+classes, 30 rounds): standard-ALS multiclass fit 29.5s/94.8% accuracy
+vs. Newton-boosted 62.4s/97.4% -- accuracy improves further, but so
+does fit time, since the reweighting's cost compounds across all
+`n_classes` chains on this engine (see `kanboost.train.rfkan` for a
+combination where that compounding cost disappears).
 
 **Tested and explicitly rejected**: combining this with
 `kanboost.train.linesearch.fit_with_line_search()`'s per-round line
@@ -54,10 +66,30 @@ from kanboost.core.losses import LogisticLoss, _sigmoid
 _MIN_HESSIAN = 1e-3  # floor on p(1-p); keeps Newton targets bounded as p -> 0/1
 
 
+def _fit_newton_chain(model, X_t, y_bin, n_features, sample_weight, min_hessian, seed_base):
+    loss = LogisticLoss()
+    init_pred = loss.init_pred(y_bin, sample_weight)
+    F = np.full(len(y_bin), init_pred)
+    learners = []
+
+    for t in range(model.n_estimators):
+        p = _sigmoid(F)
+        hess = np.clip(p * (1 - p), min_hessian, None)
+        target = (y_bin - p) / hess
+        fit_weight = hess * sample_weight
+
+        learner = model._new_learner(n_features, seed_offset=seed_base + t)
+        update = model._fit_learner(learner, X_t, target, sample_weight=fit_weight, seed_offset=seed_base + t)
+        F += model.learning_rate * update
+        learners.append(learner)
+
+    return learners, init_pred, len(learners)
+
+
 def fit_with_newton_boosting(model, X, y, sample_weight=None, min_hessian: float = _MIN_HESSIAN):
-    """Fit `model` (an unfitted binary `KANBoostClassifier`) using
-    Newton-step (second-order) boosting instead of its standard
-    first-order `_boost_chain`.
+    """Fit `model` (an unfitted `KANBoostClassifier`, binary or
+    multiclass) using Newton-step (second-order) boosting instead of
+    its standard first-order `_boost_chain`.
 
     `model.n_estimators` and `model.learning_rate` are used as-is (same
     meaning as a normal `fit()` call -- this is a drop-in accuracy
@@ -70,43 +102,43 @@ def fit_with_newton_boosting(model, X, y, sample_weight=None, min_hessian: float
     measured.
 
     Returns `model`, fitted in place (same convention as `model.fit()`).
+    Multiclass models populate `learners_`/`init_pred_`/`best_iteration_`
+    as dicts keyed by class label, exactly like a standard multiclass
+    `fit()` -- the base `predict_proba()`/`predict()`/`save()`/`load()`
+    all work unmodified.
     """
     if not hasattr(model, "predict_proba"):
         raise TypeError("fit_with_newton_boosting requires a KANBoostClassifier, not a regressor.")
 
     X, y_arr, X_arr = model._prepare_fit(X, y)
     model.classes_ = np.unique(y_arr)
-    if len(model.classes_) != 2:
-        raise ValueError(
-            "fit_with_newton_boosting only supports binary classification; "
-            f"got {len(model.classes_)} classes. Multiclass is not implemented."
-        )
+    if len(model.classes_) < 2:
+        raise ValueError(f"KANBoostClassifier needs at least 2 classes; got {model.classes_}.")
     if sample_weight is not None:
         sample_weight = np.asarray(sample_weight, dtype=float).ravel()
     else:
         sample_weight = np.ones(len(y_arr))
 
-    y_bin = (y_arr == model.classes_[1]).astype(float)
     X_t = torch.tensor(X_arr, dtype=torch.float32, device=model.device_)
     n_features = X_arr.shape[1]
 
-    loss = LogisticLoss()
-    init_pred = loss.init_pred(y_bin, sample_weight)
-    F = np.full(len(y_bin), init_pred)
-    learners = []
+    if len(model.classes_) == 2:
+        y_bin = (y_arr == model.classes_[1]).astype(float)
+        model.learners_, model.init_pred_, model.best_iteration_ = _fit_newton_chain(
+            model, X_t, y_bin, n_features, sample_weight, min_hessian, seed_base=0,
+        )
+    else:
+        model.learners_ = {}
+        model.init_pred_ = {}
+        model.best_iteration_ = {}
+        for i, c in enumerate(model.classes_):
+            y_bin = (y_arr == c).astype(float)
+            learners, init_pred, best_iteration = _fit_newton_chain(
+                model, X_t, y_bin, n_features, sample_weight, min_hessian,
+                seed_base=i * model.n_estimators,
+            )
+            model.learners_[c] = learners
+            model.init_pred_[c] = init_pred
+            model.best_iteration_[c] = best_iteration
 
-    for t in range(model.n_estimators):
-        p = _sigmoid(F)
-        hess = np.clip(p * (1 - p), min_hessian, None)
-        target = (y_bin - p) / hess
-        fit_weight = hess * sample_weight
-
-        learner = model._new_learner(n_features, seed_offset=t)
-        update = model._fit_learner(learner, X_t, target, sample_weight=fit_weight, seed_offset=t)
-        F += model.learning_rate * update
-        learners.append(learner)
-
-    model.learners_ = learners
-    model.init_pred_ = init_pred
-    model.best_iteration_ = len(learners)
     return model

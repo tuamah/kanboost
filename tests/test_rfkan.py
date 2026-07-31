@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 from sklearn.datasets import load_breast_cancer, load_iris
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, accuracy_score
 
 from kanboost import KANBoostClassifier, KANBoostRegressor
 from kanboost.train.rfkan import fit_with_rfkan, predict_proba_rfkan
@@ -102,12 +102,38 @@ def test_rfkan_rejects_newton_and_line_search_together():
         fit_with_rfkan(model, X_tr, y_tr, use_newton=True, use_line_search=True)
 
 
-def test_rfkan_rejects_multiclass():
+def test_rfkan_multiclass():
     X, y = load_iris(return_X_y=True)
     X = pd.DataFrame(X, columns=[f"f{i}" for i in range(4)])
-    model = KANBoostClassifier(n_estimators=5, random_state=0, verbose=False)
-    with pytest.raises(ValueError, match="binary"):
-        fit_with_rfkan(model, X, y)
+    X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.3, stratify=y, random_state=0)
+
+    model = KANBoostClassifier(
+        n_estimators=15, kan_hidden=8, kan_grid=3, random_state=0, verbose=False,
+    )
+    fit_with_rfkan(model, X_tr, y_tr)
+
+    assert isinstance(model.learners_, dict)
+    assert len(model.learners_) == 3
+    assert isinstance(model._rfkan_gammas_, dict) and len(model._rfkan_gammas_) == 3
+    proba = predict_proba_rfkan(model, X_te)
+    assert proba.shape == (len(y_te), 3)
+    assert np.allclose(proba.sum(axis=1), 1.0)
+    preds = model.classes_[np.argmax(proba, axis=1)]
+    assert accuracy_score(y_te, preds) > 0.85
+
+
+def test_rfkan_multiclass_with_newton():
+    X, y = load_iris(return_X_y=True)
+    X = pd.DataFrame(X, columns=[f"f{i}" for i in range(4)])
+    X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.3, stratify=y, random_state=0)
+
+    model = KANBoostClassifier(
+        n_estimators=15, kan_hidden=8, kan_grid=3, random_state=0, verbose=False,
+    )
+    fit_with_rfkan(model, X_tr, y_tr, use_newton=True)
+    proba = predict_proba_rfkan(model, X_te)
+    preds = model.classes_[np.argmax(proba, axis=1)]
+    assert accuracy_score(y_te, preds) > 0.85
 
 
 def test_rfkan_rejects_regressor():
@@ -134,7 +160,8 @@ if __name__ == "__main__":
     test_rfkan_with_newton_improves_accuracy_at_same_speed_class()
     test_rfkan_with_line_search_fewer_rounds_competitive()
     test_rfkan_rejects_newton_and_line_search_together()
-    test_rfkan_rejects_multiclass()
+    test_rfkan_multiclass()
+    test_rfkan_multiclass_with_newton()
     test_rfkan_rejects_regressor()
     test_predict_proba_rfkan_requires_rfkan_fit()
     print("All rfkan tests passed.")

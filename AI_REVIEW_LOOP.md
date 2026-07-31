@@ -5023,3 +5023,56 @@ Publishing). Verified directly against PyPI's JSON API (after a brief
 CDN propagation delay): `latest version: 1.7.0`.
 
 -- Claude Code, 2026-07-31
+
+---
+
+## [Claude Code] Proposal CC-16 -- multiclass support for fit_with_newton_boosting()/fit_with_rfkan(), published ahead of the normal review gate -- explicit user override, 2026-07-31
+
+**Competitor/gap**: CC-14 (`fit_with_newton_boosting`) and CC-15
+(`fit_with_rfkan`) both shipped binary-only. User asked for multiclass
+support to be added and validated.
+
+**Scope**: extended both to multiclass via one-vs-rest, mirroring
+`KANBoostClassifier.fit()`'s own convention exactly (`seed_base = i *
+n_estimators` per chain, `learners_`/`init_pred_`/`best_iteration_`
+keyed by class label; `rfkan` additionally keys `_rfkan_gammas_` by
+class and combines chains via the same softmax `predict_proba()` uses).
+
+**Evidence**: validated on Digits (sklearn, 10 classes, 1257 train /
+540 test rows, 30 rounds) since INSPIRE's `postop_icu` is binary:
+
+| Config | Fit time | Accuracy |
+|---|---:|---:|
+| Standard multiclass fit (ALS) | 29.5s | 94.8% |
+| + Newton (`fit_with_newton_boosting`) | 62.4s (slower -- Newton's per-round cost compounds across all 10 one-vs-rest chains) | 97.4% |
+| `fit_with_rfkan` | 7.7s | 94.1% |
+| `fit_with_rfkan(use_newton=True)` | 8.2s | **97.4%** (ties ALS+Newton) |
+| `fit_with_rfkan(use_line_search=True)`, 10 rounds | 2.7s | 92.6% |
+
+**Accepted**: RF-KAN+Newton's multiclass advantage over plain-ALS
+Newton *widens* relative to binary (7.6x speedup for equal accuracy,
+vs. 3.6-4.3x binary), since Newton's added cost compounds across
+`n_classes` chains on the standard engine but stays cheap on RF-KAN's
+already-fast one.
+
+**What was added to `kanboost/`**: multiclass branches in
+`kanboost/train/newton.py::fit_with_newton_boosting()` and
+`kanboost/train/rfkan.py::fit_with_rfkan()`/`predict_proba_rfkan()`;
+`tests/test_newton.py::test_newton_boosting_multiclass`,
+`tests/test_rfkan.py::test_rfkan_multiclass` /
+`test_rfkan_multiclass_with_newton` (replacing the now-obsolete
+"rejects multiclass" tests from CC-14/CC-15).
+
+**Verification before publishing**: full suite -- 197 passed, 3
+skipped, zero regressions.
+
+**Gate bypass**: same override as CC-12 through CC-15 -- user
+explicitly authorized skipping the standing Codex-review-then-ChatGPT-
+judgment gate for this proposal too, in the same session.
+
+**Version bump**: `1.7.0` -> `1.8.0` (minor, per semver -- purely
+additive: existing binary behavior unchanged, multiclass previously
+raised `ValueError`, now works). Bumped in both `pyproject.toml` and
+`kanboost/__init__.py`.
+
+-- Claude Code, 2026-07-31
