@@ -182,6 +182,8 @@ This was shipped as `kanboost.train.linesearch.fit_with_line_search()` in kanboo
 
 Shipped as `kanboost.train.newton.fit_with_newton_boosting()` in kanboost 1.6.0. See `docs/guide/training-speed.md` for usage and `AI_REVIEW_LOOP.md` (Proposal CC-14) for the full gate-bypass rationale.
 
+**Multiclass extension (Proposal CC-16)**: since INSPIRE's `postop_icu` is binary, multiclass support was added afterward and validated separately on Digits (sklearn, 10 classes): standard-ALS multiclass Newton boosting reached 97.4% accuracy vs. 94.8% for a plain fit, at the cost of 62.4s vs. 29.5s (Newton's per-round cost compounds across all `n_classes` one-vs-rest chains on the standard engine).
+
 ## 10. RF-KAN: Rebuilding the Weak-Learner Engine Itself
 
 §8 and §9 both improve outcomes *within* kanboost's standard weak-learner engine (Gauss-Newton ALS, `_fit_als`). This section rebuilds the engine itself, after diagnosing exactly where its per-round cost comes from.
@@ -201,7 +203,30 @@ Design 2 was the one carried forward and validated at all three scales (table in
 
 Shipped as `kanboost.train.rfkan.fit_with_rfkan()`/`predict_proba_rfkan()` in kanboost 1.7.0. See `AI_REVIEW_LOOP.md` (Proposal CC-15) for the full gate-bypass rationale.
 
-## 11. Limitations and Next Steps
+**Multiclass extension (Proposal CC-16)**: validated on Digits (10 classes) alongside Newton's multiclass extension above — `use_newton=True` here matched standard-ALS Newton boosting's accuracy exactly (97.4%) at **7.6x its speed** (8.2s vs. 62.4s). RF-KAN+Newton's advantage over plain-ALS Newton widens specifically in multiclass, since Newton's compounding cost across `n_classes` chains only bites the slow engine.
+
+## 11. GA2M: Closing the Interpretability Gap
+
+§10 gave up KANBoost's native interpretability for RF-KAN's speed. This section closes that gap without giving up speed or accuracy — found only after several negative results that are reported honestly, not hidden.
+
+**What failed first, in order**:
+1. *Deep RF-KAN* (3 layers: per-feature random warp → random mixing → trained output): tested hypothesizing the extra forward passes were "architecturally free." **Wrong on measurement** — 75%–190% slower than 2-layer RF-KAN, and AUPRC was *worse* in every configuration tested (two layers of untrained randomness compounds noise faster than one, with only the last layer trained to correct for it).
+2. *RF-KAN-GAM* (2 layers, but layer0 restricted to one hidden unit per feature, no mixing at all — full interpretability): AUROC roughly matched dense RF-KAN, but **AUPRC dropped consistently (~0.012–0.015) and did not improve with more units per feature** — removing ALL cross-feature mixing removes exactly the interaction signal this dataset has (department × icd10_pcs, confirmed in §3).
+3. *GA2M without line search* (main-effect units + a capacity-matched random subset of pairwise-interaction units per round, joint closed-form solve): tested at all three scales specifically to correct an earlier over-optimistic single-scale, capacity-*unmatched* result. At matched capacity, **GA2M underperformed dense RF-KAN on AUPRC at every scale** (0.6601 vs. 0.6709 at Small, 0.7351 vs. 0.7561 at Medium, 0.7504 vs. 0.7643 at Large) — a real, confirmed trade for interpretability, not a free lunch.
+
+**What worked**: combining GA2M with `fit_with_line_search()`'s per-round step-size search. This is not an incremental fix — at every scale, GA2M+line-search beat *every other engine tested in this entire evaluation*, including RF-KAN+Newton (§10, previously the best result), on **both** AUROC and AUPRC, at comparable or better speed than dense RF-KAN alone:
+
+| Scale | Rounds | Dense RF-KAN (full rounds) | **GA2M + line search** |
+|---|---:|---|---|
+| Small | 30 | 7.4s, 0.9226/0.6709 | 2.3s, **0.9283/0.6883** |
+| Medium | 42 | 62.7s, 0.9388/0.7561 | 19.6s, **0.9477/0.7797** |
+| Large | 54 | 146.5s, 0.9413/0.7643 | 45.4s, **0.9505/0.7918** |
+
+A faster variant (independent per-hidden-unit solve instead of one joint solve, ~15% faster, near-identical AUROC/AUPRC) was also tested and rejected for the shipped module specifically because it is *less accurate for attribution*: the joint solve correctly partitions credit between a feature's main-effect unit and any interaction unit sharing that feature; the independent solve does not, and can double-count shared signal between them. Combining either variant with `use_newton=True` was tested at all three scales too — worse than GA2M+line-search alone in every case (the same loss-mismatch reason as §9/§10's rejected Newton+line-search combination), so `use_newton` is not exposed on this module.
+
+Shipped as `kanboost.train.ga2m.fit_with_ga2m()`/`predict_proba_ga2m()`/`main_effect_contributions()`/`pairwise_interaction_contributions()` in kanboost 1.9.0. This is, as of this writing, the single best-performing configuration found across this entire evaluation on every axis measured (speed, accuracy, and interpretability) — see `AI_REVIEW_LOOP.md` (Proposal CC-17) for the full gate-bypass rationale and negative-result record.
+
+## 12. Limitations and Next Steps
 
 - **Threshold optimization was not applied symmetrically until this report** (§5.1) — future comparisons in this project should always tune thresholds identically across every model compared, not only for KANBoost.
 - **Calibration was only measured for KANBoost** (Platt scaling, Brier score) in this evaluation; the trees were not calibrated or Brier-scored here. A fair follow-up would report Brier/reliability curves for all five models side by side.

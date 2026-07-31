@@ -5082,3 +5082,94 @@ Publishing). Verified directly against PyPI's JSON API: `latest
 version: 1.8.0`.
 
 -- Claude Code, 2026-07-31
+
+---
+
+## [Claude Code] Proposal CC-17 -- `fit_with_ga2m()`: interpretability + speed + accuracy together, published ahead of the normal review gate -- explicit user override, 2026-07-31
+
+**Competitor/gap**: CC-15's `fit_with_rfkan()` closed KANBoost's speed
+gap but gave up its native interpretability (dense random layer0
+cannot be attributed to any input feature). The user asked directly:
+can an engine be built that gets speed, accuracy, AND interpretability
+together, rather than picking two of three? Answered by testing
+several designs in sequence, reporting the failures honestly rather
+than only the eventual success.
+
+**What was tried and rejected, in order** (full detail and numbers in
+`docs/inspire_kanboost_evaluation.md` §11):
+1. *Deep RF-KAN* (3 layers: per-feature random warp -> random mixing ->
+   trained output) -- hypothesized the extra layers were
+   "architecturally free" (still one closed-form solve). **Wrong on
+   measurement**: 75-190% slower, AUPRC worse in every configuration
+   tested (Small scale). Two layers of untrained randomness compound
+   noise faster than the single trained layer can correct.
+2. *RF-KAN-GAM* (layer0 restricted to one hidden unit per feature, no
+   mixing -- full interpretability): AUROC roughly matched dense
+   RF-KAN, but AUPRC dropped ~0.012-0.015 and did not recover with more
+   units per feature -- removing all cross-feature mixing removes
+   exactly the interaction signal this dataset has.
+3. *GA2M without line search* (main effects + a random subset of
+   pairwise-interaction units per round, capacity-matched to dense
+   RF-KAN, joint solve): tested at all three scales specifically to
+   correct an earlier over-optimistic single-scale, capacity-unmatched
+   result. At matched capacity, underperformed dense RF-KAN on AUPRC at
+   every scale (0.6601/0.7351/0.7504 vs. 0.6709/0.7561/0.7643).
+
+**What worked**: GA2M + `fit_with_line_search()`'s per-round step-size
+search, together.
+
+**Acceptance gate**: must beat every other engine tested this session
+(including CC-16's RF-KAN+Newton) on both AUROC and AUPRC, at
+comparable or better speed, independently at Small, Medium, and Large
+scale, while keeping every hidden unit attributable to exactly one
+feature or one named feature pair.
+
+**Evidence** (fewer rounds than a full fit -- ~30% -- since line
+search's round-reduction effect, per CC-13, applies here too):
+
+| Scale | Rounds | Dense RF-KAN (full rounds) | GA2M + line search |
+|---|---:|---|---|
+| Small | 30 | 7.4s, 0.9226/0.6709 | 2.3s, 0.9283/0.6883 |
+| Medium | 42 | 62.7s, 0.9388/0.7561 | 19.6s, 0.9477/0.7797 |
+| Large | 54 | 146.5s, 0.9413/0.7643 | 45.4s, 0.9505/0.7918 |
+
+**Accepted**: beats every prior engine on both metrics at every scale,
+while faster than the dense baseline it's compared against.
+
+A faster variant (independent per-hidden-unit solve, ~15% faster,
+near-identical AUROC/AUPRC) was tested and **not shipped**: it is
+measurably less accurate for attribution -- the joint solve correctly
+partitions credit between a feature's main-effect unit and any
+interaction unit sharing that feature; the independent solve does not.
+Combining either variant with `use_newton=True` was also tested at all
+three scales: inconsistent for the joint solve (worse at Small, mixed
+at Medium, marginally better at Large) but consistently (if modestly)
+better for the independent-solve variant at all three scales -- neither
+result was strong/consistent enough to change the shipped default
+(`use_newton=False`), but `use_newton` is exposed (not blocked) on
+`fit_with_ga2m`, unlike CC-15's hard rejection of Newton+line-search on
+the dense engine, since the effect here is not clearly harmful, just
+not clearly beneficial either.
+
+**What was added to `kanboost/`**: `kanboost/train/ga2m.py`
+(`fit_with_ga2m()`/`predict_proba_ga2m()`/`main_effect_contributions()`/
+`pairwise_interaction_contributions()`), `tests/test_ga2m.py` (8 cases:
+fit+predict, competitiveness vs. dense RF-KAN+line-search,
+`use_newton` smoke test, main-effect contribution coverage, pairwise
+interaction contribution format, multiclass rejection, regressor
+rejection, predict-without-ga2m-fit rejection), docs in
+`docs/guide/training-speed.md` and `docs/inspire_kanboost_evaluation.md`
+(executive summary, new §11).
+
+**Verification before publishing**: full test suite on `main` after
+adding the new files -- 198 passed, 3 skipped, zero regressions.
+
+**Gate bypass**: same override as CC-12 through CC-16 -- user
+explicitly authorized skipping the standing Codex-review-then-ChatGPT-
+judgment gate for this proposal too, in the same session.
+
+**Version bump**: `1.8.0` -> `1.9.0` (minor, per semver -- purely
+additive new module). Bumped in both `pyproject.toml` and
+`kanboost/__init__.py`.
+
+-- Claude Code, 2026-07-31

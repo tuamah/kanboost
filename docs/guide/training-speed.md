@@ -153,8 +153,13 @@ the learner was fit to the Newton-*reweighted* target, an
 inconsistency, not a bug in either piece individually. Use one or the
 other, not both.
 
-**Scope**: binary `KANBoostClassifier` only (not multiclass, not
-`KANBoostRegressor`).
+**Scope**: binary and multiclass `KANBoostClassifier` (not
+`KANBoostRegressor`). Multiclass fits one one-vs-rest Newton chain per
+class, exactly like a standard multiclass `fit()`. Measured on Digits
+(10 classes, sklearn): standard-ALS multiclass fit 29.5s/94.8% accuracy
+vs. Newton-boosted multiclass 62.4s/97.4% -- accuracy improves further
+in multiclass, but so does the per-round cost, since Newton reweighting
+compounds across `n_classes` independent chains.
 
 ## A different weak-learner engine entirely: `fit_with_rfkan()`
 
@@ -219,5 +224,46 @@ standard ALS, interpretability intact) when that matters for a given
 model; use `fit_with_rfkan()` when raw speed/accuracy is the priority
 and you don't need to interpret that particular model afterward.
 
-**Scope**: binary `KANBoostClassifier` only (not multiclass, not
-`KANBoostRegressor`).
+**Scope**: binary and multiclass `KANBoostClassifier` (not
+`KANBoostRegressor`), same one-vs-rest convention as
+`fit_with_newton_boosting()`. Measured on Digits (10 classes):
+`use_newton=True` matched the best multiclass accuracy measured in this
+guide (97.4%, tied with standard-ALS Newton boosting) at **7.6x its
+speed** (8.2s vs. 62.4s) — the RF-KAN+Newton combination's advantage
+over plain ALS widens in multiclass, since Newton's added cost compounds
+across `n_classes` independent chains on the standard engine but not on
+RF-KAN's already-cheap one.
+
+## Speed, accuracy, AND interpretability together: `fit_with_ga2m()`
+
+Every option above trades interpretability for speed/accuracy (`fit_with_rfkan`) or keeps interpretability but gives up some of RF-KAN's benefit. `kanboost.train.ga2m.fit_with_ga2m()` is the one engine in this guide that does not force that tradeoff: it restructures WHICH features feed each hidden unit (one per input feature -- a "main effect" -- plus a random subset of feature PAIRS re-sampled every round -- an "interaction") instead of RF-KAN's dense random mixing of all features per unit. Every hidden unit is attributable to exactly one feature or one named pair, so `main_effect_contributions()`/`pairwise_interaction_contributions()` give genuine, per-feature/per-pair attribution (GA2M / Explainable Boosting Machine style) -- unlike RF-KAN, where a unit's dense random mixture cannot be attributed to anything.
+
+```python
+from kanboost import KANBoostClassifier
+from kanboost.train.ga2m import (
+    fit_with_ga2m, predict_proba_ga2m,
+    main_effect_contributions, pairwise_interaction_contributions,
+)
+
+model = KANBoostClassifier(n_estimators=42)  # a fraction of a normal fit's rounds --
+                                              # line search is on by default here
+fit_with_ga2m(model, X_train, y_train, n_pairs_per_round=10)
+proba = predict_proba_ga2m(model, X_test)
+
+main_effect_contributions(model)              # {feature: total contribution}, sorted desc
+pairwise_interaction_contributions(model)     # {(feature_a, feature_b): total contribution}, sorted desc
+```
+
+**This is the best-performing engine measured in this entire guide** — line search is on by default (`use_line_search=True`) because the combination is what was actually validated: at every INSPIRE scale tested, GA2M+line-search beat every other option here, including `fit_with_rfkan(use_newton=True)` (previously the best), on **both** AUROC and AUPRC, at comparable or better speed:
+
+| Scale | Rounds | Dense RF-KAN (full rounds) | **GA2M + line search** | Speedup |
+|---|---:|---|---|---:|
+| Small | 30 | 7.4s, 0.9226/0.6709 | 2.3s, **0.9283/0.6883** | 3.2x |
+| Medium | 42 | 62.7s, 0.9388/0.7561 | 19.6s, **0.9477/0.7797** | 3.2x |
+| Large | 54 | 146.5s, 0.9413/0.7643 | 45.4s, **0.9505/0.7918** | 3.2x |
+
+**Without line search, GA2M underperforms dense RF-KAN on AUPRC** at every scale tested (a real, confirmed cost of restricting mixing to main effects + pairs instead of dense mixing) — line search is specifically what recovers this and then exceeds it, which is why it defaults on here unlike `fit_with_rfkan`.
+
+A faster variant (independent per-hidden-unit solve instead of one joint solve, ~15% faster) was tested and intentionally **not** implemented here: it is measurably *less accurate for attribution specifically* — the joint solve used here correctly partitions credit between overlapping units (e.g. a feature's main effect and an interaction term involving that same feature); an independent solve does not, and can double-count shared signal between them. Use this module, not a faster-but-approximate variant, whenever the interpretation itself will be trusted, not just the predictions.
+
+**Scope**: binary `KANBoostClassifier` only (not multiclass, not `KANBoostRegressor`).
