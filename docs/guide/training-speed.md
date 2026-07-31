@@ -115,3 +115,43 @@ in letting you use fewer rounds, not in improving each one.
 `predict_proba_line_search()`, not the base model's own
 `predict_proba()` — each learner has its own step size here, unlike a
 normal `fit()` where every learner shares `learning_rate`.
+
+## Accuracy at the same round count: `fit_with_newton_boosting()`
+
+`kanboost.train.newton.fit_with_newton_boosting()` is a different lever
+on the same underlying idea GB-KAN's paper flags as unsolved for
+KAN-based boosting: **second-order (Newton-step) boosting**. Instead of
+fitting each weak learner directly to the raw pseudo-residual `y - p`,
+it reweights using the logistic loss's second derivative
+(`h = p*(1-p)`), fitting the learner to the Newton target
+`(y - p) / h` with sample weight `h` — the same reformulation XGBoost
+uses to derive its leaf values.
+
+```python
+from kanboost import KANBoostClassifier
+from kanboost.train.newton import fit_with_newton_boosting
+
+model = KANBoostClassifier(n_estimators=140)  # same round count as a normal fit()
+fit_with_newton_boosting(model, X_train, y_train)
+model.predict_proba(X_test)  # works via the standard API -- no special
+                              # predict function needed, unlike
+                              # fit_with_line_search
+```
+
+Measured on INSPIRE at the *same* round count as a normal fit, all
+three scales: AUROC/AUPRC both improved consistently (Small: 0.9225→0.9246
+/ 0.6707→0.6879; Medium: 0.9389→0.9411 / 0.7560→0.7686; Large:
+0.9413→0.9434 / 0.7643→0.7757). **Fit time did not move consistently**
+(neutral at Small, ~33% slower at Medium, ~19% faster at Large) — this
+is an accuracy-oriented option, not a speed-oriented one; don't expect
+a predictable time change.
+
+**Tested and rejected**: combining this with `fit_with_line_search()`.
+At every scale, the combination underperformed either technique alone
+— the line search there optimizes against the *original* loss while
+the learner was fit to the Newton-*reweighted* target, an
+inconsistency, not a bug in either piece individually. Use one or the
+other, not both.
+
+**Scope**: binary `KANBoostClassifier` only (not multiclass, not
+`KANBoostRegressor`).

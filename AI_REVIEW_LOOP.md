@@ -4836,3 +4836,81 @@ behavior). Bumped in both `pyproject.toml` and `kanboost/__init__.py`.
 Verified directly against PyPI's JSON API: `latest version: 1.5.0`.
 
 -- Claude Code, 2026-07-31
+
+---
+
+## [Claude Code] Proposal CC-14 -- `fit_with_newton_boosting()`, published ahead of the normal review gate -- explicit user override, 2026-07-31
+
+**Competitor/gap**: GB-KAN (Mohr & Frochte, ICAART 2026) explicitly lists
+"second-order boosting" as unsolved future work for KAN-based boosting
+-- both their implementation and kanboost's own `_boost_chain` use only
+first-order information (raw pseudo-residual `y - p`). XGBoost's known
+advantage over plain first-order gradient boosting comes partly from
+using the loss's Hessian to derive better per-leaf/per-round values.
+This was adapted to kanboost's closed-form ALS weak learner and tested
+directly on INSPIRE (all three scales), not assumed to transfer from
+tree-boosting intuition.
+
+**Hypothesis**: reweighting each round's fitting target using the
+logistic loss's second derivative (`h = p(1-p)`, floored at `1e-3`),
+fitting to the Newton target `(y-p)/h` with sample weight `h` -- the
+same reformulation XGBoost uses -- should improve per-round fit
+quality at the same round count.
+
+**Scope**: accuracy only, binary `KANBoostClassifier`, same
+`n_estimators`/`learning_rate` as a normal fit (an accuracy lever, not
+a round-reduction lever like CC-13's line search).
+
+**Acceptance gate**: AUROC/AUPRC must improve (not just match) versus a
+first-order fit at the same round count, on the same INSPIRE
+group-aware split used throughout this evaluation, independently at
+Small, Medium, and Large scale.
+
+**Evidence** (full table in `docs/inspire_kanboost_evaluation.md` §9):
+
+| Scale | Rounds | 1st-order AUROC/AUPRC | Newton AUROC/AUPRC | Fit-time change |
+|---|---:|---|---|---|
+| Small | 100 | 0.9225/0.6707 | 0.9246/0.6879 | neutral (31.7s->31.3s) |
+| Medium | 140 | 0.9389/0.7560 | 0.9411/0.7686 | +33% slower (294.4s->390.9s) |
+| Large | 180 | 0.9413/0.7643 | 0.9434/0.7757 | -19% faster (863.1s->702.4s) |
+
+**Accepted**: accuracy improved consistently at every scale (AUROC
++0.0021 to +0.0022, AUPRC +0.011 to +0.017) -- the acceptance gate's
+core claim. Fit-time change is inconsistent across scales (most likely
+because the reweighted target's curvature changes how many internal
+ALS sweeps are needed before its own convergence tolerance triggers,
+scale-dependently) -- documented honestly as an accuracy lever, not
+claimed as a speed win.
+
+**Tested and rejected**: combining this with CC-13's
+`fit_with_line_search()`. At every scale, the combination
+underperformed either technique alone (e.g. Large, 50 rounds: combined
+AUROC 0.9400 vs. 0.9434 for Newton alone at 180 rounds or 0.9432 for
+line search alone at 50 rounds) -- the line search there optimizes
+against the *original* loss while the learner was fit to the
+Newton-*reweighted* target, a real inconsistency. Not fixed here;
+flagged as future work requiring a line search against the same
+reweighted objective, not a naive combination of the two modules.
+
+**What was added to `kanboost/`**: `kanboost/train/newton.py`
+(`fit_with_newton_boosting()` -- populates `learners_`/`init_pred_`/
+`best_iteration_` in the exact format `_boost_chain` would, so the
+model's own `predict_proba()`/`save()`/`load()` all work unmodified,
+unlike CC-13's line search which needed its own predict function),
+`tests/test_newton.py` (5 cases: fit+predict via standard API,
+accuracy-improvement check, multiclass rejection, regressor rejection,
+save/load roundtrip), docs in `docs/guide/training-speed.md` and
+`docs/inspire_kanboost_evaluation.md` (executive summary, §9).
+
+**Verification before publishing**: full test suite on `main` after
+adding the new files -- 181 passed, 3 skipped, zero failures (~4 min).
+
+**Gate bypass**: same override as CC-12/CC-13 above -- user explicitly
+authorized skipping the standing Codex-review-then-ChatGPT-judgment
+gate for this proposal too, in the same session.
+
+**Version bump**: `1.5.0` -> `1.6.0` (minor, per semver -- purely
+additive new module). Bumped in both `pyproject.toml` and
+`kanboost/__init__.py`.
+
+-- Claude Code, 2026-07-31

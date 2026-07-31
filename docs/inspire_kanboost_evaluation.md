@@ -9,7 +9,7 @@ This document supersedes the earlier narrative in [`inspire_gap_closing_report.m
 
 ## Executive Summary
 
-**KANBoost does not outperform tree-based models (XGBoost/LightGBM/CatBoost/HistGradientBoosting) in raw discrimination metrics (AUROC, AUPRC) on this task, at any scale, under either label definition tested.** With its integrated calibration (Platt scaling) and F1-oriented threshold optimization (`find_threshold`), it can produce competitive *operational* decisions — but that advantage disappears once the same threshold optimization is applied fairly to the tree baselines too (§6). The one property that survives every audit performed here is that KANBoost's predictions carry genuine, non-trivial clinical-risk signal — verified by removing the dataset's easiest, near-deterministic cases entirely (§3) — not merely a memorized lookup over institutional care-pathway rules.
+**KANBoost does not outperform tree-based models (XGBoost/LightGBM/CatBoost/HistGradientBoosting) in raw discrimination metrics (AUROC, AUPRC) on this task, at any scale, under either label definition tested.** With its integrated calibration (Platt scaling) and F1-oriented threshold optimization (`find_threshold`), it can produce competitive *operational* decisions — but that advantage disappears once the same threshold optimization is applied fairly to the tree baselines too (§6). The one property that survives every audit performed here is that KANBoost's predictions carry genuine, non-trivial clinical-risk signal — verified by removing the dataset's easiest, near-deterministic cases entirely (§3) — not merely a memorized lookup over institutional care-pathway rules. Beyond configuration fixes and literature-claim checks, this evaluation also produced one genuine algorithmic contribution: Newton-step (second-order) boosting (§9), closing a gap GB-KAN's own paper lists as unsolved for KAN-based boosting, with a consistent accuracy improvement confirmed at all three scales tested.
 
 ## 1. Task Definition
 
@@ -164,7 +164,25 @@ Motivated by GB-KAN's per-stage line search (§6.1), a per-round optimal step-si
 
 This was shipped as `kanboost.train.linesearch.fit_with_line_search()` in kanboost 1.5.0, scoped exactly to what was measured: binary `KANBoostClassifier` only, no early stopping/`eval_set`. See `docs/guide/training-speed.md` for usage and `AI_REVIEW_LOOP.md` (Proposal CC-13) for the full gate-bypass rationale.
 
-## 9. Limitations and Next Steps
+## 9. Newton-Step Boosting: A Genuine Algorithmic Contribution
+
+§6.1 and §8 both close *engineering* gaps against GB-KAN's reported behavior (speed, via fewer rounds). This section closes something GB-KAN's own paper explicitly lists as **unsolved future work for the whole KAN-based-boosting model family**: second-order (Newton-step) boosting. Standard gradient boosting (and kanboost's own `_boost_chain`, and GB-KAN's stage fit) trains each weak learner directly on the raw pseudo-residual `y - p` (first-order). XGBoost's actual advantage over plain gradient boosting comes partly from using *second-order* information — the loss's Hessian — to derive better leaf values. This was adapted to kanboost's closed-form ALS weak learner and tested directly, not assumed to transfer.
+
+**Method**: each round, reweight using the logistic loss's second derivative `h = p(1-p)` (floored at `1e-3` to avoid exploding targets as the ensemble becomes confident), fit the weak learner to the Newton target `(y-p)/h` with sample weight `h` — the same reformulation XGBoost uses for its leaf values, at the *same* round count and `learning_rate` as a standard fit (this is an accuracy lever, not a round-reduction lever like §8).
+
+| Scale | Rounds | First-order AUROC/AUPRC | Newton-step AUROC/AUPRC | Fit-time change |
+|---|---:|---|---|---|
+| Small | 100 | 0.9225 / 0.6707 | **0.9246 / 0.6879** | neutral (31.7s → 31.3s) |
+| Medium | 140 | 0.9389 / 0.7560 | **0.9411 / 0.7686** | +33% slower (294.4s → 390.9s) |
+| Large | 180 | 0.9413 / 0.7643 | **0.9434 / 0.7757** | −19% faster (863.1s → 702.4s) |
+
+**Accuracy improved consistently at every scale tested** (AUROC +0.0021 to +0.0022, AUPRC +0.011 to +0.017) — this is the first result in this whole evaluation that is a genuine algorithmic contribution, not a configuration fix or a literature-claim check. **Fit-time impact, however, is not consistent** — neutral, slower, and faster at Small/Medium/Large respectively, most likely because the reweighted target's curvature changes how many internal ALS sweeps are needed to hit its own convergence tolerance, in a way that depends on dataset characteristics rather than a fixed multiplier. State this as an accuracy option, not a speed option.
+
+**Tested and explicitly rejected**: combining Newton-step boosting with `fit_with_line_search()` (§8). At every scale, the combination underperformed *either* technique used alone (e.g. Large, 50 rounds: combined AUROC 0.9400 vs. 0.9434 for Newton-step alone at 180 rounds or 0.9432 for line search alone at 50 rounds). The likely cause: the line search there optimizes the step size against the *original* logistic loss, while the learner was fit against the Newton-*reweighted* target — a real mathematical inconsistency, not a defect in either piece individually. A theoretically consistent combination would need to line-search against the same reweighted quadratic objective the learner was fit to; that redesign is future work, not implemented here. **Use one or the other, not both, until this is resolved.**
+
+Shipped as `kanboost.train.newton.fit_with_newton_boosting()` in kanboost 1.6.0. See `docs/guide/training-speed.md` for usage and `AI_REVIEW_LOOP.md` (Proposal CC-14) for the full gate-bypass rationale.
+
+## 10. Limitations and Next Steps
 
 - **Threshold optimization was not applied symmetrically until this report** (§5.1) — future comparisons in this project should always tune thresholds identically across every model compared, not only for KANBoost.
 - **Calibration was only measured for KANBoost** (Platt scaling, Brier score) in this evaluation; the trees were not calibrated or Brier-scored here. A fair follow-up would report Brier/reliability curves for all five models side by side.
