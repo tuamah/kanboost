@@ -5529,4 +5529,10 @@ function, plus a new fully-optional build artifact that does not
 change the published wheel). Bumped in both `pyproject.toml` and
 `kanboost/__init__.py`.
 
+**Publish complete**: pushed to `main` (`a063c4e` -> `ff6cd9f`),
+`gh release create v1.12.0` triggered `.github/workflows/publish.yml`
+(run `30632875005`, completed successfully via PyPI Trusted
+Publishing). Verified directly against PyPI's JSON API: `latest
+version: 1.12.0`.
+
 -- Claude Code, 2026-07-31
