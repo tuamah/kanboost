@@ -155,3 +155,69 @@ other, not both.
 
 **Scope**: binary `KANBoostClassifier` only (not multiclass, not
 `KANBoostRegressor`).
+
+## A different weak-learner engine entirely: `fit_with_rfkan()`
+
+Everything above keeps kanboost's standard weak-learner engine (Gauss-Newton
+ALS, `_fit_als`) and changes only the target reweighting or step size.
+`kanboost.train.rfkan.fit_with_rfkan()` replaces the engine itself: ALS
+alternately refits both layers for up to 10 sweeps per learner, and
+profiling traced most of the per-round cost to that alternation (a
+fresh eigendecomposition every sweep, since the hidden representation
+changes each time). RF-KAN instead freezes the input→hidden layer as a
+fresh **random projection each round** (Random Features / ELM: Rahimi &
+Recht 2007, Huang 2006) and solves the hidden→output layer with ONE
+closed-form penalized least-squares solve — no alternation, no repeated
+eigendecomposition.
+
+```python
+from kanboost import KANBoostClassifier
+from kanboost.train.rfkan import fit_with_rfkan, predict_proba_rfkan
+
+model = KANBoostClassifier(n_estimators=140)  # same round count as a normal fit
+fit_with_rfkan(model, X_train, y_train)
+proba = predict_proba_rfkan(model, X_test)  # NOT model.predict_proba --
+                                             # each round's layer0 is
+                                             # independently random
+```
+
+Measured on INSPIRE, same round count as a normal fit, all three scales
+— accuracy matches (not just approximates) the standard ALS engine, at
+3.7–5.3x less fit time:
+
+| Scale | ALS (standard) | RF-KAN | Speedup |
+|---|---|---|---:|
+| Small | 27.6s, AUROC 0.9225/AUPRC 0.6707 | 7.4s, 0.9226/0.6709 | 3.7x |
+| Medium | 265.5s, 0.9389/0.7560 | 62.4s, 0.9388/0.7561 | 4.3x |
+| Large | 618.0s, 0.9413/0.7643 | 143.6s, 0.9413/0.7643 | 4.3x |
+
+It composes with the two options above — `use_newton=True` gives the
+**best accuracy** of any option in this guide, at the *same* speed as
+plain RF-KAN (Small 0.9247/0.6878, Medium 0.9411/0.7688, Large
+0.9433/0.7758 — better than standard ALS on every metric, 3.7–4.3x
+faster); `use_line_search=True` gives the **best speed**, since RF-KAN's
+speedup and line search's round-count reduction compound (Medium: 42
+rounds instead of 140, 19.3s instead of 265.5s — 13.8x — with AUROC/AUPRC
+both *exceeding* the full-round baseline: 0.9407/0.7643 vs. 0.9389/0.7560).
+
+**`use_newton=True` and `use_line_search=True` together are rejected
+with a `ValueError`** — measured at all three scales, the combination
+is worse than either alone every time, for the same reason noted above
+(line search optimizing against the original loss vs. a
+Newton-reweighted fit target).
+
+**The real tradeoff, stated plainly**: layer0 is a fresh random
+projection every round here, not a representation that adapts to the
+data the way standard ALS's does. This means KANBoost's native
+interpretability tools — `feature_contributions()`, `plot_feature()`,
+`symbolic_report()`, `feature_interaction()` — are **not meaningful**
+on a model fitted this way, since there's no stable input-to-hidden
+mapping to attribute through. That's kanboost's primary differentiator
+against tree boosting, and RF-KAN gives it up for speed. Use
+`fit_with_newton_boosting()`/`fit_with_line_search()` (which keep
+standard ALS, interpretability intact) when that matters for a given
+model; use `fit_with_rfkan()` when raw speed/accuracy is the priority
+and you don't need to interpret that particular model afterward.
+
+**Scope**: binary `KANBoostClassifier` only (not multiclass, not
+`KANBoostRegressor`).

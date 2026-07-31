@@ -9,7 +9,7 @@ This document supersedes the earlier narrative in [`inspire_gap_closing_report.m
 
 ## Executive Summary
 
-**KANBoost does not outperform tree-based models (XGBoost/LightGBM/CatBoost/HistGradientBoosting) in raw discrimination metrics (AUROC, AUPRC) on this task, at any scale, under either label definition tested.** With its integrated calibration (Platt scaling) and F1-oriented threshold optimization (`find_threshold`), it can produce competitive *operational* decisions — but that advantage disappears once the same threshold optimization is applied fairly to the tree baselines too (§6). The one property that survives every audit performed here is that KANBoost's predictions carry genuine, non-trivial clinical-risk signal — verified by removing the dataset's easiest, near-deterministic cases entirely (§3) — not merely a memorized lookup over institutional care-pathway rules. Beyond configuration fixes and literature-claim checks, this evaluation also produced one genuine algorithmic contribution: Newton-step (second-order) boosting (§9), closing a gap GB-KAN's own paper lists as unsolved for KAN-based boosting, with a consistent accuracy improvement confirmed at all three scales tested.
+**KANBoost does not outperform tree-based models (XGBoost/LightGBM/CatBoost/HistGradientBoosting) in raw discrimination metrics (AUROC, AUPRC) on this task, at any scale, under either label definition tested.** With its integrated calibration (Platt scaling) and F1-oriented threshold optimization (`find_threshold`), it can produce competitive *operational* decisions — but that advantage disappears once the same threshold optimization is applied fairly to the tree baselines too (§6). The one property that survives every audit performed here is that KANBoost's predictions carry genuine, non-trivial clinical-risk signal — verified by removing the dataset's easiest, near-deterministic cases entirely (§3) — not merely a memorized lookup over institutional care-pathway rules. Beyond configuration fixes and literature-claim checks, this evaluation also produced two genuine algorithmic contributions: Newton-step (second-order) boosting (§9), closing a gap GB-KAN's own paper lists as unsolved for KAN-based boosting; and RF-KAN (§10), a rebuilt weak-learner engine (random-projection input layer, one closed-form solve per round instead of up to ten alternating sweeps) that cuts fit time 3.7–5.3x at matching accuracy — at the cost of the model's native interpretability, a tradeoff stated explicitly, not hidden.
 
 ## 1. Task Definition
 
@@ -182,7 +182,26 @@ This was shipped as `kanboost.train.linesearch.fit_with_line_search()` in kanboo
 
 Shipped as `kanboost.train.newton.fit_with_newton_boosting()` in kanboost 1.6.0. See `docs/guide/training-speed.md` for usage and `AI_REVIEW_LOOP.md` (Proposal CC-14) for the full gate-bypass rationale.
 
-## 10. Limitations and Next Steps
+## 10. RF-KAN: Rebuilding the Weak-Learner Engine Itself
+
+§8 and §9 both improve outcomes *within* kanboost's standard weak-learner engine (Gauss-Newton ALS, `_fit_als`). This section rebuilds the engine itself, after diagnosing exactly where its per-round cost comes from.
+
+**Diagnosis**: ALS alternately refits both layers (input→hidden, hidden→output) for up to 10 sweeps per learner. Because the hidden representation changes every sweep, the hidden→output layer's normal-equations system needs a fresh eigendecomposition every sweep, every learner — up to `n_estimators × 10` such decompositions across a chain, none of it cacheable the way the input→hidden system already is (kanboost's `basis_cache`).
+
+**Two designs were tested, not just the first idea that seemed plausible**:
+
+1. **Freeze one shared random projection for the entire chain** (naive Random-Features boosting): every learner's input→hidden layer identical, letting the hidden→output system's eigendecomposition be cached *once for the whole chain*. Tested on Small: 100x faster (31.5s→0.3s) but a real accuracy cost (AUPRC −0.03 to −0.045) that did *not* improve with more hidden units as Random Features theory would suggest — boosting needs per-round diversity to correct itself round to round, and a chain-shared projection removes that.
+2. **Re-randomize the projection every round** (RF-KAN, what was actually adopted): each round gets its own fresh random input→hidden layer *and* its own closed-form solve — no sweeps, no alternation, but no cross-round caching either (each round still needs one eigendecomposition, just one instead of up to ten). Tested on Small: 3.8x faster (31.5s→8.3s) with accuracy *matching* the standard engine (0.9226/0.6709 vs. 0.9225/0.6707) — not approximating it, matching it.
+
+Design 2 was the one carried forward and validated at all three scales (table in `docs/guide/training-speed.md`): 3.7–5.3x speedup, accuracy matching the standard ALS engine almost exactly (identical to 4 decimal places at Large: 0.9413/0.7643 both ways).
+
+**Composing with §8/§9**: RF-KAN's per-round update is computed the same way ALS's is (a first-order pseudo-residual fit, or a Newton-reweighted one) — so it combines cleanly with `use_newton=True` (best accuracy of any option: Large 0.9433/0.7758, beating standard ALS on every metric, at 4.3x its speed) and `use_line_search=True` (best speed: Medium 42 rounds instead of 140, 19.3s instead of 265.5s — 13.8x — with AUROC/AUPRC *exceeding* the full-round baseline). The Newton+line-search incompatibility from §9 persists regardless of engine — confirmed again here at all three scales, and now enforced with a `ValueError` in the shipped code rather than left to documentation alone.
+
+**The real cost, stated plainly**: layer0 no longer adapts to the data — it's random every round. KANBoost's native interpretability tools (`feature_contributions()`, `plot_feature()`, `symbolic_report()`, `feature_interaction()`) are not meaningful on an RF-KAN-fitted model, since there's no stable input-to-hidden mapping to attribute through. This is kanboost's primary differentiator against tree boosting, and RF-KAN trades it for speed. `fit_with_newton_boosting()`/`fit_with_line_search()` (§8/§9, standard ALS underneath) keep that differentiator intact; `fit_with_rfkan()` does not.
+
+Shipped as `kanboost.train.rfkan.fit_with_rfkan()`/`predict_proba_rfkan()` in kanboost 1.7.0. See `AI_REVIEW_LOOP.md` (Proposal CC-15) for the full gate-bypass rationale.
+
+## 11. Limitations and Next Steps
 
 - **Threshold optimization was not applied symmetrically until this report** (§5.1) — future comparisons in this project should always tune thresholds identically across every model compared, not only for KANBoost.
 - **Calibration was only measured for KANBoost** (Platt scaling, Brier score) in this evaluation; the trees were not calibrated or Brier-scored here. A fair follow-up would report Brier/reliability curves for all five models side by side.

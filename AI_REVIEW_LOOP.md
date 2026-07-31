@@ -4920,3 +4920,100 @@ Publishing). Verified directly against PyPI's JSON API:
 `latest version: 1.6.0`.
 
 -- Claude Code, 2026-07-31
+
+---
+
+## [Claude Code] Proposal CC-15 -- `fit_with_rfkan()`: rebuilding the weak-learner engine, published ahead of the normal review gate -- explicit user override, 2026-07-31
+
+**Competitor/gap**: after CC-13 (line search) and CC-14 (Newton-step)
+both improved outcomes *within* kanboost's standard weak-learner engine
+without ever reducing its per-round cost, the user asked directly for
+a real algorithm to either fix or completely rebuild the ALS engine.
+Diagnosis: `_fit_als` alternately refits both layers for up to 10
+sweeps per learner; since the hidden representation changes every
+sweep, the hidden->output layer's normal-equations system needs a
+fresh eigendecomposition every sweep, every learner (up to
+`n_estimators*10` decompositions per chain) -- the one part of the
+per-round cost none of kanboost's existing caching touches.
+
+**Hypothesis, tested in two designs, not assumed**: Random Features /
+Extreme Learning Machine theory (Rahimi & Recht 2007; Huang 2006)
+implies a frozen random input->hidden projection retains universal-
+approximation capacity given enough hidden units, letting the
+hidden->output layer be solved in one closed-form step -- no
+alternation, no repeated eigendecomposition.
+
+**Scope**: binary `KANBoostClassifier` only, no `eval_set`/early
+stopping (same constraints as CC-13/CC-14).
+
+**Acceptance gate**: fit time must drop substantially versus standard
+ALS at the same round count, with AUROC/AUPRC not meaningfully
+regressing, confirmed independently at Small, Medium, and Large scale.
+
+**Evidence** (full tables in `docs/inspire_kanboost_evaluation.md` §10
+and `docs/guide/training-speed.md`):
+
+Design 1 (one random projection shared across the WHOLE chain, tested
+first, on Small only): 100x faster (31.5s->0.3s) but a real accuracy
+cost (AUPRC -0.03 to -0.045) that did NOT improve with more hidden
+units as RF theory would suggest -- boosting needs per-round diversity
+to self-correct; a chain-shared projection removes it. **Rejected**
+based on this measurement, not assumed to fail or succeed.
+
+Design 2 (RF-KAN, re-randomize the projection EVERY round instead):
+
+| Scale | Rounds | ALS (standard) | RF-KAN alone | Speedup |
+|---|---:|---|---|---:|
+| Small | 100 | 27.6s, 0.9225/0.6707 | 7.4s, 0.9226/0.6709 | 3.7x |
+| Medium | 140 | 265.5s, 0.9389/0.7560 | 62.4s, 0.9388/0.7561 | 4.3x |
+| Large | 180 | 618.0s, 0.9413/0.7643 | 143.6s, 0.9413/0.7643 | 4.3x |
+
+**Accepted**: accuracy matches the standard engine almost exactly (Large:
+identical to 4 decimal places) at 3.7-4.3x its speed, confirmed
+independently at all three scales -- re-randomizing per round costs
+nothing extra (still one eigendecomposition per round, same as the
+chain-shared design) while fully recovering the accuracy the
+chain-shared design lost.
+
+**Composed with CC-13/CC-14, tested at all three scales**:
+`use_newton=True` gives the best accuracy of any option across all
+three CC-13/14/15 proposals (Large: 0.9433/0.7758, beating standard ALS
+on every metric, at 4.3x its speed); `use_line_search=True` gives the
+best speed (Medium: 42 rounds instead of 140, 19.3s instead of 265.5s
+-- 13.8x -- AUROC/AUPRC both *exceeding* the full-round baseline).
+`use_newton=True` and `use_line_search=True` together reconfirmed
+incompatible at all three scales (same root cause as CC-14) --
+enforced with a `ValueError` in the shipped code this time, not left
+to documentation alone, since every measured combination made things
+strictly worse.
+
+**The real cost, not hidden**: layer0 is random every round here, not
+data-adaptive -- `feature_contributions()`/`plot_feature()`/
+`symbolic_report()`/`feature_interaction()` are not meaningful on an
+RF-KAN-fitted model. This is kanboost's primary differentiator against
+tree boosting, and RF-KAN trades it for speed. Documented prominently
+in the module docstring and `docs/guide/training-speed.md` as a real
+tradeoff, not a strict improvement over CC-13/CC-14 -- those stay
+recommended whenever interpretability is needed for a given model.
+
+**What was added to `kanboost/`**: `kanboost/train/rfkan.py`
+(`fit_with_rfkan()`/`predict_proba_rfkan()`), `tests/test_rfkan.py` (8
+cases: fit+predict, speed-vs-standard-fit, Newton improvement, line-
+search fewer-rounds competitiveness, newton+linesearch rejection,
+multiclass rejection, regressor rejection, predict-without-rfkan-fit
+rejection), docs in `docs/guide/training-speed.md` and
+`docs/inspire_kanboost_evaluation.md` (executive summary, new §10).
+
+**Verification before publishing**: full test suite on `main` after
+adding the new files -- 189 passed, 3 skipped, zero regressions
+(~4 min).
+
+**Gate bypass**: same override as CC-12/13/14 above -- user explicitly
+authorized skipping the standing Codex-review-then-ChatGPT-judgment
+gate for this proposal too, in the same session.
+
+**Version bump**: `1.6.0` -> `1.7.0` (minor, per semver -- purely
+additive new module). Bumped in both `pyproject.toml` and
+`kanboost/__init__.py`.
+
+-- Claude Code, 2026-07-31
