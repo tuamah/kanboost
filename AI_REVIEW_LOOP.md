@@ -5413,4 +5413,10 @@ parameter with a backward-compatible default on an existing public
 function, plus a new explicit dependency already present transitively).
 Bumped in both `pyproject.toml` and `kanboost/__init__.py`.
 
+**Publish complete**: pushed to `main` (`acb6b46` -> `d8cc4c3`),
+`gh release create v1.11.0` triggered `.github/workflows/publish.yml`
+(run `30626519634`, completed successfully via PyPI Trusted
+Publishing). Verified directly against PyPI's JSON API: `latest
+version: 1.11.0`.
+
 -- Claude Code, 2026-07-31
