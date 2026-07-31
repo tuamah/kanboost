@@ -5535,4 +5535,24 @@ change the published wheel). Bumped in both `pyproject.toml` and
 Publishing). Verified directly against PyPI's JSON API: `latest
 version: 1.12.0`.
 
+**Addendum, same day: cross-platform build confirmed via real CI, not
+assumed.** The extension had only been built and tested on Windows
+(MinGW-w64) up to this point. Added `.github/workflows/cppext.yml` --
+installs `pybind11`, runs `python setup.py build_ext --inplace`,
+verifies `kanboost.train.ga2m._cpp_ext` actually imports (fails loudly
+if not, rather than silently skipping), then runs the full test suite
+so `tests/test_ga2m.py`'s C++-vs-Python correctness checks actually
+execute against a real build instead of skipping. Matrix: `ubuntu-latest`
+/ `macos-latest` x Python 3.10/3.12 (4 jobs). **Result: all 4 passed**
+(run `30634452828`, ubuntu 3.10 4m24s, ubuntu 3.12 4m24s, macos 3.10
+4m39s, macos 3.12 3m35s) -- confirms the optional extension is genuinely
+portable across Windows (tested locally), Linux, and macOS (both now
+verified in CI), not merely assumed to be from `pybind11`/C++17 being
+nominally cross-platform. Separate workflow from `tests.yml` so a
+future failure here (e.g. a compiler-availability change on GitHub's
+runners) never blocks the main, always-pure-Python test suite.
+
+**Version bump**: none (CI-only addition, no package code or behavior
+change).
+
 -- Claude Code, 2026-07-31
