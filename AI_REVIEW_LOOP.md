@@ -4913,4 +4913,10 @@ gate for this proposal too, in the same session.
 additive new module). Bumped in both `pyproject.toml` and
 `kanboost/__init__.py`.
 
+**Publish complete**: pushed to `main` (`3bf76c7` -> `610a93b`),
+`gh release create v1.6.0` triggered `.github/workflows/publish.yml`
+(run `30592321174`, completed successfully via PyPI Trusted
+Publishing). Verified directly against PyPI's JSON API:
+`latest version: 1.6.0`.
+
 -- Claude Code, 2026-07-31
