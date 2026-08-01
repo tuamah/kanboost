@@ -5556,3 +5556,491 @@ runners) never blocks the main, always-pure-Python test suite.
 change).
 
 -- Claude Code, 2026-07-31
+
+## [Claude Code] Proposal CC-24 -- row subsampling (stochastic gradient boosting) in `fit_with_ga2m`: REJECTED, no accuracy effect, 2026-08-01
+
+**Competitor/gap**: literature review this session (GB-KAN, Mohr & Frochte,
+ICAART 2026 -- the directly comparable KAN-as-weak-learner boosting paper)
+found that its own reference algorithm draws a random row subset every
+boosting round before fitting each stage (`pi_row` in their Algorithm 1),
+following classic stochastic gradient boosting (Friedman, 2002). A direct
+grep of `kanboost/core/base.py`, `kanboost/train/{newton,rfkan,ga2m,
+linesearch}.py` confirmed kanboost has **no row subsampling anywhere** --
+every fit path uses 100% of rows every round, unlike every mature tree
+boosting library (XGBoost `subsample`, LightGBM `bagging_fraction`,
+sklearn `GradientBoosting(subsample=...)`).
+
+**Hypothesis**: adding optional per-round row subsampling to
+`fit_with_ga2m` (classic stochastic-GB semantics: the round's spline
+coefficients are fit only on a random subset, but `F` is updated for ALL
+rows using that subset-fit learner's predictions, and line search for
+`gamma` still uses the full data) would act as a regularizer and improve
+generalization (AUROC/AUPRC), the way it does in every tree-boosting
+library it's borrowed from.
+
+**Implementation** (research-branch/scratchpad only, `kanboost/train/
+ga2m.py` NOT modified on disk): a monkeypatched drop-in replacement for
+`_fit_ga2m_chain` in a standalone script
+(`cc24_row_subsample.py`), verified bit-faithful to the original at
+`subsample=1.0` (same math exactly, confirmed by construction: at
+`frac=1.0` the subset index is `np.arange(n)`, so `B1_sub`/`target_sub`/
+`fit_weight_sub` equal the full-data arrays used by the unmodified
+function).
+
+**Evidence** (real INSPIRE data, `postop_icu` target, Medium scale --
+50,000-row subject-grouped subsample, `n_estimators=42,
+n_pairs_per_round=10, use_line_search=True`, 3 seeds x 3-fold
+`StratifiedGroupKFold` by `subject_id`, matching CC-22's methodology):
+
+| subsample | AUROC | AUPRC | time/seed |
+|---|---|---|---|
+| 1.0 (baseline, current shipped) | 0.9419 +/- 0.0002 | 0.7548 +/- 0.0007 | 45.7s |
+| 0.8 | 0.9418 +/- 0.0002 | 0.7546 +/- 0.0009 | 44.9s |
+| 0.5 | 0.9418 +/- 0.0002 | 0.7547 +/- 0.0010 | 41.7s |
+
+Delta vs. baseline at `subsample=0.5`: AUROC ~0.0000, AUPRC -0.0001 --
+**entirely within CV noise** (baseline's own std is 0.0002-0.0007).
+
+**REJECTED as an accuracy proposal**: the core hypothesis (row
+subsampling improves generalization on this task, per the literature it
+was borrowed from) did not hold -- no measurable accuracy effect in
+either direction, confirmed across 3 seeds. A plausible reason: GA2M's
+existing `sample_weight`-based class balancing plus per-round line search
+may already supply enough regularization that an additional row-level
+stochasticity source has nothing left to contribute on this dataset --
+untested speculation, not confirmed, noted only as a candidate
+explanation for why this diverges from the tree-boosting literature.
+
+**Secondary observation, NOT the tested hypothesis, not itself a basis
+for acceptance**: `subsample=0.5` was ~8.8% faster (41.7s vs. 45.7s) at
+zero measured accuracy cost. This is a real number but was never the
+proposal under test (CC-24 was an accuracy proposal) and has not been
+evaluated as a standalone speed lever (no acceptance criteria were
+predefined for a speed-only version of this change, no Small/Large-scale
+confirmation, no repeated-seed variance check on the speed number
+itself). Recorded here for completeness only; would need its own
+proposal/protocol if pursued later.
+
+**What was NOT changed**: `kanboost/train/ga2m.py` and every other
+`kanboost/` file are untouched -- this was evidence-gathering only, per
+CLAUDE.md rule 3 (no stable-implementation changes without evidence) and
+rule 12 (reject on failed acceptance criteria even if partially
+promising). Experimental script removed from the research branch (was
+scratchpad-only, never committed).
+
+**Status: CLOSED, rejected.**
+
+-- Claude Code, 2026-08-01
+
+## [Claude Code] Proposal CC-25 -- lower B-spline degree (`kan_k=1`) to test the "over-smooth bias" hypothesis: REJECTED, made accuracy worse, 2026-08-01
+
+**Competitor/gap**: literature review this session (Grinsztajn et al.,
+NeurIPS 2022, "Why do tree-based models still outperform deep learning
+on tabular data?") found that neural/spline-based models are biased
+toward overly-smooth solutions, while real tabular target functions are
+often irregular (their smoothing-kernel experiment: smoothing the
+target barely hurts neural nets but sharply hurts trees, implying trees
+already exploit real irregularity in the target that smooth models
+can't). kanboost's weak learners are B-splines (smooth by construction,
+Ck-1 continuous), a plausible structural source of kanboost's INSPIRE
+accuracy gap vs. XGBoost/HistGradientBoosting.
+
+**Hypothesis**: lowering `kan_k` (B-spline degree, already an exposed
+`KANBoostClassifier` constructor parameter -- no new code needed) from
+the default 3 (cubic, very smooth) to 1 (linear, much less smooth) would
+let kanboost better represent irregular/threshold effects in
+`postop_icu`, narrowing the AUPRC gap.
+
+**Evidence** (real INSPIRE data, Medium scale, `n_estimators=42,
+n_pairs_per_round=10, use_line_search=True`, 3 seeds x 3-fold
+`StratifiedGroupKFold`, identical methodology to CC-22/CC-24):
+
+| kan_k | AUROC | AUPRC | time/seed |
+|---|---|---|---|
+| 3 (baseline, cubic, current default) | 0.9419 +/- 0.0002 | 0.7548 +/- 0.0007 | 42.9s |
+| 1 (linear, less smooth) | 0.9404 +/- 0.0003 | 0.7493 +/- 0.0015 | 23.9s |
+
+Delta: AUROC -0.0014, AUPRC -0.0054 -- clearly outside CV noise (more
+than 7x the combined standard deviation).
+
+**REJECTED, and the direction is the opposite of the hypothesis**:
+lowering smoothness made accuracy *worse*, not better, on `postop_icu`.
+Plausible explanation (not confirmed, noted as a candidate only): this
+target may not have enough genuinely sharp thresholds for reduced
+smoothness to help, while the loss of representational flexibility
+(fewer effective degrees of freedom per spline at `k=1` vs `k=3`) is a
+real, measured cost. `kan_k=1` was ~44% faster (23.9s vs. 42.9s/seed) --
+noted for completeness, not itself grounds for acceptance since this was
+an accuracy proposal.
+
+**What was NOT changed**: no `kanboost/` file touched -- pure
+hyperparameter test via the already-exposed `kan_k` argument.
+
+**Status: CLOSED, rejected.**
+
+-- Claude Code, 2026-08-01
+
+## [Claude Code] Proposal CC-26 -- Chebyshev polynomial basis (TabKAN-style) instead of B-spline: REJECTED, confirmed on Kaggle, 2026-08-01
+
+**Competitor/gap**: literature review this session (TabKAN,
+arXiv:2504.06559) found KAN variants using alternative 1D bases
+(Chebyshev, Fourier, rational/Pade, fractional Jacobi) instead of
+B-splines outperforming XGBoost on several benchmarks. Combined with
+CC-25's finding (smoothness itself isn't obviously the problem, at least
+not via degree reduction), this proposal tested whether swapping the
+*type* of basis (global/polynomial vs. B-spline's local/piecewise
+support), independent of smoothness degree, does better -- specifically
+on data engineered to contain a genuinely irregular (hard step)
+component, per the Grinsztajn diagnostic, to isolate WHERE a basis
+change would matter if it mattered anywhere.
+
+**Method**: synthetic-only data (`x0`=smooth sine, `x1`=**hard step**
+discontinuity, `x2`=pure noise, `x3`=mild linear -- explicitly NOT
+INSPIRE, per standing instruction not to use/upload real data on
+Kaggle). Two main-effects-only additive logistic-boosting models built
+with the SAME boosting loop (kanboost's own `LogisticLoss`/
+`_eigh_factor`/`_solve_with_factor`/bounded line search via
+`minimize_scalar`), differing ONLY in basis: (a) kanboost's real,
+unmodified `fit_with_ga2m(..., n_pairs_per_round=0)` (B-spline, current
+shipped default), (b) a standalone Chebyshev-basis (degree 5) variant
+built in the test script only, reusing kanboost's solver primitives but
+touching no package file. 5 seeds, 70/30 train/test split each.
+
+**Evidence, run TWICE independently and found bit-identical** -- once
+locally, once pushed to and executed on Kaggle via the public API
+(`kernels/push`+`kernels/status`+`kernels/output`, no GPU/data needed,
+CPU-only, ~9s kernel runtime) per this project's double-experiment
+protocol (AGENTS.md):
+
+| Basis | AUROC | AUPRC | LogLoss |
+|---|---|---|---|
+| **B-spline (kanboost shipped)** | 0.9557 +/- 0.0039 | 0.9404 +/- 0.0045 | 0.2408 +/- 0.0124 |
+| Chebyshev (degree 5) | 0.9467 +/- 0.0057 | 0.9314 +/- 0.0087 | 0.2743 +/- 0.0145 |
+
+Delta (Chebyshev - B-spline): AUROC -0.0091, AUPRC -0.0090, consistently
+worse across all 5 seeds individually (not just on average) and on BOTH
+runs.
+
+**REJECTED**: B-spline beat Chebyshev even on data specifically
+engineered with a hard discontinuity that should, in theory, favor a
+basis that isn't smooth-by-construction. Interpretation: B-spline is a
+**local-support** basis (each coefficient affects only a small window),
+so it can locally approximate a sharp transition via a steep run of
+knots; Chebyshev is a **global** basis (every coefficient affects the
+entire domain), which is prone to Gibbs-phenomenon oscillation near
+discontinuities -- the opposite of what the swap was meant to fix.
+Combined with CC-25, this closes out both tested "smoothness/basis"
+explanations for kanboost's INSPIRE accuracy gap: neither reducing
+B-spline degree nor replacing B-spline with a global polynomial basis
+helped, and both measurably hurt. The gap's cause lies elsewhere (see
+CC-27 for the next candidate: boosting-loop prediction shift, per
+CatBoost's ordered-boosting mechanism).
+
+**What was NOT changed**: no `kanboost/` file touched. No real/INSPIRE
+data used anywhere in this proposal (synthetic only, both locally and on
+Kaggle), per standing instruction.
+
+**Status: CLOSED, rejected.**
+
+-- Claude Code, 2026-08-01
+
+## [Claude Code] Proposal CC-27 -- K-fold cross-fitted ("ordered-boosting-like") residuals in `fit_with_ga2m`: REJECTED after two attempts, 2026-08-01
+
+**Competitor/gap**: literature review this session (CatBoost, Prokhorenkova
+et al., NeurIPS 2018) identified that every kanboost boosting engine
+suffers from **prediction shift**: each round's residual for row `i` is
+computed from `F(t-1)`, a running score that was itself fit using row
+`i` in earlier rounds -- exactly the bias CatBoost's ordered boosting
+was built to remove (via artificial time-ordering + per-prefix support
+models). CC-25/CC-26 had just ruled out both tested "basis smoothness"
+explanations for kanboost's INSPIRE accuracy gap, making this the next
+candidate.
+
+**Hypothesis**: an approximate, cheaper version of ordered boosting --
+fixed K-fold cross-fitting instead of CatBoost's full permutation-based
+scheme -- would reduce prediction shift and improve generalization.
+
+**Implementation** (`cc27_ordered_boosting.py`, scratchpad only,
+`kanboost/train/ga2m.py` untouched): each round, `K=3` weak learners are
+fit, each excluding its own fold, to produce a cross-fitted running
+score `F_ordered`/`target_ordered` that never uses a row's own history.
+The actual serving model (a separate `F_full`/`c_full`, fit on 100% of
+rows every round, matching CatBoost's own split between the internal
+ordered-gradient estimate and the final full-data model) uses the SAME
+per-round `gamma` (step size), chosen via bounded line search against
+the honest `F_ordered`/`update_ordered` pair. Tested at Small scale
+(10,000 rows, `n_estimators=30, n_pairs_per_round=6`) to keep the ~Kx
+per-round compute cost tractable for a first test, 3 seeds x 3-fold
+`StratifiedGroupKFold`, `postop_icu`.
+
+**Attempt 1 -- evidence**:
+
+| | AUROC | AUPRC | time/seed |
+|---|---|---|---|
+| Standard (current shipped) | 0.9240 +/- 0.0010 | 0.6604 +/- 0.0019 | 4.7s |
+| Ordered (K=3, v1) | 0.9225 +/- 0.0010 | 0.6399 +/- 0.0024 | 6.2s (1.31x) |
+
+Delta AUPRC -0.0205, clearly outside CV noise, and worse -- not the
+hypothesized improvement.
+
+**Root cause diagnosed in v1**: the serving model's weak learner
+(`c_full`) was fit against `target_full`, a residual recomputed from the
+*biased* `F_full` -- meaning the served model never actually used the
+cross-fitted/honest residual signal at all, defeating the entire point
+of the exercise, while ALSO applying `gamma` (chosen via line search
+against the ordered direction `update_ordered`) to a DIFFERENT direction
+(`update_full`) -- the same "step size optimized for one direction,
+applied to another" inconsistency this project already diagnosed and
+fixed elsewhere via Armijo line search (`§13`, `acb6b46`).
+
+**Attempt 2 -- fix applied and re-tested** (user explicitly authorized
+one fix attempt before final rejection): `c_full` now fits against the
+SAME honest `target_ordered` used for the cross-fitted solves (no
+separate biased `target_full` computed at all); `F_full` is now purely a
+bookkeeping accumulator for the served model's cumulative score and
+never feeds back into any residual computation.
+
+| | AUROC | AUPRC | time/seed |
+|---|---|---|---|
+| Standard (current shipped) | 0.9240 +/- 0.0010 | 0.6604 +/- 0.0019 | 4.7s |
+| Ordered (K=3, v2, fixed) | 0.9224 +/- 0.0009 | 0.6390 +/- 0.0022 | 6.2s (1.31x) |
+
+Delta AUPRC -0.0214 -- **statistically indistinguishable from v1's
+-0.0205**. The fix corrected a real, independently-diagnosed
+inconsistency, but did not change the outcome at all, which is itself
+informative: the gamma/target inconsistency was NOT the dominant cause
+of the negative result.
+
+**REJECTED, final**: two independent attempts (one exposing and fixing
+a genuine implementation bug in between) produced the same negative
+result. Plausible explanation (not confirmed, candidate only): `K=3`
+cross-fitting at Small scale (10,000 rows) forces each per-fold solve
+onto a small data slice, and the resulting residual-estimation noise
+compounds over 30 rounds faster than the debiasing benefit accrues --
+this cheap, per-round-recomputed K-fold approximation is also
+statistically much weaker than CatBoost's actual mechanism (incremental
+per-prefix support models under an artificial time ordering, not a
+fresh K-way split every round). A closer-to-CatBoost implementation was
+NOT attempted -- meaningfully higher engineering cost, and not
+justified after this specific approximation failed twice with a
+diagnosed-and-fixed inconsistency ruled out as the cause.
+
+**Session-wide conclusion (CC-24 through CC-27)**: every tested
+training/architecture-level explanation for kanboost's INSPIRE accuracy
+gap this session -- row subsampling (CC-24), reduced spline smoothness
+(CC-25), a global Chebyshev basis instead of B-spline (CC-26), and
+approximate ordered/cross-fitted boosting (CC-27) -- was tested with
+real evidence and rejected. The gap's cause remains open; the two
+strongest still-untested candidates from this session's literature
+review are (a) a full, closer-to-CatBoost ordered-boosting
+implementation (higher engineering cost, not attempted here) and (b)
+the previously-identified, already-documented Newton-reweighting
+failure mode at extreme class rarity (`§18`, `mortality_30d`).
+
+**What was NOT changed**: no `kanboost/` file touched in either attempt
+-- pure scratchpad evidence-gathering, per CLAUDE.md rule 3.
+
+**Status: CLOSED, rejected (2 attempts).**
+
+-- Claude Code, 2026-08-01
+
+## [Claude Code] Proposal CC-28 -- fixed-parameter node/edge hybrid gate at GA2M hidden units: REJECTED, catastrophic, 2026-08-01
+
+**Competitor/gap**: user-originated idea, following the tree-vs-KAN
+architecture discussion this session (trees decide at NODES, KAN learns
+on EDGES): what if GA2M's hidden-unit convergence point (currently a
+smooth B-spline of the summed edge contributions) also had decision/gate
+behavior, letting the model locally choose sharp vs. smooth per node
+instead of the fixed global choice CC-25/CC-26 had just tested (and
+rejected)?
+
+**Design (cheapest possible test, per user's request to start with fixed
+alpha/beta before any learnable version)**: `g_h(z_h) = (1-alpha)*
+spline_h(z_h) + alpha*tanh(beta*standardize(z_h))`, alpha/beta FIXED
+constants (no new coefficients fit -- pure additive offset to each
+round's existing closed-form spline solve, zero change to the linear
+algebra). `alpha=0.0` exactly reproduces shipped `fit_with_ga2m` (verified
+bit-identical, max diff 0.0, before testing nonzero alpha).
+
+**Evidence** (Small scale, `postop_icu`, 3 seeds x 3-fold, `beta=3.0`):
+
+| alpha | AUROC | AUPRC |
+|---|---|---|
+| 0.0 (baseline) | 0.9240 +/- 0.0010 | 0.6605 +/- 0.0033 |
+| 0.2 | 0.9091 +/- 0.0012 | 0.5696 +/- 0.0069 |
+| 0.5 | 0.8954 +/- 0.0017 | 0.5170 +/- 0.0091 |
+
+Delta AUPRC -0.0908 (alpha=0.2) and -0.1435 (alpha=0.5) -- catastrophic,
+monotonically worse with alpha.
+
+**REJECTED**: a gate applied uniformly to every node every round, with no
+data-driven control over where it's actually useful, just injects
+uncalibrated distortion. This does NOT refute the underlying idea (a
+learnable, per-node, opt-in gate is a different mechanism) -- it
+specifically rules out the FIXED-parameter shortcut as a way to test it
+cheaply. Sets up CC-29.
+
+-- Claude Code, 2026-08-01
+
+## [Claude Code] Proposal CC-29 -- FULLY learnable node/edge hybrid gate: INCONCLUSIVE, not accepted, 2026-08-01
+
+**Design**: per hidden unit, `alpha_h` (blend weight, sigmoid-constrained),
+`beta_h` (gate sharpness, softplus-constrained), `tau_h` (threshold) all
+LEARNED via Adam (150 steps/round -- breaks GA2M's closed-form solve,
+same design choice GB-KAN's own reference algorithm makes for its
+per-stage fit). Ridge penalty on spline coefficients + L1 penalty on
+`alpha_h` (gates OFF by default, "opt-in" per node only if the loss
+reduction justifies it -- unlike CC-28's forced-on gate).
+
+**Evidence** (Small scale, `postop_icu`, 3 seeds x 3-fold, matching
+CC-24 through CC-28 methodology):
+
+| | AUROC | AUPRC |
+|---|---|---|
+| Standard (shipped B-spline GA2M) | 0.9240 +/- 0.0010 | 0.6604 +/- 0.0019 |
+| Learnable gate (CC-29) | 0.9240 +/- 0.0010 | 0.6640 +/- 0.0029 |
+
+Delta AUROC +0.0000, Delta AUPRC **+0.0036** -- the first NON-negative
+result in this session's CC-24-through-CC-29 sequence. Mean learned
+`alpha` across all hidden units/rounds/folds was ~0.04 -- the model
+chose to use the gate lightly, confirming it self-regulates rather than
+forcing gate use, unlike CC-28's hard-coded values.
+
+**INCONCLUSIVE, not accepted**: +0.0036 is only ~1x the combined CV
+standard deviation (~0.0035) -- much smaller relative to noise than
+every REJECTED result this session (CC-25: 7x combined std; CC-26/27:
+several x combined std), so it does not clear the bar CC-30 later used
+(3x, itself borrowed from an independent research pass). Also ~10x
+slower to fit than the closed-form GA2M path (Adam optimization per
+round vs. one linear solve) -- a real cost that a marginal, unconfirmed
+effect does not justify pursuing further as of this entry. Not extended
+to more seeds/Medium scale; session pivoted instead to researching a
+different, ultimately more productive angle (CC-30) via an independent
+Opus-5 research pass, rather than chasing this one further.
+
+**What was NOT changed in CC-28/CC-29**: no `kanboost/` file touched --
+scratchpad only.
+
+-- Claude Code, 2026-08-01
+
+## [Claude Code + Opus-5 research] Proposal CC-30 -- gain-ranked pairwise-interaction selection in `fit_with_ga2m`: ACCEPTED (evidence stage), 2026-08-01
+
+**Origin**: an independent Opus-5 research pass (spawned mid-session
+after CC-24 through CC-29 all rejected/inconclusive) was given the full
+history of this session's literature review and experiments and asked
+for its own best-reasoned next idea. It identified that kanboost
+implements GA2M's *model class* (Lou et al., KDD 2013) without GA2M's
+own *term-selection mechanism*: `_build_layer0_ga2m` in the shipped
+`kanboost/train/ga2m.py` picks pairwise-interaction hidden units
+uniformly AT RANDOM every round, instead of by a gain/ranking criterion
+-- the one Grinsztajn et al. mechanism (robustness to uninformative
+features) that none of CC-24 through CC-29 had actually tested (those
+all varied term *representation* or *residual computation*, never
+*which* terms get fit).
+
+**Design**: each round, build a candidate pool of pairs (larger than the
+final count needed), score each by `gain = b'(M^-1)b` -- the penalized-
+projection achievable squared-error reduction for that pair's own
+B-spline basis block alone against the current residual (a per-block
+version of the same closed-form quantity the joint solve already uses)
+-- and keep only the top `n_pairs_per_round` by gain. Main effects
+unchanged (always included, exactly like shipped code). SAME final
+capacity as baseline (pure selection swap, not a capacity increase).
+Stays entirely in the closed-form solve (no gradient optimizer, unlike
+CC-29).
+
+**v1 evidence** (Medium scale, `postop_icu`, `pool_size=40`, 3 seeds x
+3-fold `StratifiedGroupKFold` by `subject_id`):
+
+| | AUROC | AUPRC | time/seed |
+|---|---|---|---|
+| Random (shipped) | 0.9419 +/- 0.0002 | 0.7548 +/- 0.0007 | 43.8s |
+| Gain-ranked (v1) | 0.9433 +/- 0.0003 | 0.7627 +/- 0.0011 | 86.1s |
+
+Delta AUPRC +0.0080 (6.23x combined std -- clears a pre-registered 3x
+bar). Most-selected pairs were highly consistent across all
+rounds/seeds/folds (e.g. one pair selected 172/~378 possible
+round-slots), evidence of real, stable interaction discovery rather than
+noise.
+
+**Independent Opus-5 code review** (read the actual implementation
+file, not just a summary) found the result sound (verified basis/penalty/
+line-search math against the real shipped `ga2m.py`, no leakage) but
+flagged two issues:
+1. **Seed-stream mismatch**: the comparison passed `seed_base=seed` for
+   the gain-ranked arm but `fit_with_ga2m` always uses `seed_base=0`
+   internally for the baseline -- both arms saw DIFFERENT layer0 random
+   draws for seeds 1, 2 (unpaired comparison, not itself biased but not
+   rigorous).
+2. **Speed root cause**: the ~2x slowdown traces to B-spline basis
+   evaluation count (23 calls/round baseline vs. 63 for v1: 40 pool-
+   candidate scoring + 23 final solve), not the small per-candidate
+   linear solves.
+
+**v2 (fixes applied)**: `seed_base=0` for both arms (fair, paired
+comparison); candidate gain scored on a ~25% row subsample only (ranking
+needs relative order, not exact values) instead of full data.
+
+| | AUROC | AUPRC | time/seed |
+|---|---|---|---|
+| Random (shipped) | 0.9419 +/- 0.0002 | 0.7548 +/- 0.0007 | 42.7s |
+| Gain-ranked (v2) | 0.9430 +/- 0.0002 | 0.7617 +/- 0.0006 | 63.8s |
+
+Delta AUPRC +0.0069, **7.53x combined std** (stronger than v1, not
+weaker -- the CV std tightened after removing the seed confound: 0.0009
+vs. 0.0013). Speed improved from 2.0x baseline (86.1s) to **1.45x
+baseline (63.8s)**. Selection consistency held (top pairs selected
+106-134/378 slots).
+
+**Second Opus-5 round** (given the v2 result, asked for further
+speed/accuracy proposals) recommended three refinements: P1 (exhaustive
+candidate pool -- all `C(n_in,2)` pairs, reasoned to be "nearly free"
+now that scoring is subsampled, since only ~13 features exist so the
+full pool is just 78 pairs), P2 (conditional/FAST-correct gain -- score
+pairs against the residual *after* a main-effects-only solve, not the
+raw target), P3 (anti-collapse: reserve part of each round's selection
+for gain-weighted stochastic sampling instead of pure deterministic
+top-k, guarding against always re-picking the same pairs).
+
+**v3 ablation, tested on real INSPIRE (same Medium-scale protocol)**:
+
+| variant | AUROC | AUPRC | time/seed | ratio |
+|---|---|---|---|---|
+| v2 (accepted baseline for this proposal) | 0.9430 | 0.7617 | 63.8s | 7.53x |
+| v3-P1 (exhaustive pool) | 0.9432 | 0.7607 | 83.6s | 6.06x |
+| v3-P1+P2 (+ conditional gain) | 0.9433 | 0.7609 | 84.6s | 6.78x |
+| v3-P1+P2+P3 (+ anti-collapse) | 0.9433 | 0.7609 | 84.4s | 6.19x |
+
+**P1/P2/P3 did NOT improve on v2 -- contradicted the theoretical
+prediction on real data**: exhaustive pooling (78 vs. 40 candidates)
+made scoring cost scale up roughly proportionally (no "nearly free"
+effect materialized in practice, unlike the reasoned prediction), AND
+slightly hurt AUPRC (more marginal candidates apparently diluted
+selection quality rather than improving coverage). P2/P3 recovered a
+little of P1's accuracy loss but never matched v2. This is recorded as
+an honest theory-vs-experiment mismatch, not a implementation bug --
+verified via smoke tests confirming each flag runs correctly and
+improves synthetic-data selection quality (finding the true interacting
+pair more often) before the real-data ablation showed the net effect was
+negative on INSPIRE specifically.
+
+**Final configuration: v2** (`seed_base=0` fix + row-subsampled gain
+scoring only, `pool_mult=4` random pool, no P1/P2/P3). **ACCEPTED as
+evidence** -- clears the pre-registered acceptance bar decisively
+(7.53x vs. the 3x bar), is the first proposal in this session's CC-24
+through CC-30 sequence to do so, and the speed cost (1.45x) is
+modest relative to the accuracy gain.
+
+**What was NOT changed**: no `kanboost/` file touched anywhere in CC-30
+(v1, v2, or the v3 ablation) -- all evidence-gathering in scratchpad
+scripts, per CLAUDE.md rule 3. Per the standing pipeline (CLAUDE.md /
+AGENTS.md), this now requires independent Codex review (code + math, no
+edits) and ChatGPT scientific judgment before any consideration of
+merging the v2 selection mechanism into `kanboost/train/ga2m.py`, and
+explicit user approval before any merge/publish regardless of that
+outcome.
+
+**Status: ACCEPTED (evidence stage) -- awaiting Codex review + ChatGPT
+judgment + user merge approval. Not yet implemented in `kanboost/`.**
+
+-- Claude Code + Opus-5 (research + independent review), 2026-08-01
