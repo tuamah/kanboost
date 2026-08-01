@@ -242,9 +242,115 @@ def _build_layer0_ga2m(n_in, n_pairs_per_round, grid, k, seed):
     return layer0, chosen_pairs
 
 
+def _build_layer0_ga2m_gain_ranked(n_in, n_pairs_per_round, pool_mult, grid, k, seed,
+                                    X_arr, target, fit_weight, lam_smooth, lam_ridge,
+                                    score_frac=0.25, score_seed_offset=999):
+    """Like `_build_layer0_ga2m`, but the pairwise-interaction units are
+    chosen by GAIN-RANKED selection instead of uniformly at random: a
+    candidate pool of `min(n_pairs_per_round * pool_mult, C(n_in,2))`
+    pairs is scored by the penalized-projection squared-error reduction
+    each pair's own B-spline basis block achieves against the CURRENT
+    round's residual (`target`) -- the same closed-form quantity
+    (`b'(M^-1)b`) the joint solve already uses, evaluated per-block for
+    ranking -- and only the top `n_pairs_per_round` are kept. Scoring
+    uses a `score_frac` row subsample (ranking needs relative order, not
+    exact gain values), which keeps this ~1.45x the cost of random
+    selection rather than ~2x.
+
+    Addresses a real gap identified via literature review (Grinsztajn
+    et al., NeurIPS 2022): GA2M's OWN selection mechanism (Lou et al.,
+    KDD 2013, "FAST") is gain-based, not random -- kanboost previously
+    implemented GA2M's additive-plus-pairwise model class without this
+    part. Evidence: `AI_REVIEW_LOOP.md` (CC-30) -- +0.0069 AUPRC (7.53x
+    the combined CV standard deviation) on INSPIRE Medium scale
+    (`postop_icu`), at ~1.45x the fit-time cost of uniform-random
+    selection. Two literature-motivated refinements (exhaustive candidate
+    pool, FAST-correct conditional gain, anti-collapse stochastic
+    selection) were tested afterward and did NOT improve on this simpler
+    version on real data -- see CC-30's v3 ablation in `AI_REVIEW_LOOP.md`
+    for why they were not adopted despite sound reasoning.
+
+    Returns the SAME `(layer0, chosen_pairs)` contract as
+    `_build_layer0_ga2m` -- `layer0` has exactly `n_in + n_pairs_per_round`
+    hidden units, fully interchangeable with the random-selection path
+    downstream (`predict_proba_ga2m`, contribution functions, C++
+    backend all consume the same shape regardless of which builder ran).
+    """
+    rng = np.random.RandomState(seed)
+    max_pairs = n_in * (n_in - 1) // 2
+    pool_size = min(n_pairs_per_round * pool_mult, max_pairs)
+
+    knots0 = _make_knots(n_in, grid, k)
+    pool_layer0 = KANLayer(n_in, n_in + pool_size, knots0, k)
+    K0 = pool_layer0.coef.shape[2]
+    pool_layer0.coef[:] = 0.0
+    for j in range(n_in):
+        pool_layer0.coef[j, j, :] = rng.randn(K0) * 0.5
+
+    all_pairs = [(a, b) for a in range(n_in) for b in range(a + 1, n_in)]
+    rng.shuffle(all_pairs)
+    pool_pairs = all_pairs[:pool_size]
+    for idx, (a, b) in enumerate(pool_pairs):
+        h = n_in + idx
+        pool_layer0.coef[a, h, :] = rng.randn(K0) * 0.5
+        pool_layer0.coef[b, h, :] = rng.randn(K0) * 0.5
+
+    z = pool_layer0.forward(X_arr)
+    n_hidden_pool = n_in + pool_size
+    knots1 = np.zeros((n_hidden_pool, grid + 2 * k + 1))
+    for h in range(n_hidden_pool):
+        lo, hi = z[:, h].min() - 0.1, z[:, h].max() + 0.1
+        base = np.linspace(lo, hi, grid + 1)[np.newaxis, :]
+        knots1[h] = extend_grid(base, k_extend=k)[0]
+    K1 = grid + k
+    P_blk = _penalty_block(K1, lam_smooth, lam_ridge)
+
+    n = z.shape[0]
+    score_rng = np.random.RandomState(seed + score_seed_offset)
+    n_score = max(200, int(score_frac * n))
+    score_idx = score_rng.choice(n, size=min(n_score, n), replace=False)
+    z_score = z[score_idx]
+    target_score = target[score_idx]
+    weight_score = fit_weight[score_idx]
+
+    pair_gains = []
+    for idx, pair in enumerate(pool_pairs):
+        h = n_in + idx
+        B_h_score = _b_basis_1d(z_score[:, h], knots1[h], k)
+        Bw = B_h_score * weight_score[:, np.newaxis]
+        M = Bw.T @ B_h_score + P_blk
+        b_vec = Bw.T @ target_score
+        try:
+            c = np.linalg.solve(M, b_vec)
+        except np.linalg.LinAlgError:
+            c = np.linalg.lstsq(M, b_vec, rcond=None)[0]
+        pair_gains.append((float(b_vec @ c), idx, pair))
+    pair_gains.sort(key=lambda x: -x[0])
+    selected = pair_gains[:n_pairs_per_round]
+
+    # Rebuild a FINAL layer0 with exactly n_in + n_pairs_per_round hidden
+    # units (same shape contract as _build_layer0_ga2m), reusing the
+    # already-drawn random coefficients for the selected pairs.
+    n_hidden = n_in + len(selected)
+    final_layer0 = KANLayer(n_in, n_hidden, knots0, k)
+    final_layer0.coef[:] = 0.0
+    for j in range(n_in):
+        final_layer0.coef[j, j, :] = pool_layer0.coef[j, j, :]
+    chosen_pairs = []
+    for new_idx, (_, pool_idx, pair) in enumerate(selected):
+        a, b = pair
+        h_new, h_pool = n_in + new_idx, n_in + pool_idx
+        final_layer0.coef[a, h_new, :] = pool_layer0.coef[a, h_pool, :]
+        final_layer0.coef[b, h_new, :] = pool_layer0.coef[b, h_pool, :]
+        chosen_pairs.append(pair)
+
+    return final_layer0, chosen_pairs
+
+
 def _fit_ga2m_chain(model, X_arr, y_bin, sample_weight, n_pairs_per_round, grid, k,
                      use_line_search, gamma_bounds, seed_base, use_newton=False, min_hessian=1e-3,
-                     line_search_mode="bounded", hessian_floor_mode="hard", rel_floor_frac=0.05, damping=1e-3):
+                     line_search_mode="bounded", hessian_floor_mode="hard", rel_floor_frac=0.05, damping=1e-3,
+                     pair_selection="random", pool_mult=4, score_frac=0.25):
     n_in = X_arr.shape[1]
     loss = LogisticLoss()
     init_pred = loss.init_pred(y_bin, sample_weight)
@@ -252,7 +358,29 @@ def _fit_ga2m_chain(model, X_arr, y_bin, sample_weight, n_pairs_per_round, grid,
     rounds = []  # (layer0, knots1, coefs, n_hidden, K1, gamma, pairs)
 
     for t in range(model.n_estimators):
-        layer0, pairs = _build_layer0_ga2m(n_in, n_pairs_per_round, grid, k, seed=model.random_state + seed_base + t)
+        # target/fit_weight computed BEFORE layer0 -- gain-ranked selection
+        # needs the current residual to score candidates; random selection
+        # doesn't need it yet but computing it here costs nothing extra.
+        if use_newton:
+            target, fit_weight = _newton_target(
+                y_bin, F, sample_weight, min_hessian, hessian_floor_mode, rel_floor_frac, damping,
+            )
+        else:
+            p = _sigmoid(F)
+            target = y_bin - p
+            fit_weight = sample_weight
+
+        if pair_selection == "gain":
+            layer0, pairs = _build_layer0_ga2m_gain_ranked(
+                n_in, n_pairs_per_round, pool_mult, grid, k, seed=model.random_state + seed_base + t,
+                X_arr=X_arr, target=target, fit_weight=fit_weight,
+                lam_smooth=model.lamb * model.lamb_coefdiff, lam_ridge=model.lamb * model.lamb_l1,
+                score_frac=score_frac,
+            )
+        elif pair_selection == "random":
+            layer0, pairs = _build_layer0_ga2m(n_in, n_pairs_per_round, grid, k, seed=model.random_state + seed_base + t)
+        else:
+            raise ValueError(f"Unknown pair_selection: {pair_selection!r}. Use 'random' or 'gain'.")
         n_hidden = n_in + len(pairs)
         z = layer0.forward(X_arr)
 
@@ -271,14 +399,6 @@ def _fit_ga2m_chain(model, X_arr, y_bin, sample_weight, n_pairs_per_round, grid,
             s, e = h * K1, (h + 1) * K1
             P_full[s:e, s:e] = P_blk
 
-        if use_newton:
-            target, fit_weight = _newton_target(
-                y_bin, F, sample_weight, min_hessian, hessian_floor_mode, rel_floor_frac, damping,
-            )
-        else:
-            p = _sigmoid(F)
-            target = y_bin - p
-            fit_weight = sample_weight
         Bw1 = B1 * fit_weight[:, np.newaxis]
         M1 = Bw1.T @ B1 + P_full
         eigvecs, eigvals = _eigh_factor(M1, rel_floor=1e-4)
@@ -320,6 +440,9 @@ def fit_with_ga2m(
     hessian_floor_mode: str = "hard",
     rel_floor_frac: float = 0.05,
     damping: float = 1e-3,
+    pair_selection: str = "random",
+    pool_mult: int = 4,
+    score_frac: float = 0.25,
 ):
     """Fit `model` (an unfitted binary `KANBoostClassifier`) using the
     GA2M-RF-KAN engine: one random-projection hidden unit per input
@@ -363,6 +486,24 @@ def fit_with_ga2m(
     were accuracy-neutral but 7-12% faster than the hard floor at
     Medium/Large scale in testing.
 
+    `pair_selection`: `"random"` (default, unchanged from earlier
+    releases) samples `n_pairs_per_round` feature pairs uniformly at
+    random each round. `"gain"` instead scores a larger candidate pool
+    (`n_pairs_per_round * pool_mult`) by the penalized-projection
+    squared-error reduction each pair achieves against the current
+    round's residual, keeping only the top `n_pairs_per_round` -- GA2M's
+    own selection mechanism (Lou et al., KDD 2013, "FAST"), which the
+    default `"random"` path does not implement. Measured on INSPIRE
+    (Medium scale, `postop_icu`): +0.0069 AUPRC (7.53x the combined CV
+    standard deviation) at ~1.45x the fit-time cost of `"random"` -- see
+    `AI_REVIEW_LOOP.md` (CC-30) for the full evidence, including two
+    further refinements that were tested and did NOT improve on this
+    simpler version, so were not adopted. `pool_mult` (only used when
+    `pair_selection="gain"`) sets the candidate-pool size; `score_frac`
+    sets the row-subsample fraction used to score candidates (ranking
+    needs relative order, not exact gain values, so a subsample keeps
+    scoring cheap without materially changing which pairs are selected).
+
     Populates `model.learners_` with (layer0, knots1, coefs, ...) round
     records -- always use `predict_proba_ga2m()`, not the base
     `predict_proba()`.
@@ -387,11 +528,15 @@ def fit_with_ga2m(
     y_bin = (y_arr == model.classes_[1]).astype(float)
     grid, k = model.kan_grid, model.kan_k
 
+    if pair_selection not in ("random", "gain"):
+        raise ValueError(f"Unknown pair_selection: {pair_selection!r}. Use 'random' or 'gain'.")
+
     rounds, init_pred = _fit_ga2m_chain(
         model, X_arr, y_bin, sample_weight, n_pairs_per_round, grid, k,
         use_line_search, gamma_bounds, seed_base=0, use_newton=use_newton, min_hessian=min_hessian,
         line_search_mode=line_search_mode, hessian_floor_mode=hessian_floor_mode,
         rel_floor_frac=rel_floor_frac, damping=damping,
+        pair_selection=pair_selection, pool_mult=pool_mult, score_frac=score_frac,
     )
 
     model.learners_ = rounds
