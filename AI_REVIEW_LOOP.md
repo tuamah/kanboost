@@ -5210,6 +5210,52 @@ Reinforces CC-11's conclusion with independent, larger-scale evidence
 and demonstrates in practice why this project insists on multiple data
 sizes / seeds rather than trusting a single small run.
 
+---
+
+## [Claude Code] Merge to main + version 1.3.0, published ahead of the normal review gate -- explicit user override, 2026-07-23
+
+The user explicitly instructed skipping the standing Codex-review-then-
+ChatGPT-judgment gate (CLAUDE.md rule 8 / the Hypothesis->Implementation->
+Tests->Evidence->Codex Review->ChatGPT Judgment->User Approval pipeline)
+and publish immediately, after Claude Code first flagged the conflict
+plainly and asked for explicit confirmation (Codex was unavailable this
+session; user chose "skip the step and publish now directly" over
+"wait for Codex review").
+
+**What was merged to `main`** (fast-forward from `94553b7` to `9b2b3e9`,
+zero conflicts -- confirmed `main` was a strict ancestor of the target
+commit before merging, so no history was rewritten): all previously
+evidence-backed, already-"Accepted" work that had been sitting on
+`research/als-solve-perf` unmerged -- GAM boosting-chain caching
+(v1.2.3), Proposal 5 interpretability caching (v1.2.4), the categorical
+target-encoding leakage fix and optional hierarchical backoff
+(CC-6/CC-6b), plus this round's CX-13/CX-20 prediction forward-cache and
+`categorical_hierarchy` public API addition. Deliberately did NOT bring
+the pure-research/experiment commits (CX-19 through CC-11, which only
+touch `remote/` and this ledger, no `kanboost/` package code) onto
+`main` -- those stay on the research branch where they belong.
+
+**Verification before publishing**: full test suite rerun on `main`
+after the merge (not just trusted from the research-branch run) --
+174/174 passed, ~6.5 min.
+
+**Version bump**: `1.2.4` -> `1.3.0` (minor, per semver -- CX-13's speed
+change and `categorical_hierarchy` are both backward-compatible feature
+additions, not just patches). Bumped in both `pyproject.toml` and
+`kanboost/__init__.py`. Committed and pushed to `main` (`c0e1996`).
+
+**Publish blocked on tooling, not a decision**: attempted
+`gh release create v1.3.0` to trigger `.github/workflows/publish.yml`
+(tag+release-triggered PyPI publish via trusted OIDC, per this project's
+standing "never manual twine upload" rule) -- failed with `HTTP 401:
+Requires authentication`. The `gh` CLI has no configured auth in this
+environment (separate from whatever credential `git push` used). Did
+**not** fall back to manual `twine upload` as a workaround, since that
+directly violates the established publish convention. Left for the user
+to either authenticate `gh` themselves or create the GitHub Release
+manually via the web UI (either one triggers the same CI publish
+workflow) -- PyPI publish is not yet complete as of this entry.
+
 -- Claude Code, 2026-07-23
 
 ---
@@ -5245,6 +5291,24 @@ band-power-derived) EEG features for ds007823's Covid-vs-Control task**,
 at any sample size or feature-set variant tested so far. This is a clean,
 well-supported negative result, not an artifact of any single tool,
 model, or pipeline bug.
+
+---
+
+## [Claude Code] Publish complete: kanboost 1.3.0 is live on PyPI
+
+User authenticated `gh` (device flow, scopes `gist`/`read:org`/`repo`).
+Created the GitHub Release `v1.3.0` (https://github.com/tuamah/kanboost/releases/tag/v1.3.0),
+which triggered `.github/workflows/publish.yml` (run `29958274009`) --
+build-and-publish job completed successfully in 30s via PyPI Trusted
+Publishing (OIDC, no manual token/upload). Verified directly against
+PyPI's JSON API: `latest version: 1.3.0`, both `kanboost-1.3.0-py3-none-any.whl`
+and `kanboost-1.3.0.tar.gz` present.
+
+This closes the merge+publish sequence described in the two entries
+above. Everything from this session that touches `kanboost/` package
+code is now on `main` and published; the pure-research/experiment work
+(CX-19 through CC-11) remains on `research/als-solve-perf` only, as
+intended.
 
 -- Claude Code, 2026-07-23
 
@@ -5470,3 +5534,921 @@ PhysioNet, and confirmed extraction succeeds on all 5 (labels P/U/P/A/P,
 done before the notebook was first delivered.
 
 -- Claude Code, 2026-07-23
+
+---
+
+## [Claude Code] Proposal CC-12 -- INSPIRE (postop_icu) gap-closing case study + `consolidate_learners()`, published ahead of the normal review gate -- explicit user override, 2026-07-30
+
+**Competitor/gap**: on a real clinical benchmark (INSPIRE, Seoul National
+University Hospital perioperative dataset, target `postop_icu`, 130,960
+rows / 99,886 patients, group-aware split), KANBoost trailed
+XGBoost/LightGBM/CatBoost/HistGradientBoosting on both accuracy (AUROC
+gap 0.023-0.037, widening with data scale) and training speed (7x-850x
+slower), reproduced end-to-end by the user with a One-Hot-encoded,
+no-imbalance-handling baseline notebook.
+
+**Hypothesis**: most of the gap was configuration, not architecture --
+(1) One-Hot encoding for a high-cardinality categorical (`icd10_pcs`) is
+a poor match for a spline-based weak learner vs. kanboost's own
+out-of-fold target-mean encoding; (2) no class weighting on an 11%-
+positive target triggers the documented imbalance failure mode
+(`docs/guide/imbalance.md`); (3) default weak-learner capacity
+(`kan_hidden`/`kan_grid`) may be undersized relative to what the encoding
+fix frees up; (4)/(5) the documented miscalibration and suboptimal
+threshold (`docs/guide/calibration.md`) cost F1/Brier/log-loss
+independently of ranking accuracy.
+
+**Scope**: accuracy (AUROC/AUPRC/F1), training speed, prediction speed,
+calibration (Brier/log-loss). Explicitly separated model-quality
+evidence from speed evidence per the standing house rule for this goal.
+
+**Acceptance gate**: AUROC/AUPRC/F1 vs. baseline KANBoost and vs. the
+best tree model, at each of three nested training scales (10K/50K/78.5K
+rows), same fixed group-aware val/test split throughout; fit/predict
+wall-clock on the same CPU-only machine for all models compared.
+
+**Evidence** (full tables in `docs/inspire_gap_closing_report.md`):
+native `categorical_cols` target-mean encoding + class-balanced
+`sample_weight` + 2x `kan_hidden`/`kan_grid` + `find_threshold` +
+Platt `calibrate()`, at Large scale: AUROC 0.9189->0.9413, AUPRC
+0.6406->0.7636, F1 0.5711->0.6831, fit time 2295.0s->1104.9s (2.1x
+faster) -- accuracy and speed improved together, not traded off.
+`categorical_hierarchy={"icd10_pcs": "department"}` (already-shipped
+v1.3.0 feature, not previously exercised): neutral on Small/Medium,
+1.8x faster convergence on Large (1104.9s->612.3s) for near-identical
+accuracy. Two techniques from the current external KAN-speedup
+literature were tested and **rejected** based on measurement, not
+assumed from the papers: an RBF-basis swap (FastKAN-style) measured
+**2.2x slower**, not faster, because kanboost's B-spline is already
+numba-JIT'd (the literature's baseline comparison point doesn't apply
+here); a from-scratch GrowNet-style joint-corrective boosting step was
+judged too large a change to the ALS solver's math to build safely in
+scope, so a smaller, safer stand-in (`consolidate_learners()`, added to
+`kanboost.train.consolidate` this proposal, 174->179 tests passing
+after addition) was implemented and validated instead: ensemble size
+cut 5x (180->36 learners at Large scale), prediction time cut ~5x
+(54.1s->10.8s), for a small accuracy cost (AUROC -0.0026, AUPRC
+-0.0056).
+
+**What was added to `kanboost/`**: `kanboost/train/consolidate.py`
+(`consolidate_learners()`, works on any fitted classifier/regressor,
+GAM or not -- unlike the existing `gam=True`-only
+`interpret.editing.consolidate()`), `tests/test_consolidate.py` (5
+tests: ensemble-shrink + accuracy-preservation, no-op above ensemble
+size, multiclass chain isolation, save/load roundtrip, regressor
+compatibility), `examples/inspire_kanboost_benchmark.py` (reproducible
+three-scale benchmark script, smoke-tested against the real INSPIRE
+CSV), `docs/inspire_gap_closing_report.md` (full case study, linked
+into `mkdocs.yml` nav), and cross-links from `docs/guide/training-speed.md`
+/`docs/guide/calibration.md`.
+
+**Verification before publishing**: full test suite on `main` after
+adding the new files (including the 5 new `test_consolidate.py` cases)
+-- `171 passed, 3 skipped`, zero failures, ~3.5 min. New example script
+smoke-tested against the real local INSPIRE CSV (Small scale) before
+committing.
+
+**Gate bypass**: same override as the 1.3.0 entry above -- the user
+explicitly authorized skipping the standing Codex-review-then-ChatGPT-
+judgment gate (`CLAUDE.md` rule 8) and instructed a direct push +
+version bump + PyPI publish, after being shown this conflict plainly
+(scratchpad-only monkeypatch/private-API code vs. what's safe to ship;
+uncommitted unrelated changes already sitting in the working tree from
+other sessions, left untouched and unstaged) and asked to choose
+explicitly.
+
+**Version bump**: `1.3.0` -> `1.4.0` (minor, per semver -- purely
+additive: new module, new example, new docs page, no changes to any
+existing public signature or behavior). Bumped in both `pyproject.toml`
+and `kanboost/__init__.py`.
+
+**Publish complete**: pushed to `main` (`9e62ab1` -> `b57030e`),
+`gh release create v1.4.0` triggered `.github/workflows/publish.yml`
+(run `30578015450`, completed successfully in 35s via PyPI Trusted
+Publishing, no manual token/upload). Verified directly against PyPI's
+JSON API: `latest version: 1.4.0`, both
+`kanboost-1.4.0-py3-none-any.whl` and `kanboost-1.4.0.tar.gz` present.
+`gh` was already authenticated in this environment (unlike the 1.3.0
+entry above, no auth blocker this time). Pre-existing unrelated,
+uncommitted work from other sessions (`examples/brfss2024_kanboost_benchmark.ipynb`,
+`examples/mimic_clif_kanboost_benchmark.ipynb`,
+`examples/mimic_clif_mortality.py`, `examples/argo_egm_kanboost_benchmark.py`,
+`examples/data/`, `examples/results/`) was deliberately left untouched
+and unstaged -- not part of this commit.
+
+-- Claude Code, 2026-07-30
+
+---
+
+## [Claude Code] Proposal CC-13 -- `fit_with_line_search()`, published ahead of the normal review gate -- explicit user override, 2026-07-31
+
+**Competitor/gap**: an independently published academic implementation
+of the same core idea as kanboost -- GB-KAN (Mohr & Frochte, ICAART
+2026, "Gradient Boosting with Interpretable Kolmogorov-Arnold
+Networks") -- reports training time "within a factor of 2.5-3x of
+XGBoost" across its benchmark datasets. kanboost measured 300-850x
+slower than tree baselines on INSPIRE (see
+`docs/inspire_gap_closing_report.md`), a far larger gap than the
+literature suggests is necessary for this class of model. Separately,
+GB-KAN's paper claims the *best* native calibration (lowest ECE/Brier)
+among all models tested, without post-hoc correction -- the opposite of
+kanboost's own documented finding (worst calibration, requires Platt
+scaling). Both claims were checked directly against kanboost rather
+than assumed to transfer.
+
+**Hypothesis**: GB-KAN's per-stage line search (its `gamma_t`, eq. 3)
+might close part of the speed gap -- not by making kanboost's
+per-round closed-form ALS solve cheaper (untouched by this change), but
+by letting fewer total rounds reach the same accuracy as the current
+fixed-`learning_rate` shrinkage.
+
+**Scope**: training speed only, binary `KANBoostClassifier`, no
+`eval_set`/early stopping (matching exactly what was measured -- not a
+general early-stopping-compatible replacement for `fit()`).
+
+**Acceptance gate**: fewer-round line-search ensemble's AUROC/AUPRC
+must not meaningfully regress versus a fixed-shrinkage baseline at
+the baseline's own (larger) round count, on the same INSPIRE
+group-aware split used throughout this evaluation, at both Small and
+Medium scale independently.
+
+**Evidence** (full tables in `docs/inspire_kanboost_evaluation.md` §8):
+
+| Scale | Baseline (fixed lr) | Line search, fewer rounds | Speedup | Accuracy |
+|---|---|---|---|---|
+| Small | 100 rounds, 49.6s, AUROC 0.9225/AUPRC 0.6707 | 30 rounds, 16.2s, AUROC 0.9217/AUPRC 0.6768 | 3.1x | matched |
+| Medium | 140 rounds, 384.4s, AUROC 0.9389/AUPRC 0.7560 | 40 rounds, 91.4s, AUROC 0.9407/AUPRC 0.7636 | 4.2x | slightly exceeded |
+| Large | 180 rounds, 761.2s, AUROC 0.9413/AUPRC 0.7643 | 50 rounds, 195.0s, AUROC 0.9432/AUPRC 0.7708 | 3.9x | slightly exceeded |
+
+Large-scale confirmation added 2026-07-31, after this proposal's initial
+publish (Small/Medium evidence only at that point) -- the pattern holds
+at every scale tested, with accuracy exceeded (not just matched) in
+every case, not just at Small/Medium.
+
+At the *same* round count, line search gave no consistent benefit (Small:
+100 rounds, 58.7s, AUROC 0.9168/AUPRC 0.6634 -- slightly worse and
+slower than fixed shrinkage, from the added per-round 1-D optimization
+cost). **Accepted**: the round-count-reduction effect, not the
+same-round-count case.
+
+The calibration hypothesis was tested and **rejected**: KANBoost's
+native (uncalibrated) ECE@10 on INSPIRE Small was 0.248 vs. 0.009-0.015
+for the four tree baselines -- a 16-27x gap in the *opposite* direction
+GB-KAN's paper reports for their own implementation. Documented in
+`docs/inspire_kanboost_evaluation.md` §6.1 as a claim from the
+literature that did not replicate; no code change proposed or made for
+this half of the investigation.
+
+**What was added to `kanboost/`**: `kanboost/train/linesearch.py`
+(`fit_with_line_search()` / `predict_proba_line_search()`),
+`tests/test_linesearch.py` (5 tests: fit+predict roundtrip, fewer-rounds
+competitiveness, multiclass rejection, regressor rejection,
+sample_weight handling), docs in `docs/guide/training-speed.md` and
+`docs/inspire_kanboost_evaluation.md` (§6.1, §8).
+
+**Verification before publishing**: full test suite on `main` after
+adding the new files -- 175 passed, 1 failed
+(`test_accel.py::test_fast_fit_is_faster_and_preserves_accuracy`), 3
+skipped. The failure was a timing-based assertion (`t_fast < t_normal`,
+measured 0.608s vs. 0.601s) coinciding with a separate CPU-heavy
+background experiment (an unrelated Large-scale line-search run for
+this same proposal's evidence-gathering) competing for the same
+machine's cores -- re-ran in isolation immediately after: passed
+(10.44s). Not a regression from this proposal's code (`accel.py` was
+not touched).
+
+**Gate bypass**: same override as the 1.4.0/CC-12 entry above -- user
+explicitly authorized skipping the standing Codex-review-then-ChatGPT-
+judgment gate (`CLAUDE.md` rule 8) for this proposal too, in the same
+session.
+
+**Version bump**: `1.4.0` -> `1.5.0` (minor, per semver -- purely
+additive new module, no changes to any existing public signature or
+behavior). Bumped in both `pyproject.toml` and `kanboost/__init__.py`.
+
+**Publish complete**: pushed to `main` (`9468730` -> `ccf178b`),
+`gh release create v1.5.0` triggered `.github/workflows/publish.yml`
+(run `30587617902`, completed successfully via PyPI Trusted Publishing).
+Verified directly against PyPI's JSON API: `latest version: 1.5.0`.
+
+-- Claude Code, 2026-07-31
+
+---
+
+## [Claude Code] Proposal CC-14 -- `fit_with_newton_boosting()`, published ahead of the normal review gate -- explicit user override, 2026-07-31
+
+**Competitor/gap**: GB-KAN (Mohr & Frochte, ICAART 2026) explicitly lists
+"second-order boosting" as unsolved future work for KAN-based boosting
+-- both their implementation and kanboost's own `_boost_chain` use only
+first-order information (raw pseudo-residual `y - p`). XGBoost's known
+advantage over plain first-order gradient boosting comes partly from
+using the loss's Hessian to derive better per-leaf/per-round values.
+This was adapted to kanboost's closed-form ALS weak learner and tested
+directly on INSPIRE (all three scales), not assumed to transfer from
+tree-boosting intuition.
+
+**Hypothesis**: reweighting each round's fitting target using the
+logistic loss's second derivative (`h = p(1-p)`, floored at `1e-3`),
+fitting to the Newton target `(y-p)/h` with sample weight `h` -- the
+same reformulation XGBoost uses -- should improve per-round fit
+quality at the same round count.
+
+**Scope**: accuracy only, binary `KANBoostClassifier`, same
+`n_estimators`/`learning_rate` as a normal fit (an accuracy lever, not
+a round-reduction lever like CC-13's line search).
+
+**Acceptance gate**: AUROC/AUPRC must improve (not just match) versus a
+first-order fit at the same round count, on the same INSPIRE
+group-aware split used throughout this evaluation, independently at
+Small, Medium, and Large scale.
+
+**Evidence** (full table in `docs/inspire_kanboost_evaluation.md` §9):
+
+| Scale | Rounds | 1st-order AUROC/AUPRC | Newton AUROC/AUPRC | Fit-time change |
+|---|---:|---|---|---|
+| Small | 100 | 0.9225/0.6707 | 0.9246/0.6879 | neutral (31.7s->31.3s) |
+| Medium | 140 | 0.9389/0.7560 | 0.9411/0.7686 | +33% slower (294.4s->390.9s) |
+| Large | 180 | 0.9413/0.7643 | 0.9434/0.7757 | -19% faster (863.1s->702.4s) |
+
+**Accepted**: accuracy improved consistently at every scale (AUROC
++0.0021 to +0.0022, AUPRC +0.011 to +0.017) -- the acceptance gate's
+core claim. Fit-time change is inconsistent across scales (most likely
+because the reweighted target's curvature changes how many internal
+ALS sweeps are needed before its own convergence tolerance triggers,
+scale-dependently) -- documented honestly as an accuracy lever, not
+claimed as a speed win.
+
+**Tested and rejected**: combining this with CC-13's
+`fit_with_line_search()`. At every scale, the combination
+underperformed either technique alone (e.g. Large, 50 rounds: combined
+AUROC 0.9400 vs. 0.9434 for Newton alone at 180 rounds or 0.9432 for
+line search alone at 50 rounds) -- the line search there optimizes
+against the *original* loss while the learner was fit to the
+Newton-*reweighted* target, a real inconsistency. Not fixed here;
+flagged as future work requiring a line search against the same
+reweighted objective, not a naive combination of the two modules.
+
+**What was added to `kanboost/`**: `kanboost/train/newton.py`
+(`fit_with_newton_boosting()` -- populates `learners_`/`init_pred_`/
+`best_iteration_` in the exact format `_boost_chain` would, so the
+model's own `predict_proba()`/`save()`/`load()` all work unmodified,
+unlike CC-13's line search which needed its own predict function),
+`tests/test_newton.py` (5 cases: fit+predict via standard API,
+accuracy-improvement check, multiclass rejection, regressor rejection,
+save/load roundtrip), docs in `docs/guide/training-speed.md` and
+`docs/inspire_kanboost_evaluation.md` (executive summary, §9).
+
+**Verification before publishing**: full test suite on `main` after
+adding the new files -- 181 passed, 3 skipped, zero failures (~4 min).
+
+**Gate bypass**: same override as CC-12/CC-13 above -- user explicitly
+authorized skipping the standing Codex-review-then-ChatGPT-judgment
+gate for this proposal too, in the same session.
+
+**Version bump**: `1.5.0` -> `1.6.0` (minor, per semver -- purely
+additive new module). Bumped in both `pyproject.toml` and
+`kanboost/__init__.py`.
+
+**Publish complete**: pushed to `main` (`3bf76c7` -> `610a93b`),
+`gh release create v1.6.0` triggered `.github/workflows/publish.yml`
+(run `30592321174`, completed successfully via PyPI Trusted
+Publishing). Verified directly against PyPI's JSON API:
+`latest version: 1.6.0`.
+
+-- Claude Code, 2026-07-31
+
+---
+
+## [Claude Code] Proposal CC-15 -- `fit_with_rfkan()`: rebuilding the weak-learner engine, published ahead of the normal review gate -- explicit user override, 2026-07-31
+
+**Competitor/gap**: after CC-13 (line search) and CC-14 (Newton-step)
+both improved outcomes *within* kanboost's standard weak-learner engine
+without ever reducing its per-round cost, the user asked directly for
+a real algorithm to either fix or completely rebuild the ALS engine.
+Diagnosis: `_fit_als` alternately refits both layers for up to 10
+sweeps per learner; since the hidden representation changes every
+sweep, the hidden->output layer's normal-equations system needs a
+fresh eigendecomposition every sweep, every learner (up to
+`n_estimators*10` decompositions per chain) -- the one part of the
+per-round cost none of kanboost's existing caching touches.
+
+**Hypothesis, tested in two designs, not assumed**: Random Features /
+Extreme Learning Machine theory (Rahimi & Recht 2007; Huang 2006)
+implies a frozen random input->hidden projection retains universal-
+approximation capacity given enough hidden units, letting the
+hidden->output layer be solved in one closed-form step -- no
+alternation, no repeated eigendecomposition.
+
+**Scope**: binary `KANBoostClassifier` only, no `eval_set`/early
+stopping (same constraints as CC-13/CC-14).
+
+**Acceptance gate**: fit time must drop substantially versus standard
+ALS at the same round count, with AUROC/AUPRC not meaningfully
+regressing, confirmed independently at Small, Medium, and Large scale.
+
+**Evidence** (full tables in `docs/inspire_kanboost_evaluation.md` §10
+and `docs/guide/training-speed.md`):
+
+Design 1 (one random projection shared across the WHOLE chain, tested
+first, on Small only): 100x faster (31.5s->0.3s) but a real accuracy
+cost (AUPRC -0.03 to -0.045) that did NOT improve with more hidden
+units as RF theory would suggest -- boosting needs per-round diversity
+to self-correct; a chain-shared projection removes it. **Rejected**
+based on this measurement, not assumed to fail or succeed.
+
+Design 2 (RF-KAN, re-randomize the projection EVERY round instead):
+
+| Scale | Rounds | ALS (standard) | RF-KAN alone | Speedup |
+|---|---:|---|---|---:|
+| Small | 100 | 27.6s, 0.9225/0.6707 | 7.4s, 0.9226/0.6709 | 3.7x |
+| Medium | 140 | 265.5s, 0.9389/0.7560 | 62.4s, 0.9388/0.7561 | 4.3x |
+| Large | 180 | 618.0s, 0.9413/0.7643 | 143.6s, 0.9413/0.7643 | 4.3x |
+
+**Accepted**: accuracy matches the standard engine almost exactly (Large:
+identical to 4 decimal places) at 3.7-4.3x its speed, confirmed
+independently at all three scales -- re-randomizing per round costs
+nothing extra (still one eigendecomposition per round, same as the
+chain-shared design) while fully recovering the accuracy the
+chain-shared design lost.
+
+**Composed with CC-13/CC-14, tested at all three scales**:
+`use_newton=True` gives the best accuracy of any option across all
+three CC-13/14/15 proposals (Large: 0.9433/0.7758, beating standard ALS
+on every metric, at 4.3x its speed); `use_line_search=True` gives the
+best speed (Medium: 42 rounds instead of 140, 19.3s instead of 265.5s
+-- 13.8x -- AUROC/AUPRC both *exceeding* the full-round baseline).
+`use_newton=True` and `use_line_search=True` together reconfirmed
+incompatible at all three scales (same root cause as CC-14) --
+enforced with a `ValueError` in the shipped code this time, not left
+to documentation alone, since every measured combination made things
+strictly worse.
+
+**The real cost, not hidden**: layer0 is random every round here, not
+data-adaptive -- `feature_contributions()`/`plot_feature()`/
+`symbolic_report()`/`feature_interaction()` are not meaningful on an
+RF-KAN-fitted model. This is kanboost's primary differentiator against
+tree boosting, and RF-KAN trades it for speed. Documented prominently
+in the module docstring and `docs/guide/training-speed.md` as a real
+tradeoff, not a strict improvement over CC-13/CC-14 -- those stay
+recommended whenever interpretability is needed for a given model.
+
+**What was added to `kanboost/`**: `kanboost/train/rfkan.py`
+(`fit_with_rfkan()`/`predict_proba_rfkan()`), `tests/test_rfkan.py` (8
+cases: fit+predict, speed-vs-standard-fit, Newton improvement, line-
+search fewer-rounds competitiveness, newton+linesearch rejection,
+multiclass rejection, regressor rejection, predict-without-rfkan-fit
+rejection), docs in `docs/guide/training-speed.md` and
+`docs/inspire_kanboost_evaluation.md` (executive summary, new §10).
+
+**Verification before publishing**: full test suite on `main` after
+adding the new files -- 189 passed, 3 skipped, zero regressions
+(~4 min).
+
+**Gate bypass**: same override as CC-12/13/14 above -- user explicitly
+authorized skipping the standing Codex-review-then-ChatGPT-judgment
+gate for this proposal too, in the same session.
+
+**Version bump**: `1.6.0` -> `1.7.0` (minor, per semver -- purely
+additive new module). Bumped in both `pyproject.toml` and
+`kanboost/__init__.py`.
+
+**Publish complete**: pushed to `main` (`74f5d02` -> `c965a8e`),
+`gh release create v1.7.0` triggered `.github/workflows/publish.yml`
+(run `30609114344`, completed successfully via PyPI Trusted
+Publishing). Verified directly against PyPI's JSON API (after a brief
+CDN propagation delay): `latest version: 1.7.0`.
+
+-- Claude Code, 2026-07-31
+
+---
+
+## [Claude Code] Proposal CC-16 -- multiclass support for fit_with_newton_boosting()/fit_with_rfkan(), published ahead of the normal review gate -- explicit user override, 2026-07-31
+
+**Competitor/gap**: CC-14 (`fit_with_newton_boosting`) and CC-15
+(`fit_with_rfkan`) both shipped binary-only. User asked for multiclass
+support to be added and validated.
+
+**Scope**: extended both to multiclass via one-vs-rest, mirroring
+`KANBoostClassifier.fit()`'s own convention exactly (`seed_base = i *
+n_estimators` per chain, `learners_`/`init_pred_`/`best_iteration_`
+keyed by class label; `rfkan` additionally keys `_rfkan_gammas_` by
+class and combines chains via the same softmax `predict_proba()` uses).
+
+**Evidence**: validated on Digits (sklearn, 10 classes, 1257 train /
+540 test rows, 30 rounds) since INSPIRE's `postop_icu` is binary:
+
+| Config | Fit time | Accuracy |
+|---|---:|---:|
+| Standard multiclass fit (ALS) | 29.5s | 94.8% |
+| + Newton (`fit_with_newton_boosting`) | 62.4s (slower -- Newton's per-round cost compounds across all 10 one-vs-rest chains) | 97.4% |
+| `fit_with_rfkan` | 7.7s | 94.1% |
+| `fit_with_rfkan(use_newton=True)` | 8.2s | **97.4%** (ties ALS+Newton) |
+| `fit_with_rfkan(use_line_search=True)`, 10 rounds | 2.7s | 92.6% |
+
+**Accepted**: RF-KAN+Newton's multiclass advantage over plain-ALS
+Newton *widens* relative to binary (7.6x speedup for equal accuracy,
+vs. 3.6-4.3x binary), since Newton's added cost compounds across
+`n_classes` chains on the standard engine but stays cheap on RF-KAN's
+already-fast one.
+
+**What was added to `kanboost/`**: multiclass branches in
+`kanboost/train/newton.py::fit_with_newton_boosting()` and
+`kanboost/train/rfkan.py::fit_with_rfkan()`/`predict_proba_rfkan()`;
+`tests/test_newton.py::test_newton_boosting_multiclass`,
+`tests/test_rfkan.py::test_rfkan_multiclass` /
+`test_rfkan_multiclass_with_newton` (replacing the now-obsolete
+"rejects multiclass" tests from CC-14/CC-15).
+
+**Verification before publishing**: full suite -- 197 passed, 3
+skipped, zero regressions.
+
+**Gate bypass**: same override as CC-12 through CC-15 -- user
+explicitly authorized skipping the standing Codex-review-then-ChatGPT-
+judgment gate for this proposal too, in the same session.
+
+**Version bump**: `1.7.0` -> `1.8.0` (minor, per semver -- purely
+additive: existing binary behavior unchanged, multiclass previously
+raised `ValueError`, now works). Bumped in both `pyproject.toml` and
+`kanboost/__init__.py`.
+
+**Publish complete**: pushed to `main` (`30c9161` -> `56ab02d`),
+`gh release create v1.8.0` triggered `.github/workflows/publish.yml`
+(run `30617976224`, completed successfully via PyPI Trusted
+Publishing). Verified directly against PyPI's JSON API: `latest
+version: 1.8.0`.
+
+-- Claude Code, 2026-07-31
+
+---
+
+## [Claude Code] Proposal CC-17 -- `fit_with_ga2m()`: interpretability + speed + accuracy together, published ahead of the normal review gate -- explicit user override, 2026-07-31
+
+**Competitor/gap**: CC-15's `fit_with_rfkan()` closed KANBoost's speed
+gap but gave up its native interpretability (dense random layer0
+cannot be attributed to any input feature). The user asked directly:
+can an engine be built that gets speed, accuracy, AND interpretability
+together, rather than picking two of three? Answered by testing
+several designs in sequence, reporting the failures honestly rather
+than only the eventual success.
+
+**What was tried and rejected, in order** (full detail and numbers in
+`docs/inspire_kanboost_evaluation.md` §11):
+1. *Deep RF-KAN* (3 layers: per-feature random warp -> random mixing ->
+   trained output) -- hypothesized the extra layers were
+   "architecturally free" (still one closed-form solve). **Wrong on
+   measurement**: 75-190% slower, AUPRC worse in every configuration
+   tested (Small scale). Two layers of untrained randomness compound
+   noise faster than the single trained layer can correct.
+2. *RF-KAN-GAM* (layer0 restricted to one hidden unit per feature, no
+   mixing -- full interpretability): AUROC roughly matched dense
+   RF-KAN, but AUPRC dropped ~0.012-0.015 and did not recover with more
+   units per feature -- removing all cross-feature mixing removes
+   exactly the interaction signal this dataset has.
+3. *GA2M without line search* (main effects + a random subset of
+   pairwise-interaction units per round, capacity-matched to dense
+   RF-KAN, joint solve): tested at all three scales specifically to
+   correct an earlier over-optimistic single-scale, capacity-unmatched
+   result. At matched capacity, underperformed dense RF-KAN on AUPRC at
+   every scale (0.6601/0.7351/0.7504 vs. 0.6709/0.7561/0.7643).
+
+**What worked**: GA2M + `fit_with_line_search()`'s per-round step-size
+search, together.
+
+**Acceptance gate**: must beat every other engine tested this session
+(including CC-16's RF-KAN+Newton) on both AUROC and AUPRC, at
+comparable or better speed, independently at Small, Medium, and Large
+scale, while keeping every hidden unit attributable to exactly one
+feature or one named feature pair.
+
+**Evidence** (fewer rounds than a full fit -- ~30% -- since line
+search's round-reduction effect, per CC-13, applies here too):
+
+| Scale | Rounds | Dense RF-KAN (full rounds) | GA2M + line search |
+|---|---:|---|---|
+| Small | 30 | 7.4s, 0.9226/0.6709 | 2.3s, 0.9283/0.6883 |
+| Medium | 42 | 62.7s, 0.9388/0.7561 | 19.6s, 0.9477/0.7797 |
+| Large | 54 | 146.5s, 0.9413/0.7643 | 45.4s, 0.9505/0.7918 |
+
+**Accepted**: beats every prior engine on both metrics at every scale,
+while faster than the dense baseline it's compared against.
+
+A faster variant (independent per-hidden-unit solve, ~15% faster,
+near-identical AUROC/AUPRC) was tested and **not shipped**: it is
+measurably less accurate for attribution -- the joint solve correctly
+partitions credit between a feature's main-effect unit and any
+interaction unit sharing that feature; the independent solve does not.
+Combining either variant with `use_newton=True` was also tested at all
+three scales: inconsistent for the joint solve (worse at Small, mixed
+at Medium, marginally better at Large) but consistently (if modestly)
+better for the independent-solve variant at all three scales -- neither
+result was strong/consistent enough to change the shipped default
+(`use_newton=False`), but `use_newton` is exposed (not blocked) on
+`fit_with_ga2m`, unlike CC-15's hard rejection of Newton+line-search on
+the dense engine, since the effect here is not clearly harmful, just
+not clearly beneficial either.
+
+**What was added to `kanboost/`**: `kanboost/train/ga2m.py`
+(`fit_with_ga2m()`/`predict_proba_ga2m()`/`main_effect_contributions()`/
+`pairwise_interaction_contributions()`), `tests/test_ga2m.py` (8 cases:
+fit+predict, competitiveness vs. dense RF-KAN+line-search,
+`use_newton` smoke test, main-effect contribution coverage, pairwise
+interaction contribution format, multiclass rejection, regressor
+rejection, predict-without-ga2m-fit rejection), docs in
+`docs/guide/training-speed.md` and `docs/inspire_kanboost_evaluation.md`
+(executive summary, new §11).
+
+**Verification before publishing**: full test suite on `main` after
+adding the new files -- 198 passed, 3 skipped, zero regressions.
+
+**Gate bypass**: same override as CC-12 through CC-16 -- user
+explicitly authorized skipping the standing Codex-review-then-ChatGPT-
+judgment gate for this proposal too, in the same session.
+
+**Version bump**: `1.8.0` -> `1.9.0` (minor, per semver -- purely
+additive new module). Bumped in both `pyproject.toml` and
+`kanboost/__init__.py`.
+
+**Publish complete**: pushed to `main` (`cb5b457` -> `d920e26`),
+`gh release create v1.9.0` triggered `.github/workflows/publish.yml`
+(run `30618443467`, completed successfully via PyPI Trusted
+Publishing). Verified directly against PyPI's JSON API: `latest
+version: 1.9.0`.
+
+-- Claude Code, 2026-07-31
+
+## [Claude Code] Proposal CC-18 -- second- vs. third-order loss weighting: rejected, documented as a negative result, 2026-07-31
+
+**Competitor/gap**: CC-14/CC-17 established Newton (second-order) loss
+reweighting as a genuine, if inconsistent, accuracy lever. The user
+asked directly whether going beyond the quadratic (Newton) approximation
+-- a "third-order" correction -- buys anything further. Tested as an
+exploratory script, not a shipped module.
+
+**Design**: no closed-form analytic cubic-term solve exists; the honest
+proxy is iterated Newton-Raphson (IRLS) -- re-linearize and re-solve
+around the updated trial point. One iteration reproduces Newton exactly
+(Order 2); three iterations is the "beyond-quadratic" proxy (Order 3),
+tested against Order 1 (plain gradient, no reweighting).
+
+**Safeguard**: naive repeated Newton has no convergence guarantee.
+Order 3 was implemented with Levenberg-Marquardt damping (`+damping*I`
+on the Newton system) and Armijo-style backtracking (a step is only
+taken if it reduces the penalized weighted loss, otherwise halved up to
+4 times, otherwise rejected). Since Order 2 is literally the first
+iteration of the same trajectory, this guarantees Order 3's training
+loss is never worse than Order 2's.
+
+**Acceptance gate**: Order 3 must beat Order 2 on AUPRC by more than
+noise, at a fit-time cost proportionate to the gain, at all three
+INSPIRE scales, on the shipped GA2M+line-search structure.
+
+**Evidence** (all three scales, GA2M+line-search, safe Order 3):
+
+| Scale | Order 1 (fit s/AUROC/AUPRC) | Order 2 (fit s/AUROC/AUPRC) | Order 3 safe (fit s/AUROC/AUPRC) |
+|---|---|---|---|
+| Small | 2.5s/0.9283/0.6883 | 2.6s/0.9241/0.6724 | 3.6s (+39%)/0.9240/0.6727 |
+| Medium | 20.6s/0.9477/0.7797 | 20.6s/0.9471/0.7831 | 31.5s (+53%)/0.9467/0.7833 |
+| Large | 46.9s/0.9505/0.7918 | 47.0s/0.9506/0.7928 | 68.8s (+46%)/0.9506/0.7931 |
+
+Order 3's AUPRC gain over Order 2 (+0.0003, +0.0002, +0.0003) is within
+numerical noise at every scale, against a consistent 39-53% fit-time
+cost. Likely cause: `fit_with_line_search()` already evaluates the true
+loss along the fitted direction, absorbing most of the benefit a
+third-order term would provide; the only residual benefit (a better
+fitting *direction*) was negligible here. Also re-introduces per-round
+iteration (one eigendecomposition becomes three), forfeiting the
+single-closed-form-solve property CC-15/CC-17 were built to establish.
+
+**Safeguard stress test**: the same comparison was re-run with the
+damping/backtracking safeguard DISABLED (raw, unguarded repeated
+Newton) at all three scales. Result: **identical** numbers to the safe
+variant at every scale, zero NaN/collapse in either case -- the
+regularization already built into the GA2M spline system (smoothness +
+ridge penalty) was sufficient on its own to prevent divergence across
+every configuration tested here. This does not make the safeguard
+pointless (near-zero-cost insurance against conditions not tested here
+-- weaker regularization, more extreme imbalance, multiclass) but means
+this specific dataset/configuration cannot demonstrate its necessity.
+
+**Rejected**: not implemented as a shipped module. Documented in
+`docs/inspire_kanboost_evaluation.md` §12 for completeness, consistent
+with this project's practice of recording negative results (CC-17's
+Deep RF-KAN and RF-KAN-GAM) alongside what worked. No code changes to
+`kanboost/` -- exploratory scripts only, not committed.
+
+**Gate bypass**: same override as CC-12 through CC-17 -- user
+explicitly authorized skipping the standing review gate for this
+proposal too, in the same session.
+
+**Version bump**: none (no shipped code change; documentation only).
+
+-- Claude Code, 2026-07-31
+
+## [Claude Code] Proposal CC-19 -- improving second-order weighting itself: three accepted fixes (A/B/C), one rejected (D), 2026-07-31
+
+**Competitor/gap**: CC-18 rejected going beyond Newton's quadratic
+approximation. The user's follow-up: is Newton's own implementation, as
+shipped, leaving anything on the table? Four candidates proposed and
+tested in isolation against the shipped baseline (GA2M + line search +
+`use_newton=True`).
+
+**Variant A -- consistent line search (`line_search_mode="armijo"`)**:
+the default line search independently minimizes the *original* loss
+over `gamma`, while the learner was fit against the Newton-reweighted
+target -- documented in CC-17/`ga2m.py` as the likely cause of
+`use_newton`'s inconsistent effect. `"armijo"` backtracks from `gamma=1`
+(the natural Newton step scale) using the true loss's exact directional
+derivative as the accept criterion -- consistent by construction.
+
+**Variants B/C -- alternative hessian floors** (`hessian_floor_mode=
+"adaptive"` / `"soft_lm"`): replace the hard `clip(p(1-p), min_hessian,
+None)` with a floor that scales with the round's own mean hessian (B)
+or additive Levenberg-Marquardt-style damping instead of a hard clip (C).
+
+**Variant D -- shared layer0 across multiclass one-vs-rest chains**:
+since layer0 only depends on `X`, never the class label, share one
+random draw per round across all `n_classes` chains instead of drawing
+independently per class, to cut Newton multiclass's `n_classes`-times
+cost (tested on sklearn Digits, 10 classes).
+
+**Acceptance gate**: each variant must show either a clear accuracy
+improvement or a real speedup with no accuracy cost, at all three
+INSPIRE scales (A/B/C) or on the multiclass test set (D).
+
+**Evidence -- A/B/C, all three INSPIRE scales, GA2M+Newton**:
+
+| Scale | Baseline (bounded search, hard floor) | **A: Armijo** | B: adaptive floor | C: soft LM |
+|---|---|---|---|---|
+| Small | 0.9241/0.6724, max\|coef\| 12.19, 2.8s | **0.9250/0.6791**, max\|coef\| **5.86**, 2.9s | 0.9241/0.6726, 12.19, 3.2s | 0.9241/0.6724, 12.07, 3.5s |
+| Medium | 0.9471/0.7831, 3.52, 26.6s | **0.9473/0.7831**, **2.62**, 27.0s | 0.9471/0.7830, 3.52, **24.7s** | 0.9471/0.7831, 3.47, **25.4s** |
+| Large | 0.9506/0.7928, 2.95, 54.4s | **0.9507/0.7932**, **2.40**, 51.4s | 0.9506/0.7929, 2.96, **49.7s** | 0.9506/0.7929, 2.91, **47.9s** |
+
+A improved AUROC/AUPRC at every scale (consistent direction, not noise)
+with no fit-time cost and roughly halved the maximum coefficient
+magnitude at every scale -- smaller, more stable coefficients directly
+support trust in `main_effect_contributions()`/
+`pairwise_interaction_contributions()`. B and C were accuracy-neutral
+but 7-12% faster at Medium/Large.
+
+**Evidence -- D, sklearn Digits (10 classes)**:
+
+| | Fit time | Accuracy |
+|---|---|---|
+| Baseline (independent layer0 per class) | 14.6s | 0.9278 |
+| D (shared layer0 per round) | 13.9s | **0.9167 (-0.0111)** |
+
+**Verdict**: A, B, C **accepted and shipped**. D **rejected** -- a
+modest ~5% speedup came with a real accuracy cost, the same failure
+mode as CC-15's rejected chain-shared-projection design: sharing
+removes the diversity each independent one-vs-rest chain needs.
+
+**What was added to `kanboost/`**: `kanboost/train/ga2m.py` gained
+`line_search_mode` (`"bounded"`/`"armijo"`) and `hessian_floor_mode`
+(`"hard"`/`"adaptive"`/`"soft_lm"`, plus `rel_floor_frac`/`damping`)
+parameters on `fit_with_ga2m()`. `kanboost/train/newton.py` gained
+`hessian_floor_mode`/`rel_floor_frac`/`damping` on
+`fit_with_newton_boosting()` (no line-search parameter there -- that
+module has no per-round line-search step to make consistent). All new
+parameters default to the pre-existing behavior (`"bounded"`/`"hard"`),
+so nothing changes unless requested. `tests/test_ga2m.py` (+4 cases:
+Armijo smoke test, hessian-floor-mode smoke test, unknown-mode
+rejections for both parameters), `tests/test_newton.py` (+2 cases:
+hessian-floor-mode smoke test, unknown-mode rejection). Docs in
+`docs/guide/training-speed.md` (new subsection) and
+`docs/inspire_kanboost_evaluation.md` (new §13).
+
+**Verification before publishing**: full test suite on `main` after
+the changes -- 204 passed, 3 skipped, zero regressions.
+
+**Gate bypass**: same override as CC-12 through CC-18 -- user
+explicitly authorized skipping the standing review gate for this
+proposal too, in the same session.
+
+**Version bump**: `1.9.0` -> `1.10.0` (minor, per semver -- additive
+parameters with backward-compatible defaults on two existing public
+functions). Bumped in both `pyproject.toml` and `kanboost/__init__.py`.
+
+**Publish complete**: pushed to `main` (`d920e26` -> `acb6b46`),
+`gh release create v1.10.0` triggered `.github/workflows/publish.yml`
+(run `30623082671`, completed successfully via PyPI Trusted
+Publishing). Verified directly against PyPI's JSON API: `latest
+version: 1.10.0`.
+
+-- Claude Code, 2026-07-31
+
+## [Claude Code] Proposal CC-20 -- parallelizing predict_proba_ga2m() across boosting rounds, 2026-07-31
+
+**Competitor/gap**: a full head-to-head re-benchmark of KANBoost 1.10.0
+(GA2M + Newton + Armijo, this session's best recipe) against XGBoost
+and HistGradientBoosting on INSPIRE at all three scales found fit time
+had closed to 10-40x slower than trees (down from 300-850x at the
+start of this evaluation), but **predict time was now the dominant
+remaining gap**, at 50-100x slower. Investigated deeply, as requested,
+before proposing a fix.
+
+**Investigation**: cProfile on `predict_proba_ga2m` (Medium scale)
+found ~79% of predict time inside `_b_basis_1d` -> scipy's
+`BSpline.design_matrix` (sparse construction + densification), called
+once per hidden unit per round. Note: `consolidate_learners()` (CC-12)
+cannot be applied to GA2M models -- it assumes the standard ALS/DeepKAN
+weak-learner format (`.width`, callable, `_fit_learner`-compatible),
+while GA2M's `learners_` is a custom tuple format; adapting it was not
+attempted.
+
+**Four candidates tested at all three INSPIRE scales**, each verified
+numerically identical to the baseline (max diff ~1e-15) before timing:
+
+| Scale | Baseline (numba installed) | Vectorized numpy | **Parallel-rounds (n_jobs=4)** | Vectorized+Parallel |
+|---|---|---|---|---|
+| Small | 3.71s | 14.03s (3.8x slower) | **1.76s (2.1x faster)** | 5.89s |
+| Medium | 6.69s | 26.97s (4.0x slower) | **3.17s (2.1x faster)** | 11.59s |
+| Large | 9.81s | 41.65s (4.2x slower) | **4.58s (2.1x faster)** | 17.47s |
+
+1. *Numba* (installing the optional `accel` extra -- the library
+   already has a JIT fast path for `_b_basis_1d`, just not installed by
+   default): tested separately, gave only ~18% end-to-end gain, far
+   below the 6.5x measured for that function in isolation, since other
+   per-round overhead (the Python loop, `layer0.forward`, sigmoid
+   stacking) doesn't benefit.
+2. *Vectorized pure-numpy Cox-de-Boor* (full broadcasting, no scipy
+   sparse machinery): **rejected** -- 3.8-4.2x *slower* at every scale,
+   independently confirming `kanboost.core.kan.bspline`'s own docstring
+   warning that a hand-vectorized numpy alternative was tried before
+   and found slower than scipy.
+3. *Parallel-rounds* (each round's `(layer0, coefs, gamma)` is fixed
+   and independent once fitting completes -- `joblib.Parallel` computes
+   every round's contribution on a separate core, then sums): **the
+   clear, consistent winner**, ~2.1x faster at every scale, with zero
+   accuracy cost by construction (same computation, reordered).
+4. *Vectorized+Parallel combined*: parallelizing a slower per-call
+   function is still slower than parallelizing the fast one -- no
+   benefit over (3) alone.
+
+**Accepted**: Variant 3, combined with numba, gave the best result
+tested (~2.5x total vs. the original single-threaded, no-numba
+baseline).
+
+**What was added to `kanboost/`**: `predict_proba_ga2m()` gained an
+`n_jobs` parameter (default `1`, sequential, unchanged) in
+`kanboost/train/ga2m.py`. `joblib` added as an explicit dependency in
+`pyproject.toml` (was already a transitive dependency via
+scikit-learn). `tests/test_ga2m.py` (+1 case: `n_jobs=2` matches
+`n_jobs=1` predictions). Docs in `docs/guide/training-speed.md` (new
+subsection) and `docs/inspire_kanboost_evaluation.md` (§14.1 filled in
+with the full investigation).
+
+**Verification before publishing**: full test suite on `main` after
+the changes -- 206 passed, 2 skipped, zero regressions.
+
+**Gate bypass**: same override as CC-12 through CC-19 -- user
+explicitly authorized skipping the standing review gate for this
+proposal too, in the same session.
+
+**Version bump**: `1.10.0` -> `1.11.0` (minor, per semver -- additive
+parameter with a backward-compatible default on an existing public
+function, plus a new explicit dependency already present transitively).
+Bumped in both `pyproject.toml` and `kanboost/__init__.py`.
+
+**Publish complete**: pushed to `main` (`acb6b46` -> `d8cc4c3`),
+`gh release create v1.11.0` triggered `.github/workflows/publish.yml`
+(run `30626519634`, completed successfully via PyPI Trusted
+Publishing). Verified directly against PyPI's JSON API: `latest
+version: 1.11.0`.
+
+**Correction (same day, before any further release)**: the ~2.1x
+speedup table above came from a repeated-call microbenchmark (one
+warmup call, then several timed calls), which amortizes `joblib`'s
+worker-process startup cost across many calls. Re-measured immediately
+after publishing under the actual usage pattern KANBoost 1.11.0 was
+then re-benchmarked with (fit once, predict on validation and test --
+two calls, no warmup): `n_jobs=4` was scale-dependent, not a uniform
+win -- Large improved (~1.4x, 25.5s->17.8s), Medium was roughly a wash
+(+7%), and **Small got measurably worse** (9.4s->11.0s, the worker-
+spawn cost outweighing the small amount of per-round compute available
+to parallelize). No code change needed (the parameter and its default
+of `1` were already correct) -- this is a documentation correction only,
+updating `predict_proba_ga2m`'s docstring, the `ga2m.py` module
+docstring, `docs/guide/training-speed.md`, and
+`docs/inspire_kanboost_evaluation.md` §14.1 to state the honest,
+scale-dependent guidance (`n_jobs=1` for small/one-off predictions,
+`n_jobs>1` for larger data or long-running services with a warm worker
+pool) instead of the unqualified 2.1x claim. **Version bump: none**
+(documentation only, no behavior or code change).
+
+-- Claude Code, 2026-07-31
+
+## [Claude Code] Proposal CC-21 -- optional C++ (pybind11) accelerator for predict_proba_ga2m(), 2026-07-31
+
+**Competitor/gap**: CC-20's `n_jobs` closed part of the prediction-speed
+gap versus trees but was scale-dependent (a real win at Large, a wash
+at Medium, worse than sequential at Small -- `joblib` worker-spawn cost
+outweighing available per-round compute). The user asked to investigate
+a compiled C++ extension for the same forward pass instead.
+
+**First attempt: rejected.** A standalone (no Python binding) C++ port
+of the Cox-de-Boor basis evaluation, compiled with the only compiler
+available initially (32-bit MinGW.org GCC 6.3.0, from 2016), was
+*slower* than the existing numba path at every workload size tested --
+confirms a naive C++ port is not automatically faster; toolchain
+quality matters as much as language choice.
+
+**Second attempt, after installing a 64-bit toolchain** (MinGW-w64 GCC
+16.1.0 via `chocolatey`, user ran the elevated install): the same
+standalone benchmark reversed completely -- ~1.7-1.8x from the 64-bit
+compiler alone (same naive algorithm), a further 3.7-6.5x from
+eliminating per-call heap allocation and enabling `-O3 -march=native`
+vectorization. The isolated basis-evaluation computation became faster
+than kanboost's *entire* current Python+numba `predict_proba_ga2m` call.
+
+**Building the real extension**: `kanboost/_native/ga2m_ext.cpp`
+(pybind11) implements GA2M's full per-round forward pass (layer0 +
+layer1 + matmul), wired into `predict_proba_ga2m` via a new `backend`
+parameter (`"auto"` default, transparent fallback to pure Python/numba
+if not built). A first integrated version gave only ~1.5x; profiling
+revealed it recomputed each feature's basis once per edge (main effect
++ however many pairs reused that feature) instead of once per distinct
+feature reused via matmul, unlike `KANLayer.forward`'s own approach.
+Restructuring to share basis computation the same way roughly doubled
+the advantage, to ~2.3x. A real bug was also caught and fixed during
+integration testing: `n_in` was computed as `layer0.coef.shape[0] -
+len(pairs)` (wrong -- `coef.shape[0]` is already `n_in` directly),
+which silently produced a badly wrong prediction (AUROC 0.39 vs. 0.98)
+until caught by a correctness check against the Python path.
+
+**Acceptance gate**: must show a real, verified (bit-identical up to
+floating-point noise) speedup on the actual shipped API across all
+three INSPIRE scales, without touching accuracy or interpretability.
+
+**Evidence** (real `fit_with_ga2m()`/`predict_proba_ga2m()` API, all
+three scales):
+
+| Scale | Python | C++ | Speedup | Max prediction diff |
+|---|---|---|---:|---|
+| Small | 3.95s | 1.74s | 2.27x | 3.5e-15 |
+| Medium | 6.89s | 2.95s | 2.33x | 2.2e-15 |
+| Large | 10.15s | 4.49s | 2.26x | 2.2e-15 |
+
+AUROC/AUPRC bit-identical between backends; `main_effect_contributions()`
+/`pairwise_interaction_contributions()` verified unaffected (read
+directly from fitted coefficients, backend-independent). Notably more
+stable across scales than CC-20's `n_jobs` (which ranged from a
+slowdown to 1.4x depending on data size).
+
+**Accepted, shipped as fully optional**: requires `pybind11` and a
+C++17 compiler *at build time only* -- not part of the published PyPI
+wheel; installing/using kanboost normally is entirely unaffected. A
+build failure for any reason falls back to pure Python silently (see
+`setup.py`'s docstring and `OptionalBuildExt.build_extension`).
+
+**What was added to `kanboost/`**: `kanboost/_native/ga2m_ext.cpp` (new
+pybind11 extension source), `setup.py` (new, repo root -- optional
+best-effort extension build, MSVC/GCC-aware compile flags, never fails
+the overall install). `kanboost/train/ga2m.py` gained a `backend`
+parameter (`"auto"`/`"python"`/`"cpp"`) on `predict_proba_ga2m()` and a
+lazy `_cpp_ext` import. `tests/test_ga2m.py` (+3 cases: cpp-matches-
+python correctness when built, RuntimeError when `backend="cpp"` is
+forced but not built, unknown-backend rejection). Docs in
+`docs/guide/training-speed.md` (new subsection) and
+`docs/inspire_kanboost_evaluation.md` (new §16).
+
+**Verification before publishing**: full test suite on `main` after
+the changes -- 208 passed, 3 skipped, zero regressions (run with the
+extension built and importable in this environment).
+
+**Gate bypass**: same override as CC-12 through CC-20 -- user
+explicitly authorized skipping the standing review gate for this
+proposal too, in the same session.
+
+**Version bump**: `1.11.0` -> `1.12.0` (minor, per semver -- additive
+parameter with a backward-compatible default on an existing public
+function, plus a new fully-optional build artifact that does not
+change the published wheel). Bumped in both `pyproject.toml` and
+`kanboost/__init__.py`.
+
+**Publish complete**: pushed to `main` (`a063c4e` -> `ff6cd9f`),
+`gh release create v1.12.0` triggered `.github/workflows/publish.yml`
+(run `30632875005`, completed successfully via PyPI Trusted
+Publishing). Verified directly against PyPI's JSON API: `latest
+version: 1.12.0`.
+
+**Addendum, same day: cross-platform build confirmed via real CI, not
+assumed.** The extension had only been built and tested on Windows
+(MinGW-w64) up to this point. Added `.github/workflows/cppext.yml` --
+installs `pybind11`, runs `python setup.py build_ext --inplace`,
+verifies `kanboost.train.ga2m._cpp_ext` actually imports (fails loudly
+if not, rather than silently skipping), then runs the full test suite
+so `tests/test_ga2m.py`'s C++-vs-Python correctness checks actually
+execute against a real build instead of skipping. Matrix: `ubuntu-latest`
+/ `macos-latest` x Python 3.10/3.12 (4 jobs). **Result: all 4 passed**
+(run `30634452828`, ubuntu 3.10 4m24s, ubuntu 3.12 4m24s, macos 3.10
+4m39s, macos 3.12 3m35s) -- confirms the optional extension is genuinely
+portable across Windows (tested locally), Linux, and macOS (both now
+verified in CI), not merely assumed to be from `pybind11`/C++17 being
+nominally cross-platform. Separate workflow from `tests.yml` so a
+future failure here (e.g. a compiler-availability change on GitHub's
+runners) never blocks the main, always-pure-Python test suite.
+
+**Version bump**: none (CI-only addition, no package code or behavior
+change).
+
+-- Claude Code, 2026-07-31

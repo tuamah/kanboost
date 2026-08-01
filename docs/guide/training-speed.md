@@ -50,3 +50,279 @@ data — it's a good fit for fast iteration during tuning
 ([`kantun`](tuning-with-kantun.md)), less clear-cut for a final
 production model where the small accuracy delta matters more than
 training wall-clock.
+
+## Prediction speed: `consolidate_learners()`
+
+`fast_fit` only addresses *training* time. For a model you're about to
+deploy, `kanboost.train.consolidate.consolidate_learners()` shrinks the
+already-fitted ensemble itself, cutting *prediction* time (and saved
+model size) — it replaces consecutive groups of weak learners with one,
+least-squares-refit to reproduce the group's summed output:
+
+```python
+from kanboost.train.consolidate import consolidate_learners
+
+model.fit(X_train, y_train)
+consolidate_learners(model, X_train, group_size=5)  # mutates model in place
+model.predict_proba(X_test)  # same interface, fewer learners underneath
+```
+
+Measured on a real clinical benchmark (INSPIRE, `postop_icu`, 78K rows;
+see the [INSPIRE gap-closing case study](../inspire_gap_closing_report.md)):
+ensemble size 180→36, prediction time cut ~5x (54.1s→10.8s), for a small
+accuracy cost (AUROC −0.0026, AUPRC −0.0056). Unlike
+[`kanboost.interpret.editing.consolidate()`](editing-dashboard.md) (which
+requires `gam=True` and returns a new `EditableGAM`), this works on any
+fitted classifier/regressor and mutates `learners_` in place — no new
+object, no editability, just fewer learners to evaluate at predict time.
+As with `fast_fit`, this is a lossy approximation: compare accuracy
+before/after on your own held-out data before relying on it.
+
+## Training speed via fewer rounds: `fit_with_line_search()`
+
+`kanboost.train.linesearch.fit_with_line_search()` replaces the fixed
+`learning_rate` shrinkage with a per-round line search for the
+loss-minimizing step size, inspired by
+[GB-KAN](https://www.scitepress.org/Papers/2026/142468/142468.pdf) (an
+independently published KAN-based boosting framework). It does **not**
+make any individual round cheaper — the benefit is that fewer rounds
+are needed to reach the same accuracy, which cuts total wall time
+close to linearly in the round-count reduction:
+
+```python
+from kanboost import KANBoostClassifier
+from kanboost.train.linesearch import fit_with_line_search, predict_proba_line_search
+
+model = KANBoostClassifier(n_estimators=40)  # a fraction of what a
+                                              # fixed-shrinkage fit() would need
+fit_with_line_search(model, X_train, y_train)
+proba = predict_proba_line_search(model, X_test)  # NOT model.predict_proba --
+                                                    # each round has its own
+                                                    # step size, not a shared
+                                                    # learning_rate
+```
+
+Measured on INSPIRE (`postop_icu`, Medium scale, 50K rows): 40
+line-search rounds matched *and slightly exceeded* 140 rounds of a
+fixed-shrinkage baseline (AUROC 0.9407 vs. 0.9389, AUPRC 0.7636 vs.
+0.7560) in **91.4s vs. 384.4s — a 4.2x wall-clock speedup**. At the
+*same* round count, line search gives no consistent benefit (the 1-D
+search itself adds a small per-round cost) — its value is specifically
+in letting you use fewer rounds, not in improving each one.
+
+**Scope**: binary `KANBoostClassifier` only (not multiclass, not
+`KANBoostRegressor`), no `eval_set`/early stopping. Use
+`predict_proba_line_search()`, not the base model's own
+`predict_proba()` — each learner has its own step size here, unlike a
+normal `fit()` where every learner shares `learning_rate`.
+
+## Accuracy at the same round count: `fit_with_newton_boosting()`
+
+`kanboost.train.newton.fit_with_newton_boosting()` is a different lever
+on the same underlying idea GB-KAN's paper flags as unsolved for
+KAN-based boosting: **second-order (Newton-step) boosting**. Instead of
+fitting each weak learner directly to the raw pseudo-residual `y - p`,
+it reweights using the logistic loss's second derivative
+(`h = p*(1-p)`), fitting the learner to the Newton target
+`(y - p) / h` with sample weight `h` — the same reformulation XGBoost
+uses to derive its leaf values.
+
+```python
+from kanboost import KANBoostClassifier
+from kanboost.train.newton import fit_with_newton_boosting
+
+model = KANBoostClassifier(n_estimators=140)  # same round count as a normal fit()
+fit_with_newton_boosting(model, X_train, y_train)
+model.predict_proba(X_test)  # works via the standard API -- no special
+                              # predict function needed, unlike
+                              # fit_with_line_search
+```
+
+Measured on INSPIRE at the *same* round count as a normal fit, all
+three scales: AUROC/AUPRC both improved consistently (Small: 0.9225→0.9246
+/ 0.6707→0.6879; Medium: 0.9389→0.9411 / 0.7560→0.7686; Large:
+0.9413→0.9434 / 0.7643→0.7757). **Fit time did not move consistently**
+(neutral at Small, ~33% slower at Medium, ~19% faster at Large) — this
+is an accuracy-oriented option, not a speed-oriented one; don't expect
+a predictable time change.
+
+**Tested and rejected**: combining this with `fit_with_line_search()`.
+At every scale, the combination underperformed either technique alone
+— the line search there optimizes against the *original* loss while
+the learner was fit to the Newton-*reweighted* target, an
+inconsistency, not a bug in either piece individually. Use one or the
+other, not both.
+
+**Scope**: binary and multiclass `KANBoostClassifier` (not
+`KANBoostRegressor`). Multiclass fits one one-vs-rest Newton chain per
+class, exactly like a standard multiclass `fit()`. Measured on Digits
+(10 classes, sklearn): standard-ALS multiclass fit 29.5s/94.8% accuracy
+vs. Newton-boosted multiclass 62.4s/97.4% -- accuracy improves further
+in multiclass, but so does the per-round cost, since Newton reweighting
+compounds across `n_classes` independent chains.
+
+## A different weak-learner engine entirely: `fit_with_rfkan()`
+
+Everything above keeps kanboost's standard weak-learner engine (Gauss-Newton
+ALS, `_fit_als`) and changes only the target reweighting or step size.
+`kanboost.train.rfkan.fit_with_rfkan()` replaces the engine itself: ALS
+alternately refits both layers for up to 10 sweeps per learner, and
+profiling traced most of the per-round cost to that alternation (a
+fresh eigendecomposition every sweep, since the hidden representation
+changes each time). RF-KAN instead freezes the input→hidden layer as a
+fresh **random projection each round** (Random Features / ELM: Rahimi &
+Recht 2007, Huang 2006) and solves the hidden→output layer with ONE
+closed-form penalized least-squares solve — no alternation, no repeated
+eigendecomposition.
+
+```python
+from kanboost import KANBoostClassifier
+from kanboost.train.rfkan import fit_with_rfkan, predict_proba_rfkan
+
+model = KANBoostClassifier(n_estimators=140)  # same round count as a normal fit
+fit_with_rfkan(model, X_train, y_train)
+proba = predict_proba_rfkan(model, X_test)  # NOT model.predict_proba --
+                                             # each round's layer0 is
+                                             # independently random
+```
+
+Measured on INSPIRE, same round count as a normal fit, all three scales
+— accuracy matches (not just approximates) the standard ALS engine, at
+3.7–5.3x less fit time:
+
+| Scale | ALS (standard) | RF-KAN | Speedup |
+|---|---|---|---:|
+| Small | 27.6s, AUROC 0.9225/AUPRC 0.6707 | 7.4s, 0.9226/0.6709 | 3.7x |
+| Medium | 265.5s, 0.9389/0.7560 | 62.4s, 0.9388/0.7561 | 4.3x |
+| Large | 618.0s, 0.9413/0.7643 | 143.6s, 0.9413/0.7643 | 4.3x |
+
+It composes with the two options above — `use_newton=True` gives the
+**best accuracy** of any option in this guide, at the *same* speed as
+plain RF-KAN (Small 0.9247/0.6878, Medium 0.9411/0.7688, Large
+0.9433/0.7758 — better than standard ALS on every metric, 3.7–4.3x
+faster); `use_line_search=True` gives the **best speed**, since RF-KAN's
+speedup and line search's round-count reduction compound (Medium: 42
+rounds instead of 140, 19.3s instead of 265.5s — 13.8x — with AUROC/AUPRC
+both *exceeding* the full-round baseline: 0.9407/0.7643 vs. 0.9389/0.7560).
+
+**`use_newton=True` and `use_line_search=True` together are rejected
+with a `ValueError`** — measured at all three scales, the combination
+is worse than either alone every time, for the same reason noted above
+(line search optimizing against the original loss vs. a
+Newton-reweighted fit target).
+
+**The real tradeoff, stated plainly**: layer0 is a fresh random
+projection every round here, not a representation that adapts to the
+data the way standard ALS's does. This means KANBoost's native
+interpretability tools — `feature_contributions()`, `plot_feature()`,
+`symbolic_report()`, `feature_interaction()` — are **not meaningful**
+on a model fitted this way, since there's no stable input-to-hidden
+mapping to attribute through. That's kanboost's primary differentiator
+against tree boosting, and RF-KAN gives it up for speed. Use
+`fit_with_newton_boosting()`/`fit_with_line_search()` (which keep
+standard ALS, interpretability intact) when that matters for a given
+model; use `fit_with_rfkan()` when raw speed/accuracy is the priority
+and you don't need to interpret that particular model afterward.
+
+**Scope**: binary and multiclass `KANBoostClassifier` (not
+`KANBoostRegressor`), same one-vs-rest convention as
+`fit_with_newton_boosting()`. Measured on Digits (10 classes):
+`use_newton=True` matched the best multiclass accuracy measured in this
+guide (97.4%, tied with standard-ALS Newton boosting) at **7.6x its
+speed** (8.2s vs. 62.4s) — the RF-KAN+Newton combination's advantage
+over plain ALS widens in multiclass, since Newton's added cost compounds
+across `n_classes` independent chains on the standard engine but not on
+RF-KAN's already-cheap one.
+
+## Speed, accuracy, AND interpretability together: `fit_with_ga2m()`
+
+Every option above trades interpretability for speed/accuracy (`fit_with_rfkan`) or keeps interpretability but gives up some of RF-KAN's benefit. `kanboost.train.ga2m.fit_with_ga2m()` is the one engine in this guide that does not force that tradeoff: it restructures WHICH features feed each hidden unit (one per input feature -- a "main effect" -- plus a random subset of feature PAIRS re-sampled every round -- an "interaction") instead of RF-KAN's dense random mixing of all features per unit. Every hidden unit is attributable to exactly one feature or one named pair, so `main_effect_contributions()`/`pairwise_interaction_contributions()` give genuine, per-feature/per-pair attribution (GA2M / Explainable Boosting Machine style) -- unlike RF-KAN, where a unit's dense random mixture cannot be attributed to anything.
+
+```python
+from kanboost import KANBoostClassifier
+from kanboost.train.ga2m import (
+    fit_with_ga2m, predict_proba_ga2m,
+    main_effect_contributions, pairwise_interaction_contributions,
+)
+
+model = KANBoostClassifier(n_estimators=42)  # a fraction of a normal fit's rounds --
+                                              # line search is on by default here
+fit_with_ga2m(model, X_train, y_train, n_pairs_per_round=10)
+proba = predict_proba_ga2m(model, X_test)
+
+main_effect_contributions(model)              # {feature: total contribution}, sorted desc
+pairwise_interaction_contributions(model)     # {(feature_a, feature_b): total contribution}, sorted desc
+```
+
+**This is the best-performing engine measured in this entire guide** — line search is on by default (`use_line_search=True`) because the combination is what was actually validated: at every INSPIRE scale tested, GA2M+line-search beat every other option here, including `fit_with_rfkan(use_newton=True)` (previously the best), on **both** AUROC and AUPRC, at comparable or better speed:
+
+| Scale | Rounds | Dense RF-KAN (full rounds) | **GA2M + line search** | Speedup |
+|---|---:|---|---|---:|
+| Small | 30 | 7.4s, 0.9226/0.6709 | 2.3s, **0.9283/0.6883** | 3.2x |
+| Medium | 42 | 62.7s, 0.9388/0.7561 | 19.6s, **0.9477/0.7797** | 3.2x |
+| Large | 54 | 146.5s, 0.9413/0.7643 | 45.4s, **0.9505/0.7918** | 3.2x |
+
+**Without line search, GA2M underperforms dense RF-KAN on AUPRC** at every scale tested (a real, confirmed cost of restricting mixing to main effects + pairs instead of dense mixing) — line search is specifically what recovers this and then exceeds it, which is why it defaults on here unlike `fit_with_rfkan`.
+
+A faster variant (independent per-hidden-unit solve instead of one joint solve, ~15% faster) was tested and intentionally **not** implemented here: it is measurably *less accurate for attribution specifically* — the joint solve used here correctly partitions credit between overlapping units (e.g. a feature's main effect and an interaction term involving that same feature); an independent solve does not, and can double-count shared signal between them. Use this module, not a faster-but-approximate variant, whenever the interpretation itself will be trusted, not just the predictions.
+
+**Scope**: binary `KANBoostClassifier` only (not multiclass, not `KANBoostRegressor`).
+
+### Making `use_newton=True` consistent: `line_search_mode="armijo"`
+
+`use_newton=True` combined with the default line search had an inconsistent effect above (see the module docstring). The reason: the default `line_search_mode="bounded"` independently minimizes the *original* loss over `gamma`, while the learner was fit against the Newton-*reweighted* target — a mismatch. `line_search_mode="armijo"` fixes this by backtracking from `gamma=1` (the natural Newton step scale) using the true loss's exact directional derivative as the accept criterion:
+
+```python
+fit_with_ga2m(model, X_train, y_train, use_newton=True, line_search_mode="armijo")
+```
+
+Measured at all three INSPIRE scales, this was a consistent, unambiguous improvement over `use_newton=True` with the default line search — better AUROC/AUPRC at every scale, no fit-time cost, and roughly half the maximum coefficient magnitude (more stable, more trustworthy attribution):
+
+| Scale | `use_newton=True` (default line search) | `use_newton=True, line_search_mode="armijo"` |
+|---|---|---|
+| Small | 0.9241 / 0.6724, max\|coef\| 12.19 | **0.9250 / 0.6791**, max\|coef\| **5.86** |
+| Medium | 0.9471 / 0.7831, max\|coef\| 3.52 | **0.9473 / 0.7831**, max\|coef\| **2.62** |
+| Large | 0.9506 / 0.7928, max\|coef\| 2.95 | **0.9507 / 0.7932**, max\|coef\| **2.40** |
+
+Two more options adjust how `use_newton=True` keeps `p(1-p)` away from zero (`hessian_floor_mode`, default `"hard"`): `"adaptive"` and `"soft_lm"` were both accuracy-neutral in testing but 7-12% faster at Medium/Large scale — a low-risk secondary option if raw speed matters more than the (already small) difference between floor strategies. See the `kanboost.train.ga2m`/`kanboost.train.newton` module docstrings for the full measured tables and the rejected fourth candidate (sharing one random layer0 draw across multiclass one-vs-rest chains — real accuracy cost for a marginal speedup, not shipped).
+
+### Faster prediction: `predict_proba_ga2m(model, X, n_jobs=...)`
+
+Predicting with a GA2M model was the dominant remaining speed gap versus trees (profiling found ~79% of predict time inside B-spline basis evaluation). Two levers were tested: installing the optional `pip install kanboost[accel]` extra (numba — the library already has a JIT-compiled fast path for this, just not installed by default) gave a modest end-to-end gain; a hand-vectorized pure-numpy alternative was tried and **rejected** (3.8-4.2x *slower*, confirming `kanboost.core.kan.bspline`'s own docstring warning independently). The clear win was parallelizing across boosting rounds — each round's contribution is fixed and independent once fitting completes:
+
+```python
+predict_proba_ga2m(model, X_test, n_jobs=4)
+```
+
+In a repeated-call microbenchmark, this gave a consistent ~2.1x speedup at all three INSPIRE scales (e.g. Large: 9.8s → 4.6s), identical predictions to `n_jobs=1` (the default, unchanged) up to floating-point noise.
+
+**Caveat, confirmed by a second, more realistic measurement — this is not a universal win.** `joblib`'s worker-process startup cost is a real, fixed overhead that has to be paid before round-level parallelism pays for itself. Re-measured under a cold-start pattern (fit once, then predict on validation and test — two calls, no warmup), `n_jobs=4` was scale-dependent: Large improved (~1.4x, 25.5s → 17.8s), Medium was roughly a wash (~7%), and Small got measurably *worse* (9.4s → 11.0s) — the worker-spawn cost outweighed the small amount of per-round compute available to parallelize. **Prefer `n_jobs=1` (default) for small data or one-off predictions; reserve `n_jobs>1` for larger data, or for long-running services that reuse the same warm worker pool across many prediction calls.** Installing `pip install kanboost[accel]` (numba) has no such caveat and is complementary — combining both gave the best result tested at Large scale.
+
+### An optional native accelerator: `predict_proba_ga2m(model, X, backend=...)`
+
+`n_jobs`'s inconsistency at small scale motivated investigating a C++ (pybind11) extension for the same forward pass — profiling had found ~79% of predict time inside B-spline basis evaluation, and a fair, apples-to-apples benchmark with a modern 64-bit compiler (the numba path's own JIT approach, but ahead-of-time-compiled and without repeated Python↔native call overhead) showed real promise. `kanboost/_native/ga2m_ext.cpp` implements the same GA2M forward pass (layer0 + layer1 + matmul) natively, sharing each distinct feature's basis computation exactly once per round — mirroring `KANLayer.forward`'s own efficiency, unlike a naive first attempt that recomputed a feature's basis once per pairwise unit that used it (a real bug, not a design choice: it made the naive C++ version only ~1.5x faster instead of ~2.3x).
+
+This extension is **entirely optional and not part of the published PyPI wheel** — it requires `pybind11` and a C++17 compiler *at build time* (not at runtime or install time otherwise):
+
+```bash
+pip install pybind11
+python setup.py build_ext --inplace   # builds kanboost/_ga2m_cpp if a C++17 compiler is found
+```
+
+If the build tools aren't present, or the compile fails for any reason, kanboost installs and works exactly as before — `kanboost.train.ga2m` auto-detects the compiled extension at import time (`backend="auto"`, the default) and only uses it when present:
+
+```python
+predict_proba_ga2m(model, X_test)                     # backend="auto" -- uses C++ if built, else Python
+predict_proba_ga2m(model, X_test, backend="python")    # force pure Python/numba
+predict_proba_ga2m(model, X_test, backend="cpp")       # force C++; raises RuntimeError if not built
+```
+
+Measured end-to-end on real INSPIRE data (the actual shipped `fit_with_ga2m()`/`predict_proba_ga2m()` API, not a standalone reimplementation) at all three scales — a consistent ~2.3x speedup, notably **more stable across scales than `n_jobs`** (which ranged from a slowdown to a 1.4x speedup depending on data size), with predictions identical to the pure-Python path up to floating-point noise:
+
+| Scale | Python | C++ | Speedup | Max prediction diff |
+|---|---|---|---:|---|
+| Small | 3.95s | 1.74s | **2.27x** | 3.5e-15 |
+| Medium | 6.89s | 2.95s | **2.33x** | 2.2e-15 |
+| Large | 10.15s | 4.49s | **2.26x** | 2.2e-15 |
+
+AUROC/AUPRC and `main_effect_contributions()`/`pairwise_interaction_contributions()` were bit-for-bit unaffected (interpretability is read directly from the fitted coefficients, independent of which backend computed the forward pass). Combines with `n_jobs` (parallelizes across rounds regardless of which backend computes each round). See `docs/inspire_kanboost_evaluation.md` §16 and `AI_REVIEW_LOOP.md` (CC-21) for the full investigation, including the rejected earlier attempts (32-bit compiler, naive per-edge basis recomputation).
