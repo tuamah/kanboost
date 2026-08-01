@@ -203,6 +203,74 @@ def test_predict_proba_ga2m_requires_ga2m_fit():
         predict_proba_ga2m(model, X_te)
 
 
+def test_ga2m_pair_selection_default_is_unchanged_random_behavior():
+    """pair_selection defaults to 'random' -- must be bit-identical to
+    calling fit_with_ga2m with no pair_selection argument at all (i.e.
+    the CC-30 gain-ranked path is fully opt-in, zero effect otherwise)."""
+    X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
+    m1 = KANBoostClassifier(n_estimators=10, kan_grid=3, random_state=0, verbose=False)
+    fit_with_ga2m(m1, X_tr, y_tr, n_pairs_per_round=5)
+    m2 = KANBoostClassifier(n_estimators=10, kan_grid=3, random_state=0, verbose=False)
+    fit_with_ga2m(m2, X_tr, y_tr, n_pairs_per_round=5, pair_selection="random")
+
+    p1 = predict_proba_ga2m(m1, X_te)
+    p2 = predict_proba_ga2m(m2, X_te)
+    assert np.array_equal(p1, p2)
+
+
+def test_ga2m_gain_ranked_selection_fits_and_predicts():
+    X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
+    model = KANBoostClassifier(n_estimators=15, kan_grid=3, random_state=0, verbose=False)
+    fit_with_ga2m(model, X_tr, y_tr, n_pairs_per_round=10, pair_selection="gain")
+
+    assert model.best_iteration_ == 15
+    proba = predict_proba_ga2m(model, X_te)
+    assert proba.shape == (len(y_te), 2)
+    assert np.allclose(proba.sum(axis=1), 1.0)
+    assert np.all(np.isfinite(proba))
+    assert roc_auc_score(y_te, proba[:, 1]) > 0.9
+
+    # every round's layer0 must have exactly n_in + n_pairs_per_round
+    # hidden units -- same contract as the random-selection path, so
+    # predict_proba_ga2m/contributions/the C++ backend all work unchanged.
+    n_in = model.learners_[0][0].coef.shape[0]
+    for layer0, knots1, coefs, n_hidden, K1, gamma, pairs in model.learners_:
+        assert n_hidden == n_in + 10
+        assert len(pairs) == 10
+        assert layer0.coef.shape[1] == n_hidden
+
+
+def test_ga2m_gain_ranked_contributions_work():
+    X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
+    model = KANBoostClassifier(n_estimators=10, kan_grid=3, random_state=0, verbose=False)
+    fit_with_ga2m(model, X_tr, y_tr, n_pairs_per_round=5, pair_selection="gain")
+
+    mains = main_effect_contributions(model)
+    assert len(mains) == X_tr.shape[1]
+    pairs = pairwise_interaction_contributions(model, top_k=5)
+    assert len(pairs) <= 5
+    for key, val in pairs.items():
+        assert isinstance(key, tuple) and len(key) == 2
+        assert val >= 0
+
+
+def test_ga2m_gain_ranked_combines_with_newton_and_armijo():
+    X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
+    model = KANBoostClassifier(n_estimators=10, kan_grid=3, random_state=0, verbose=False)
+    fit_with_ga2m(model, X_tr, y_tr, n_pairs_per_round=5, pair_selection="gain",
+                  use_newton=True, line_search_mode="armijo")
+    proba = predict_proba_ga2m(model, X_te)
+    assert np.all(np.isfinite(proba))
+    assert roc_auc_score(y_te, proba[:, 1]) > 0.85
+
+
+def test_ga2m_rejects_unknown_pair_selection():
+    X_tr, X_te, y_tr, y_te = _breast_cancer_splits()
+    model = KANBoostClassifier(n_estimators=5, random_state=0, verbose=False)
+    with pytest.raises(ValueError, match="pair_selection"):
+        fit_with_ga2m(model, X_tr, y_tr, pair_selection="bogus")
+
+
 if __name__ == "__main__":
     test_ga2m_fits_and_predicts()
     test_ga2m_beats_dense_rfkan_with_line_search()
