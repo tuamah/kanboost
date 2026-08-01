@@ -1,0 +1,1924 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Gradient boosting with Kolmogorov-Arnold Network (KAN) learners">
+      
+      
+      
+        <link rel="canonical" href="https://tuamah.github.io/kanboost/inspire_gap_closing_report/">
+      
+      
+        <link rel="prev" href="../inspire_kanboost_evaluation/">
+      
+      
+        <link rel="next" href="../api/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>INSPIRE gap-closing engineering log - KANBoost</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#closing-the-kanboost-vs-trees-gap-on-inspire-postop_icu" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="KANBoost" class="md-header__button md-logo" aria-label="KANBoost" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KANBoost
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              INSPIRE gap-closing engineering log
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/tuamah/kanboost" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tuamah/kanboost
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="KANBoost" class="md-nav__button md-logo" aria-label="KANBoost" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    KANBoost
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/tuamah/kanboost" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tuamah/kanboost
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classification & regression
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/interpretability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interpretability (GAM, monotone, symbolic, derivatives)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/editing-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Editable models & dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/symbolic-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Symbolic formula export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/interactions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Checking the additive assumption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/calibration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/imbalance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Imbalanced classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/training-speed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training speed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/serving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serving & observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/mlops/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MLOps integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/tuning-with-kantun/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tuning with kantun
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmark_v1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmark v1 (DeepKAN baseline)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../inspire_kanboost_evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    INSPIRE evaluation (audited, final)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    INSPIRE gap-closing engineering log
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    INSPIRE gap-closing engineering log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-baseline-reproduction-no-fixes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Baseline reproduction (no fixes)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-root-cause-diagnosis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Root-cause diagnosis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-fixes-adopted-validated-empirically-on-this-dataset-not-assumed-from-literature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Fixes adopted (validated empirically on this dataset, not assumed from literature)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Fixes adopted (validated empirically on this dataset, not assumed from literature)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#result-all-three-scales-adopted-5-fixes-vs-baseline-vs-best-tree" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Result: all three scales, adopted 5 fixes vs. baseline vs. best tree
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-three-further-techniques-tested-one-adopted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Three further techniques tested, one adopted
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-final-combined-configuration-ultimate-vs-best-tree-large-scale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Final combined configuration ("ULTIMATE") vs. best tree, Large scale
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-external-benchmark-comparison-and-a-leakage-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. External benchmark comparison and a leakage audit
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. External benchmark comparison and a leakage audit">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61-the-only-directly-comparable-published-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 The only directly comparable published benchmark
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-why-the-event-rate-differs-confirmed-from-physionets-own-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2 Why the event rate differs: confirmed from PhysioNet's own documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63-leakage-audit-is-icd10_pcs-leaking-outcome-information" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.3 Leakage audit: is icd10_pcs leaking outcome information?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#64-what-this-means-for-the-reports-conclusions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.4 What this means for the report's conclusions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-beyond-deterministic-procedure-codes-mixed-code-robustness-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Beyond deterministic procedure codes: mixed-code robustness analysis
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Beyond deterministic procedure codes: mixed-code robustness analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-performance-by-procedure-code-category" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 Performance by procedure-code category
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-full-data-ablation-without-icd10_pcs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 Full-data ablation without icd10_pcs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#73-mixed-codes-only-retraining-the-decisive-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3 Mixed-codes-only retraining (the decisive test)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#74-conclusion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4 Conclusion
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-what-was-not-done-and-why" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. What was NOT done, and why
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-reproducing-this-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Reproducing this report
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-continued-past-140-line-search-newton-boosting-rf-kan-ga2m-and-a-c-accelerator-through-1120" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Continued past 1.4.0: line search, Newton boosting, RF-KAN, GA2M, and a C++ accelerator (through 1.12.0)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-baseline-reproduction-no-fixes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Baseline reproduction (no fixes)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-root-cause-diagnosis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Root-cause diagnosis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-fixes-adopted-validated-empirically-on-this-dataset-not-assumed-from-literature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Fixes adopted (validated empirically on this dataset, not assumed from literature)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Fixes adopted (validated empirically on this dataset, not assumed from literature)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#result-all-three-scales-adopted-5-fixes-vs-baseline-vs-best-tree" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Result: all three scales, adopted 5 fixes vs. baseline vs. best tree
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-three-further-techniques-tested-one-adopted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Three further techniques tested, one adopted
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-final-combined-configuration-ultimate-vs-best-tree-large-scale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Final combined configuration ("ULTIMATE") vs. best tree, Large scale
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-external-benchmark-comparison-and-a-leakage-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. External benchmark comparison and a leakage audit
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. External benchmark comparison and a leakage audit">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61-the-only-directly-comparable-published-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 The only directly comparable published benchmark
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-why-the-event-rate-differs-confirmed-from-physionets-own-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2 Why the event rate differs: confirmed from PhysioNet's own documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63-leakage-audit-is-icd10_pcs-leaking-outcome-information" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.3 Leakage audit: is icd10_pcs leaking outcome information?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#64-what-this-means-for-the-reports-conclusions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.4 What this means for the report's conclusions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-beyond-deterministic-procedure-codes-mixed-code-robustness-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Beyond deterministic procedure codes: mixed-code robustness analysis
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Beyond deterministic procedure codes: mixed-code robustness analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-performance-by-procedure-code-category" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 Performance by procedure-code category
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-full-data-ablation-without-icd10_pcs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 Full-data ablation without icd10_pcs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#73-mixed-codes-only-retraining-the-decisive-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3 Mixed-codes-only retraining (the decisive test)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#74-conclusion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4 Conclusion
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-what-was-not-done-and-why" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. What was NOT done, and why
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-reproducing-this-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Reproducing this report
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-continued-past-140-line-search-newton-boosting-rf-kan-ga2m-and-a-c-accelerator-through-1120" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Continued past 1.4.0: line search, Newton boosting, RF-KAN, GA2M, and a C++ accelerator (through 1.12.0)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="closing-the-kanboost-vs-trees-gap-on-inspire-postop_icu">Closing the KANBoost-vs-Trees Gap on INSPIRE (postop_icu)<a class="headerlink" href="#closing-the-kanboost-vs-trees-gap-on-inspire-postop_icu" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>This is the chronological engineering log</strong> (every fix tried, in order, with code). For the audited, scientifically defensible summary — including the leakage audit, mixed-code robustness analysis, and a fair (threshold-tuned-on-both-sides) tree comparison — see <strong><a href="../inspire_kanboost_evaluation/"><code>inspire_kanboost_evaluation.md</code></a></strong>.</p>
+</blockquote>
+<p><strong>Date</strong>: 2026-07-30
+<strong>Dataset</strong>: INSPIRE (Seoul National University Hospital perioperative dataset), local copy at <code>INSPIRE/operations.csv</code> (130,960 rows, 99,886 patients).
+<strong>Task</strong>: binary classification, <code>postop_icu</code> = whether <code>icuin_time</code> is non-null (11.4% positive rate).
+<strong>Features</strong>: <code>age, sex, weight, height, race, asa, emop, department, antype, icd10_pcs</code> (5 numeric, 5 categorical).
+<strong>Split</strong>: group-aware (by <code>subject_id</code>) 60/20/20 via <code>StratifiedGroupKFold</code>, fixed across all scales. Three nested training scales (Small ⊂ Medium ⊂ Large by patient): 10,000 / 50,000 / 78,496 rows.
+<strong>Hardware</strong>: CPU-only for this run (torch build installed here is <code>2.11.0+cpu</code>; an NVIDIA GPU is present but not usable by this torch build — KANBoost's <code>device="cuda"</code> path was not exercised).
+<strong>kanboost version</strong>: 1.3.0 (installed editable from <code>G:\My Drive\project\kanboost</code>, includes the 2026-07-22 out-of-fold target-encoding leakage fix and the <code>categorical_hierarchy</code> feature).</p>
+<h2 id="1-baseline-reproduction-no-fixes">1. Baseline reproduction (no fixes)<a class="headerlink" href="#1-baseline-reproduction-no-fixes" title="Permanent link">&para;</a></h2>
+<p>Original notebook design: One-Hot encoding (<code>min_frequency=50</code>) for KANBoost's categorical features, Ordinal encoding for the tree models, no class weighting, threshold chosen by scanning balanced accuracy.</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th>Model</th>
+<th style="text-align: right;">AUROC</th>
+<th style="text-align: right;">AUPRC</th>
+<th style="text-align: right;">F1</th>
+<th style="text-align: right;">Fit time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>KANBoost</td>
+<td style="text-align: right;">0.9104</td>
+<td style="text-align: right;">0.6255</td>
+<td style="text-align: right;">0.5467</td>
+<td style="text-align: right;">40.0s</td>
+</tr>
+<tr>
+<td>Small</td>
+<td>Best tree (HistGB)</td>
+<td style="text-align: right;">0.9329</td>
+<td style="text-align: right;">0.7167</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">2.6s</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>KANBoost</td>
+<td style="text-align: right;">0.9176</td>
+<td style="text-align: right;">0.6413</td>
+<td style="text-align: right;">0.5796</td>
+<td style="text-align: right;">612.8s</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>Best tree (LightGBM)</td>
+<td style="text-align: right;">0.9535</td>
+<td style="text-align: right;">0.8081</td>
+<td style="text-align: right;">0.6461</td>
+<td style="text-align: right;">1.4s</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>KANBoost</td>
+<td style="text-align: right;">0.9189</td>
+<td style="text-align: right;">0.6406</td>
+<td style="text-align: right;">0.5711</td>
+<td style="text-align: right;">2295.0s</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>Best tree (LightGBM)</td>
+<td style="text-align: right;">0.9562</td>
+<td style="text-align: right;">0.8160</td>
+<td style="text-align: right;">0.6545</td>
+<td style="text-align: right;">2.7s</td>
+</tr>
+</tbody>
+</table>
+<p>Gap widened with scale (AUROC gap 0.023 → 0.036 → 0.037), and KANBoost's training time grew far faster than the trees' (7-850x slower depending on scale).</p>
+<h2 id="2-root-cause-diagnosis">2. Root-cause diagnosis<a class="headerlink" href="#2-root-cause-diagnosis" title="Permanent link">&para;</a></h2>
+<p>Read directly from kanboost's own source and docs (not assumed from generic KAN literature):</p>
+<ul>
+<li><code>kanboost/core/kan/network.py</code>: as of v1.2.1 (2026-07-18), KANBoost's weak learner (<code>DeepKAN</code>) is <strong>not</strong> a torch/Adam network — it's a closed-form numpy/scipy ALS (non-GAM) / P-spline (GAM) solver. The <code>opt="Adam"</code>/<code>kan_steps</code> arguments passed by <code>classifier.py</code> are accepted for API compatibility but ignored by the solver (<code>steps</code> becomes an ALS sweep cap, capped at 10).</li>
+<li><code>kanboost/core/kan/bspline.py</code>: the B-spline basis evaluation is JIT-compiled via numba (measured 6.5x faster than the scipy fallback), and <code>_boost_chain</code>/<code>_fit_als</code> share a <code>basis_cache</code> across the whole boosting chain (layer-0 design matrix + its eigendecomposition computed once, reused every round) — so the classic "PolyKAN/FastKAN-style kernel fusion" opportunity that generic KAN literature targets is <strong>already implemented</strong> here, just not under those names.</li>
+<li><code>kanboost/docs/guide/classification.md</code> / <code>calibration.md</code> / <code>imbalance.md</code>: three independent benchmarks documented by the project itself already characterize the exact failure modes reproduced here — weak-learner capacity degrading with dataset size, systematic probability miscalibration (worst Brier/log-loss, F1-optimal threshold ~0.40-0.42 not 0.5), and a specific imbalanced-classification failure mode (init_pred_ starts at the true base-rate log-odds; unweighted MSE per round is dominated by the majority class).</li>
+<li>One-Hot encoding was the actual encoding used for KANBoost in the notebook that produced the first three_scale_results — but <code>kanboost</code>'s own <code>TabularPreprocessor</code> (<code>categorical_cols=...</code>) does smoothed, K-fold out-of-fold target-mean encoding instead, which is far narrower (fewer columns) and better matched to a spline-based model than sparse one-hot columns, especially for the high-cardinality <code>icd10_pcs</code> column.</li>
+</ul>
+<h2 id="3-fixes-adopted-validated-empirically-on-this-dataset-not-assumed-from-literature">3. Fixes adopted (validated empirically on this dataset, not assumed from literature)<a class="headerlink" href="#3-fixes-adopted-validated-empirically-on-this-dataset-not-assumed-from-literature" title="Permanent link">&para;</a></h2>
+<p>Five fixes, layered incrementally and measured at each step on the Small scale before being confirmed at Medium/Large:</p>
+<ol>
+<li><strong>Native target-mean categorical encoding</strong> (<code>categorical_cols=CATEGORICAL_FEATURES</code>) instead of manual One-Hot.</li>
+<li><strong>Class-balanced <code>sample_weight</code></strong> (<code>sklearn.utils.class_weight.compute_sample_weight("balanced", y_train)</code>).</li>
+<li><strong>2x weak-learner capacity</strong> (<code>kan_hidden</code>, <code>kan_grid</code> both doubled per scale).</li>
+<li><strong><code>kanboost.train.imbalance.find_threshold(cal_model, X_val, y_val, metric="f1")</code></strong> instead of a manual balanced-accuracy threshold scan — per the project's own docs, the dominant fix for the imbalance-driven F1=0 failure mode.</li>
+<li><strong><code>kanboost.train.calibration.calibrate(model, X_val, y_val, method="platt")</code></strong> — post-hoc, monotone (AUROC/AUPRC unchanged), corrects the documented systematic miscalibration.</li>
+</ol>
+<h3 id="result-all-three-scales-adopted-5-fixes-vs-baseline-vs-best-tree">Result: all three scales, adopted 5 fixes vs. baseline vs. best tree<a class="headerlink" href="#result-all-three-scales-adopted-5-fixes-vs-baseline-vs-best-tree" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th>Model</th>
+<th style="text-align: right;">AUROC</th>
+<th style="text-align: right;">AUPRC</th>
+<th style="text-align: right;">F1</th>
+<th style="text-align: right;">Fit time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>KANBoost baseline</td>
+<td style="text-align: right;">0.9104</td>
+<td style="text-align: right;">0.6255</td>
+<td style="text-align: right;">0.5467</td>
+<td style="text-align: right;">40.0s</td>
+</tr>
+<tr>
+<td>Small</td>
+<td><strong>KANBoost, 5 fixes</strong></td>
+<td style="text-align: right;"><strong>0.9221</strong></td>
+<td style="text-align: right;"><strong>0.6690</strong></td>
+<td style="text-align: right;"><strong>0.6202</strong></td>
+<td style="text-align: right;">40.2s</td>
+</tr>
+<tr>
+<td>Small</td>
+<td>Best tree</td>
+<td style="text-align: right;">0.9329</td>
+<td style="text-align: right;">0.7167</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">2.6s</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>KANBoost baseline</td>
+<td style="text-align: right;">0.9176</td>
+<td style="text-align: right;">0.6413</td>
+<td style="text-align: right;">0.5796</td>
+<td style="text-align: right;">612.8s</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td><strong>KANBoost, 5 fixes</strong></td>
+<td style="text-align: right;"><strong>0.9388</strong></td>
+<td style="text-align: right;"><strong>0.7557</strong></td>
+<td style="text-align: right;"><strong>0.6797</strong></td>
+<td style="text-align: right;"><strong>389.9s</strong></td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>Best tree</td>
+<td style="text-align: right;">0.9535</td>
+<td style="text-align: right;">0.8081</td>
+<td style="text-align: right;">0.6461</td>
+<td style="text-align: right;">1.4s</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>KANBoost baseline</td>
+<td style="text-align: right;">0.9189</td>
+<td style="text-align: right;">0.6406</td>
+<td style="text-align: right;">0.5711</td>
+<td style="text-align: right;">2295.0s</td>
+</tr>
+<tr>
+<td>Large</td>
+<td><strong>KANBoost, 5 fixes</strong></td>
+<td style="text-align: right;"><strong>0.9413</strong></td>
+<td style="text-align: right;"><strong>0.7636</strong></td>
+<td style="text-align: right;"><strong>0.6831</strong></td>
+<td style="text-align: right;"><strong>1104.9s</strong></td>
+</tr>
+<tr>
+<td>Large</td>
+<td>Best tree</td>
+<td style="text-align: right;">0.9562</td>
+<td style="text-align: right;">0.8160</td>
+<td style="text-align: right;">0.6545</td>
+<td style="text-align: right;">2.7s</td>
+</tr>
+</tbody>
+</table>
+<p>The 5 fixes <strong>both</strong> narrowed the accuracy gap <strong>and</strong> cut training time, at the two larger scales (1.6x faster at Medium, 2.1x faster at Large) — the opposite of the documented "capacity vs. speed" tradeoff, because the encoding fix shrinks the feature count enough to more than offset the doubled kan_hidden/kan_grid cost.</p>
+<h2 id="4-three-further-techniques-tested-one-adopted">4. Three further techniques tested, one adopted<a class="headerlink" href="#4-three-further-techniques-tested-one-adopted" title="Permanent link">&para;</a></h2>
+<p>Requested explicitly as a 3-part experiment (RBF basis / "kernel fusion" / GrowNet-style consolidation), tested on real data rather than assumed from literature:</p>
+<table>
+<thead>
+<tr>
+<th>Technique</th>
+<th>Result</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>RBF basis instead of B-spline</strong> (monkeypatched <code>_b_basis_1d</code>/<code>_b_basis_deriv_1d</code>, FastKAN-style)</td>
+<td><strong>2.2x SLOWER</strong> on Small (88.8s vs 40.2s), slightly worse accuracy</td>
+<td><strong>Rejected.</strong> kanboost's B-spline is already numba-JIT'd; the naive-numpy RBF replacement added overhead instead of removing it. The literature's claimed speedup doesn't transfer to an already-optimized baseline.</td>
+</tr>
+<tr>
+<td>"Kernel fusion" (PolyKAN-style)</td>
+<td>N/A — no separate lever exists</td>
+<td>kanboost's actual bottleneck is a closed-form ALS solver, not a torch/CUDA training loop; there is no fused-kernel opportunity of the kind PolyKAN targets in this architecture.</td>
+</tr>
+<tr>
+<td><strong>Post-hoc consolidation</strong> (GrowNet-inspired: replace consecutive groups of 5 learners with one, least-squares-refit via <code>model._fit_learner</code> to reproduce the group's summed output)</td>
+<td>Learners cut 5x (100→20 / 140→28 / 180→36); <strong>prediction time cut 4-8x</strong> (Medium 57.8s→7.2s, Large 54.1s→14.3s); accuracy cost minimal (AUROC −0.002, AUPRC −0.004 to −0.006)</td>
+<td><strong>Adopted.</strong></td>
+</tr>
+<tr>
+<td><strong><code>categorical_hierarchy={"icd10_pcs": "department"}</code></strong> (kanboost v1.3.0 feature, 2026-07-22, not previously tried)</td>
+<td>Small/Medium: no change. <strong>Large: training 1.8x faster (1104.9s → 612.3s) for near-identical accuracy</strong> (AUROC −0.0003, AUPRC −0.0019)</td>
+<td><strong>Adopted</strong> (helps convergence speed on the largest scale; neutral elsewhere).</td>
+</tr>
+</tbody>
+</table>
+<h2 id="5-final-combined-configuration-ultimate-vs-best-tree-large-scale">5. Final combined configuration ("ULTIMATE") vs. best tree, Large scale<a class="headerlink" href="#5-final-combined-configuration-ultimate-vs-best-tree-large-scale" title="Permanent link">&para;</a></h2>
+<p>All five adopted fixes + <code>categorical_hierarchy</code> + post-hoc consolidation (group size 5), evaluated once on Large:</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th style="text-align: right;">Fit+consolidate time</th>
+<th style="text-align: right;">Predict time</th>
+<th style="text-align: right;">Learners</th>
+<th style="text-align: right;">AUROC</th>
+<th style="text-align: right;">AUPRC</th>
+<th style="text-align: right;">F1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>KANBoost baseline</td>
+<td style="text-align: right;">2295.0s</td>
+<td style="text-align: right;">(slow, one-hot 255-col input)</td>
+<td style="text-align: right;">180</td>
+<td style="text-align: right;">0.9189</td>
+<td style="text-align: right;">0.6406</td>
+<td style="text-align: right;">0.5711</td>
+</tr>
+<tr>
+<td>KANBoost, 5 fixes only</td>
+<td style="text-align: right;">1104.9s</td>
+<td style="text-align: right;">54.1s</td>
+<td style="text-align: right;">180</td>
+<td style="text-align: right;">0.9413</td>
+<td style="text-align: right;">0.7636</td>
+<td style="text-align: right;">0.6831</td>
+</tr>
+<tr>
+<td><strong>KANBoost ULTIMATE</strong></td>
+<td style="text-align: right;"><strong>879.7s</strong></td>
+<td style="text-align: right;"><strong>10.8s</strong></td>
+<td style="text-align: right;"><strong>36</strong></td>
+<td style="text-align: right;">0.9387</td>
+<td style="text-align: right;">0.7580</td>
+<td style="text-align: right;"><strong>0.6789</strong></td>
+</tr>
+<tr>
+<td>Best tree (LightGBM)</td>
+<td style="text-align: right;">2.7s</td>
+<td style="text-align: right;">~0.1s</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">0.9562</td>
+<td style="text-align: right;">0.8160</td>
+<td style="text-align: right;">0.6545</td>
+</tr>
+</tbody>
+</table>
+<p><strong>vs. baseline</strong>: 2.6x faster to train, far fewer learners to predict with, AUROC +0.020, AUPRC +0.117, F1 +0.108.
+<strong>Remaining gap to best tree</strong>: AUROC 0.0175 (down from 0.0373), AUPRC 0.0580 (down from 0.1754) — both roughly halved or better. <strong>F1 (0.679) now exceeds the best tree's (0.655).</strong></p>
+<p><strong>Tradeoff, stated honestly</strong>: ULTIMATE trades a small amount of AUROC/AUPRC (vs. the 5-fixes-only variant) for a much smaller, much faster-to-predict model. Use "5 fixes only" if peak ranking accuracy is the sole priority; use ULTIMATE if repeated/deployed inference matters (the more realistic scenario for a clinical postop_icu predictor).</p>
+<h2 id="6-external-benchmark-comparison-and-a-leakage-audit">6. External benchmark comparison and a leakage audit<a class="headerlink" href="#6-external-benchmark-comparison-and-a-leakage-audit" title="Permanent link">&para;</a></h2>
+<p>Before treating the numbers above as competitive with the literature, they were checked against published work on the same task and dataset, and the unusually high AUPRC was independently audited for leakage rather than assumed innocent.</p>
+<h3 id="61-the-only-directly-comparable-published-benchmark">6.1 The only directly comparable published benchmark<a class="headerlink" href="#61-the-only-directly-comparable-published-benchmark" title="Permanent link">&para;</a></h3>
+<p>The INSPIRE descriptor paper itself (Nature Scientific Data) only validates a <strong>30-day mortality</strong> task (best model: gradient boosting, AUROC 0.944, 1.21% event rate) — it does not benchmark ICU admission at all. The one paper found that benchmarks the same <code>postop_icu</code> task on the same dataset is <strong>"Comparison of large language models and conventional machine learning in postoperative outcome prediction"</strong> (<em>Korean J Anesthesiol</em>, <code>10.4097/kja.25646</code>), which compares XGBoost against GPT-4o/Llama-3-70B/OpenBioLLM-70B:</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th style="text-align: right;">AUROC</th>
+<th style="text-align: right;">AUPRC</th>
+<th style="text-align: right;">Event rate</th>
+<th style="text-align: right;">Test n</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>XGBoost (that paper)</td>
+<td style="text-align: right;">0.851</td>
+<td style="text-align: right;">0.208</td>
+<td style="text-align: right;">5.62%</td>
+<td style="text-align: right;">8,099</td>
+</tr>
+<tr>
+<td>GPT-4o / Llama-3-70B / OpenBioLLM-70B</td>
+<td style="text-align: right;">0.70–0.76</td>
+<td style="text-align: right;">0.11–0.14</td>
+<td style="text-align: right;">5.62%</td>
+<td style="text-align: right;">8,099</td>
+</tr>
+<tr>
+<td><strong>This report's LightGBM (Large)</strong></td>
+<td style="text-align: right;">0.956</td>
+<td style="text-align: right;">0.816</td>
+<td style="text-align: right;">11.41%</td>
+<td style="text-align: right;">26,267</td>
+</tr>
+<tr>
+<td><strong>This report's KANBoost, 5 fixes (Large)</strong></td>
+<td style="text-align: right;">0.941</td>
+<td style="text-align: right;">0.764</td>
+<td style="text-align: right;">11.41%</td>
+<td style="text-align: right;">26,267</td>
+</tr>
+</tbody>
+</table>
+<p>Two things worth noting on their own: (1) even frontier LLMs lose to plain XGBoost on this structured task — independent confirmation that gradient-boosted trees (and, by extension, KANBoost's boosting-of-splines design) are the right family for this kind of clinical tabular problem, not large language models; (2) this report's numbers are substantially higher on every metric — large enough to demand scrutiny before drawing any "we beat the literature" conclusion.</p>
+<h3 id="62-why-the-event-rate-differs-confirmed-from-physionets-own-documentation">6.2 Why the event rate differs: confirmed from PhysioNet's own documentation<a class="headerlink" href="#62-why-the-event-rate-differs-confirmed-from-physionets-own-documentation" title="Permanent link">&para;</a></h3>
+<p>PhysioNet's INSPIRE page states explicitly: <em>"Only ICU admissions within 24 hours of surgery were included in the <code>icuin_time</code> and <code>icuout_time</code> columns to focus on ICU admissions immediately after surgery."</em> Measuring the gap between <code>orout_time</code> (OR exit) and <code>icuin_time</code> directly on the local data confirms this: median gap is exactly 0 hours, essentially 100% of ICU admissions occur within an hour of leaving the OR. There is <strong>no field anywhere in the schema distinguishing "planned/routine" from "unplanned/unanticipated" ICU admission</strong> — <code>postop_icu</code> as defined here (<code>icuin_time.notna()</code>, 11.41% positive) is structurally an "immediate-transfer" flag, not a "complication occurred" flag.</p>
+<p>The one data-grounded correction available is excluding cardiopulmonary bypass cases (<code>cpbon_time</code> not null — on-pump cardiac surgery is essentially always routed to ICU as routine care, not as a complication): this drops the positive rate from 11.41% to 9.69%, narrowing but not closing the gap to the published paper's 5.62% — the remainder is most likely additional cohort-construction criteria in that specific study (e.g., excluding whole departments/procedure classes) that aren't recoverable from this table alone.</p>
+<h3 id="63-leakage-audit-is-icd10_pcs-leaking-outcome-information">6.3 Leakage audit: is <code>icd10_pcs</code> leaking outcome information?<a class="headerlink" href="#63-leakage-audit-is-icd10_pcs-leaking-outcome-information" title="Permanent link">&para;</a></h3>
+<p>The unusually high AUPRC (0.76–0.82 here vs. 0.11–0.21 in the published mortality/ICU papers) was checked directly rather than dismissed. A feature-ablation run (LightGBM, same group-aware split, Large scale) isolates exactly where the signal comes from:</p>
+<table>
+<thead>
+<tr>
+<th>Feature set</th>
+<th style="text-align: right;">AUROC</th>
+<th style="text-align: right;">AUPRC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>department + emop + asa + age</code> only (no <code>icd10_pcs</code>)</td>
+<td style="text-align: right;">0.914</td>
+<td style="text-align: right;">0.603</td>
+</tr>
+<tr>
+<td>+ <code>antype</code></td>
+<td style="text-align: right;">0.918</td>
+<td style="text-align: right;">0.618</td>
+</tr>
+<tr>
+<td>+ full demographics (still no <code>icd10_pcs</code>)</td>
+<td style="text-align: right;">0.921</td>
+<td style="text-align: right;">0.630</td>
+</tr>
+<tr>
+<td><strong>Full feature set (incl. <code>icd10_pcs</code>)</strong></td>
+<td style="text-align: right;"><strong>0.956</strong></td>
+<td style="text-align: right;"><strong>0.818</strong></td>
+</tr>
+<tr>
+<td><strong><code>icd10_pcs</code> alone</strong> (only feature)</td>
+<td style="text-align: right;">0.923</td>
+<td style="text-align: right;"><strong>0.728</strong></td>
+</tr>
+</tbody>
+</table>
+<p><code>icd10_pcs</code> (the procedure code) alone very nearly reproduces the full model's performance. Digging further: of 2,253 unique procedure codes, <strong>162 out of 486 codes with ≥20 occurrences (33%) have a perfectly deterministic ICU rate — exactly 0% or exactly 100%</strong>. Example: code <code>00B00</code> (n=1,659) has a 95.8% ICU rate; several others sit at exactly 0%.</p>
+<p><strong>Verdict: this is not classical data leakage (no post-outcome information reaches the model), but a task-definition mismatch worth stating plainly.</strong> <code>icd10_pcs</code> is known at surgical planning time, not assigned retroactively from what happened during/after surgery — so nothing here violates the "features available before or at planning" design constraint the original notebook set out. But because <code>icuin_time</code> (per §6.2) only captures the <em>immediate, routine, protocol-driven</em> OR→ICU transfer — not a downstream complication — a large share of <code>postop_icu</code> is close to a <strong>deterministic function of procedure type</strong> (certain procedures are <em>always</em> or <em>never</em> followed by immediate ICU transfer as a matter of institutional care pathway, not patient-specific risk). That is a fundamentally easier statistical target than "will this patient die within 30 days" or "will this patient unexpectedly need ICU after an uneventful-seeming operation" — which is exactly why this report's AUPRC is not comparable to the mortality-prediction literature's AUPRC, and only partially comparable to the ekja.org ICU-admission paper (whose narrower, rarer cohort likely excludes more of the "deterministic by procedure type" cases this report's broader definition retains).</p>
+<h3 id="64-what-this-means-for-the-reports-conclusions">6.4 What this means for the report's conclusions<a class="headerlink" href="#64-what-this-means-for-the-reports-conclusions" title="Permanent link">&para;</a></h3>
+<ul>
+<li>The <strong>relative comparisons in this report are still valid</strong>: KANBoost vs. baseline, KANBoost vs. trees, and the effect of each individual fix were all measured on the <em>same</em> label and <em>same</em> splits throughout, so the gap-closing conclusions (§3–§5) hold regardless of how "easy" the underlying task turns out to be.</li>
+<li>The <strong>absolute numbers should not be quoted as beating the published literature</strong> — the tasks are not equivalent. A fair one-line summary: <em>on this dataset's broader "immediate postoperative ICU transfer" definition (which is partly a deterministic function of procedure type), KANBoost with the fixes above reaches AUROC/AUPRC competitive with strong tree ensembles; on the published paper's narrower, rarer "ICU admission" definition, both this project's models and the published XGBoost baseline would be expected to score substantially lower — a hypothesis current CPB-exclusion experiments (see the repository's benchmark scripts) are testing directly.</em></li>
+<li>Recommended before any external claim of matching or beating a published benchmark: patient-grouped split (already done here), a temporal (not random) split if the goal is deployment realism, and reporting the full metric suite (AUROC/AUPRC/F1/Brier/calibration, already done here) <em>plus</em> a feature-ablation/leakage check like §6.3 as standard practice — not an afterthought.</li>
+</ul>
+<h2 id="7-beyond-deterministic-procedure-codes-mixed-code-robustness-analysis">7. Beyond deterministic procedure codes: mixed-code robustness analysis<a class="headerlink" href="#7-beyond-deterministic-procedure-codes-mixed-code-robustness-analysis" title="Permanent link">&para;</a></h2>
+<p>§6.3 showed that many procedure codes are perfectly deterministic w.r.t. <code>postop_icu</code> (institutional protocol, not patient-specific risk). That alone doesn't tell us whether the model's overall accuracy is <em>just</em> a lookup over those deterministic codes, or whether it retains genuine discriminative signal once that shortcut is unavailable. This section tests that directly, following the same methodology as §6.3 (LightGBM, same group-aware split, Large scale).</p>
+<h3 id="71-performance-by-procedure-code-category">7.1 Performance by procedure-code category<a class="headerlink" href="#71-performance-by-procedure-code-category" title="Permanent link">&para;</a></h3>
+<p>Every test-row's procedure code is tagged by its <strong>train-set-only</strong> ICU rate (no leakage from test), into four tiers:</p>
+<table>
+<thead>
+<tr>
+<th>Code tier</th>
+<th style="text-align: right;">n (test)</th>
+<th style="text-align: right;">Positive rate</th>
+<th style="text-align: right;">AUROC</th>
+<th style="text-align: right;">AUPRC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Deterministic-negative (≤2% ICU rate in train)</td>
+<td style="text-align: right;">13,101</td>
+<td style="text-align: right;">0.60%</td>
+<td style="text-align: right;">0.851</td>
+<td style="text-align: right;">0.074</td>
+</tr>
+<tr>
+<td>Deterministic-positive (≥98% ICU rate in train)</td>
+<td style="text-align: right;">420</td>
+<td style="text-align: right;">98.57%</td>
+<td style="text-align: right;">0.535</td>
+<td style="text-align: right;">0.984</td>
+</tr>
+<tr>
+<td><strong>Mixed-risk (2–98% ICU rate in train)</strong></td>
+<td style="text-align: right;"><strong>10,860</strong></td>
+<td style="text-align: right;"><strong>20.92%</strong></td>
+<td style="text-align: right;"><strong>0.9155</strong></td>
+<td style="text-align: right;"><strong>0.7993</strong></td>
+</tr>
+<tr>
+<td>Rare (&lt;20 occurrences in train)</td>
+<td style="text-align: right;">1,886</td>
+<td style="text-align: right;">12.94%</td>
+<td style="text-align: right;">0.909</td>
+<td style="text-align: right;">0.662</td>
+</tr>
+</tbody>
+</table>
+<p>The deterministic tiers behave exactly as expected for a near-constant target (AUROC near chance in the ≥98% tier, since there's almost nothing left to rank). The finding that matters: <strong>within the mixed-risk tier — the codes that carry no deterministic shortcut at all — the model still reaches AUROC 0.9155 and AUPRC 0.7993</strong>, both close to the full-dataset numbers (0.956 / 0.818).</p>
+<h3 id="72-full-data-ablation-without-icd10_pcs">7.2 Full-data ablation without <code>icd10_pcs</code><a class="headerlink" href="#72-full-data-ablation-without-icd10_pcs" title="Permanent link">&para;</a></h3>
+<p>Repeated from §6.3 for direct comparison: with <code>icd10_pcs</code> removed entirely, AUROC = <strong>0.9209</strong>, AUPRC = <strong>0.6295</strong> (vs. 0.956 / 0.818 with it). A large, genuine signal survives even with no procedure-code information at all — coming from <code>department</code>, <code>asa</code>, <code>emop</code>, and demographics alone.</p>
+<h3 id="73-mixed-codes-only-retraining-the-decisive-test">7.3 Mixed-codes-only retraining (the decisive test)<a class="headerlink" href="#73-mixed-codes-only-retraining-the-decisive-test" title="Permanent link">&para;</a></h3>
+<p>The strongest test: <strong>remove every deterministic code from both training and test</strong>, retrain from scratch on only the mixed-risk subset (train n=32,322, test n=10,860, test positive rate 20.92%), then check whether <code>icd10_pcs</code> still helps <em>within</em> this subset:</p>
+<table>
+<thead>
+<tr>
+<th>Configuration</th>
+<th style="text-align: right;">AUROC</th>
+<th style="text-align: right;">AUPRC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mixed-codes-only, <strong>with</strong> <code>icd10_pcs</code></td>
+<td style="text-align: right;"><strong>0.9163</strong></td>
+<td style="text-align: right;"><strong>0.8012</strong></td>
+</tr>
+<tr>
+<td>Mixed-codes-only, <strong>without</strong> <code>icd10_pcs</code></td>
+<td style="text-align: right;">0.8541</td>
+<td style="text-align: right;">0.5908</td>
+</tr>
+</tbody>
+</table>
+<p>Two things follow from this table. First, restricting to mixed-risk codes barely moves performance relative to evaluating the full model on that same subset (§7.1: 0.9155/0.7993) — the model isn't relying on deterministic codes leaking into training in some indirect way. Second, <code>icd10_pcs</code> still adds a real, substantial improvement (AUROC +0.062, AUPRC +0.210) <em>even after every deterministic code has been removed</em> — so the procedure code is not merely a protocol-lookup key; at the fidelity level of "which specific procedure, among procedures with genuinely uncertain ICU outcomes," it carries real, additional clinical-risk signal beyond department/demographics.</p>
+<h3 id="74-conclusion">7.4 Conclusion<a class="headerlink" href="#74-conclusion" title="Permanent link">&para;</a></h3>
+<p>Not "there is no issue here" — the more precise, defensible statement is:</p>
+<blockquote>
+<p>The original results should be interpreted as <strong>protocol-aware ICU pathway prediction</strong> (§6.4), since a meaningful share of the label is institutionally near-deterministic given procedure type. However, the mixed-code robustness analysis shows the model does <strong>not</strong> depend solely on deterministic protocol lookups: restricted entirely to procedures with genuinely uncertain (2–98%) historical ICU rates, it still achieves AUROC 0.9163 / AUPRC 0.8012 with <code>icd10_pcs</code>, dropping to 0.8541 / 0.5908 without it — evidence of real clinical-risk signal captured within the non-deterministic procedure space, not just a lookup table over institutional routing rules.</p>
+</blockquote>
+<p>Combined with the group-aware split (no patient leakage across folds), the ablation study (§6.3/§7.2), calibration and Brier-score reporting (§3), and the CPB-exclusion sensitivity check (§6.2), this gives a reasonably rigorous verification bundle before any external claim about this dataset: <strong>split integrity + feature ablation + mixed-code-only retraining + calibration + a documented sensitivity analysis on the label definition itself.</strong></p>
+<p><strong>Caveat, stated plainly</strong>: §6.3 and §7 use LightGBM, not KANBoost, as the diagnostic tool — chosen deliberately because it fits in seconds, making many ablation variants (stratified tiers, mixed-only retrain, with/without <code>icd10_pcs</code>) practical to run at all on CPU-only hardware. Throughout this report KANBoost and the tree ensembles track each other closely on every metric measured on the same data (§1–§5), which is suggestive but not proof that KANBoost's <em>specific</em> fitted function relies on the same non-deterministic procedure-code signal in the same way. Repeating §7.1/§7.3 with KANBoost itself (not just LightGBM) is flagged as the natural next step for full rigor, not yet done as of this writing.</p>
+<h2 id="8-what-was-not-done-and-why">8. What was NOT done, and why<a class="headerlink" href="#8-what-was-not-done-and-why" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>No GPU run</strong>: this machine's torch build has no CUDA support (<code>torch.version.cuda is None</code>), despite an NVIDIA GPU + driver being present. All numbers above are CPU-only; installing a CUDA-enabled torch build was out of scope for this exercise but would likely help the trees marginally and KANBoost more (per kanboost's own device-selection code path).</li>
+<li><strong>No true GrowNet joint-corrective boosting</strong>: a faithful implementation (joint backprop across multiple weak learners against a fully corrective objective) was judged too large a change to build safely, correctly, and quickly against kanboost's closed-form ALS solver in this session. The post-hoc consolidation step adopted here is an explicitly-labeled, safer stand-in that captures the "reduce redundant small corrections" idea without touching the training loop's math.</li>
+<li><strong>This work has not been through kanboost's own review pipeline</strong> (see <code>AI_REVIEW_LOOP.md</code>: ChatGPT hypothesis → Claude Code implementation → Codex independent review → ChatGPT scientific judgment → user merge approval). All code here lives in a personal scratchpad directory outside the <code>kanboost/</code> package, uses monkeypatching and private (<code>_</code>-prefixed) methods not covered by the test suite, and has not been added to <code>kanboost/tests/</code>.</li>
+</ul>
+<h2 id="9-reproducing-this-report">9. Reproducing this report<a class="headerlink" href="#9-reproducing-this-report" title="Permanent link">&para;</a></h2>
+<p>Scripts (scratchpad, not part of the <code>kanboost</code> package):
+- <code>inspire_three_scales.py</code> — baseline (one-hot, no fixes), all 3 scales vs. trees.
+- <code>inspire_kanboost_improved.py</code> — 5 fixes (encoding + balance + capacity), later extended with <code>find_threshold</code>/<code>calibrate</code>.
+- <code>inspire_kanboost_hierarchy.py</code> — 5 fixes + <code>categorical_hierarchy</code>.
+- <code>inspire_kanboost_v2.py</code> — RBF-basis toggle + post-hoc consolidation (used to isolate each technique).
+- <code>inspire_kanboost_ultimate.py</code> — final combined configuration (Large only).
+- <code>inspire_kanboost_ultimate_v2.py</code> — final combined configuration with an <code>--exclude-cpb</code>-style toggle (§6.2), run across all three scales for both label definitions.
+- <code>leakage_audit.py</code> — the feature-ablation/leakage check in §6.3.</p>
+<p>Raw result CSVs are alongside these scripts in the same scratchpad directory. The reusable, package-side pieces from this work (<code>consolidate_learners()</code>, the reproducible <code>examples/inspire_kanboost_benchmark.py</code>) are the ones actually shipped in <code>kanboost</code> 1.4.0 — see <code>AI_REVIEW_LOOP.md</code>, Proposal CC-12.</p>
+<h2 id="10-continued-past-140-line-search-newton-boosting-rf-kan-ga2m-and-a-c-accelerator-through-1120">10. Continued past 1.4.0: line search, Newton boosting, RF-KAN, GA2M, and a C++ accelerator (through 1.12.0)<a class="headerlink" href="#10-continued-past-140-line-search-newton-boosting-rf-kan-ga2m-and-a-c-accelerator-through-1120" title="Permanent link">&para;</a></h2>
+<p>Everything above stopped at <code>kanboost</code> 1.4.0. Work continued well past this point in the same session and is tracked in full, proposal-by-proposal, in <code>AI_REVIEW_LOOP.md</code> (CC-13 through CC-21) and summarized scientifically in <code>inspire_kanboost_evaluation.md</code> (§8-§16); this section is a short chronological pointer, not a duplicate of that detail.</p>
+<p>In order: <code>fit_with_line_search()</code> (CC-13, per-round step-size search, 3.1-4.2x fewer-round speedup); <code>fit_with_newton_boosting()</code> (CC-14, second-order reweighting, closing a gap GB-KAN's paper lists as unsolved); <code>fit_with_rfkan()</code> (CC-15, rebuilt random-projection weak-learner engine, 3.7-5.3x faster fit at matching accuracy, at the cost of native interpretability); multiclass support for both (CC-16); <code>fit_with_ga2m()</code> (CC-17, GA2M-style main-effect + pairwise-interaction structure, recovering and then exceeding RF-KAN's accuracy while keeping full attribution — the single best-performing engine found in this evaluation); a rejected third-order loss-weighting experiment (CC-18); three accepted second-order-weighting refinements — consistent Armijo line search, adaptive/soft-LM hessian floors (CC-19); parallel (<code>n_jobs</code>) prediction across boosting rounds (CC-20, a real but scale-dependent ~2.1x in a repeated-call benchmark, ranging from a slowdown to 1.4x under a realistic cold-start pattern); and finally an optional C++ (pybind11) prediction accelerator (CC-21, a consistent ~2.3-2.7x across all three scales, the most stable speedup found in this whole investigation).</p>
+<p><strong>Cumulative result, this report's original baseline vs. the final <code>kanboost</code> 1.12.0 configuration (GA2M + Newton + Armijo line search, C++ backend), Large scale</strong>:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th style="text-align: right;">Fit time</th>
+<th style="text-align: right;">Predict time</th>
+<th style="text-align: right;">AUROC</th>
+<th style="text-align: right;">AUPRC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>§1 baseline (this report, v1.3.0, one-hot, no fixes)</td>
+<td style="text-align: right;">2295.0s</td>
+<td style="text-align: right;">(slow, one-hot 255-col input)</td>
+<td style="text-align: right;">0.9189</td>
+<td style="text-align: right;">0.6406</td>
+</tr>
+<tr>
+<td>§5 ULTIMATE (this report, v1.3.0/1.4.0)</td>
+<td style="text-align: right;">879.7s</td>
+<td style="text-align: right;">10.8s</td>
+<td style="text-align: right;">0.9387</td>
+<td style="text-align: right;">0.7580</td>
+</tr>
+<tr>
+<td><strong>Final (v1.12.0, <code>inspire_kanboost_evaluation.md</code> §16.1)</strong></td>
+<td style="text-align: right;"><strong>37.5s</strong></td>
+<td style="text-align: right;"><strong>9.49s</strong></td>
+<td style="text-align: right;"><strong>0.9504</strong></td>
+<td style="text-align: right;"><strong>0.7942</strong></td>
+</tr>
+<tr>
+<td>Best tree (XGBoost, unchanged throughout)</td>
+<td style="text-align: right;">~4.1s</td>
+<td style="text-align: right;">~0.39s</td>
+<td style="text-align: right;">0.9561</td>
+<td style="text-align: right;">0.8156</td>
+</tr>
+</tbody>
+</table>
+<p>Fit time dropped a further ~23x beyond this report's own "ULTIMATE" configuration (879.7s → 37.5s), predict time held roughly flat while the <em>model itself</em> got both faster-fitting and more accurate (AUROC +0.012, AUPRC +0.036 over ULTIMATE) — the remaining gap to the best tree narrowed to AUROC 0.0057 and AUPRC 0.0214, the closest this evaluation ever got. See <code>inspire_kanboost_evaluation.md</code> §16.1 for the full three-scale table and the tree-comparison caveats (threshold tuning, calibration) that still apply.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.top", "content.code.copy", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

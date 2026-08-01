@@ -1,0 +1,2863 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Gradient boosting with Kolmogorov-Arnold Network (KAN) learners">
+      
+      
+      
+        <link rel="canonical" href="https://tuamah.github.io/kanboost/inspire_kanboost_evaluation/">
+      
+      
+        <link rel="prev" href="../benchmark_v1/">
+      
+      
+        <link rel="next" href="../inspire_gap_closing_report/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>INSPIRE evaluation (audited, final) - KANBoost</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#kanboost-evaluation-on-inspire-icu-admission-leakage-audit-procedure-code-robustness-cpb-sensitivity-and-operational-decision-performance" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="KANBoost" class="md-header__button md-logo" aria-label="KANBoost" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            KANBoost
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              INSPIRE evaluation (audited, final)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/tuamah/kanboost" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tuamah/kanboost
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="KANBoost" class="md-nav__button md-logo" aria-label="KANBoost" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    KANBoost
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/tuamah/kanboost" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    tuamah/kanboost
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classification & regression
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/interpretability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interpretability (GAM, monotone, symbolic, derivatives)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/editing-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Editable models & dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/symbolic-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Symbolic formula export
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/interactions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Checking the additive assumption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/calibration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/imbalance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Imbalanced classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/training-speed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training speed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/serving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serving & observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/mlops/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MLOps integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/tuning-with-kantun/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tuning with kantun
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmark_v1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmark v1 (DeepKAN baseline)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    INSPIRE evaluation (audited, final)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    INSPIRE evaluation (audited, final)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#executive-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executive Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-task-definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Task Definition
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-leakage-vs-task-definition-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Leakage vs. Task-Definition Audit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-kanboost-mixed-code-robustness-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. KANBoost Mixed-Code Robustness Validation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. KANBoost Mixed-Code Robustness Validation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-the-core-reading-auprc-drop-from-removing-icd10_pcs-inside-the-mixed-subset-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 The core reading: AUPRC drop from removing icd10_pcs, inside the mixed subset only
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-secondary-observations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 Secondary observations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-interpretation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 Interpretation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-cpb-exclusion-sensitivity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. CPB Exclusion Sensitivity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-tree-baseline-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Tree Baseline Comparison
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Tree Baseline Comparison">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-the-f1-question-tested-properly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 The F1 question, tested properly
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-external-benchmark-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. External Benchmark Context
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. External Benchmark Context">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61-gb-kan-icaart-2026-an-independent-kan-boosting-implementation-and-where-it-diverges-from-kanboost" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 GB-KAN (ICAART 2026): an independent KAN-boosting implementation, and where it diverges from kanboost
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-scientific-interpretation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Scientific Interpretation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-line-search-speedup-closing-part-of-the-speed-gap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Line-Search Speedup: Closing Part of the Speed Gap
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-newton-step-boosting-a-genuine-algorithmic-contribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Newton-Step Boosting: A Genuine Algorithmic Contribution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-rf-kan-rebuilding-the-weak-learner-engine-itself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. RF-KAN: Rebuilding the Weak-Learner Engine Itself
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-ga2m-closing-the-interpretability-gap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. GA2M: Closing the Interpretability Gap
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-third-order-loss-weighting-tested-and-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Third-Order Loss Weighting: Tested and Rejected
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-improving-second-order-weighting-itself-three-accepted-fixes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. Improving Second-Order Weighting Itself: Three Accepted Fixes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#14-final-head-to-head-kanboost-1100-vs-trees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        14. Final Head-to-Head: KANBoost 1.10.0 vs. Trees
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="14. Final Head-to-Head: KANBoost 1.10.0 vs. Trees">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#141-prediction-speed-investigation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        14.1 Prediction-Speed Investigation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#15-closing-the-remaining-gap-vs-trees-two-literature-motivated-attempts-both-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15. Closing the Remaining Gap vs. Trees: Two Literature-Motivated Attempts, Both Rejected
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="15. Closing the Remaining Gap vs. Trees: Two Literature-Motivated Attempts, Both Rejected">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#151-adaptive-knot-placement-targeting-irregular-functions-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15.1 Adaptive knot placement (targeting irregular functions) — rejected
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#152-adaptive-ridge-sparse-gating-for-main-effects-targeting-uninformative-features-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15.2 Adaptive-ridge "sparse gating" for main effects (targeting uninformative features) — rejected
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#153-interpretation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15.3 Interpretation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#16-an-optional-native-c-accelerator-for-prediction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        16. An Optional Native (C++) Accelerator for Prediction
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="16. An Optional Native (C++) Accelerator for Prediction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#161-updated-head-to-head-vs-trees-with-the-c-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        16.1 Updated Head-to-Head vs. Trees, with the C++ Backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#18-generalization-test-30-day-mortality-and-a-newton-reweighting-failure-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        18. Generalization Test: 30-Day Mortality, and a Newton Reweighting Failure Mode
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#19-limitations-and-next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        19. Limitations and Next Steps
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#20-closing-part-of-the-accuracy-gap-gain-ranked-interaction-selection-and-five-rejected-attempts-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        20. Closing Part of the Accuracy Gap: Gain-Ranked Interaction Selection (and Five Rejected Attempts First)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../inspire_gap_closing_report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    INSPIRE gap-closing engineering log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#executive-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executive Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-task-definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Task Definition
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-leakage-vs-task-definition-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Leakage vs. Task-Definition Audit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-kanboost-mixed-code-robustness-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. KANBoost Mixed-Code Robustness Validation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. KANBoost Mixed-Code Robustness Validation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-the-core-reading-auprc-drop-from-removing-icd10_pcs-inside-the-mixed-subset-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 The core reading: AUPRC drop from removing icd10_pcs, inside the mixed subset only
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-secondary-observations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 Secondary observations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-interpretation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 Interpretation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-cpb-exclusion-sensitivity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. CPB Exclusion Sensitivity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-tree-baseline-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Tree Baseline Comparison
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Tree Baseline Comparison">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-the-f1-question-tested-properly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 The F1 question, tested properly
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-external-benchmark-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. External Benchmark Context
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. External Benchmark Context">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61-gb-kan-icaart-2026-an-independent-kan-boosting-implementation-and-where-it-diverges-from-kanboost" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 GB-KAN (ICAART 2026): an independent KAN-boosting implementation, and where it diverges from kanboost
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-scientific-interpretation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Scientific Interpretation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-line-search-speedup-closing-part-of-the-speed-gap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Line-Search Speedup: Closing Part of the Speed Gap
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-newton-step-boosting-a-genuine-algorithmic-contribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Newton-Step Boosting: A Genuine Algorithmic Contribution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-rf-kan-rebuilding-the-weak-learner-engine-itself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. RF-KAN: Rebuilding the Weak-Learner Engine Itself
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-ga2m-closing-the-interpretability-gap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. GA2M: Closing the Interpretability Gap
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-third-order-loss-weighting-tested-and-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Third-Order Loss Weighting: Tested and Rejected
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-improving-second-order-weighting-itself-three-accepted-fixes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. Improving Second-Order Weighting Itself: Three Accepted Fixes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#14-final-head-to-head-kanboost-1100-vs-trees" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        14. Final Head-to-Head: KANBoost 1.10.0 vs. Trees
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="14. Final Head-to-Head: KANBoost 1.10.0 vs. Trees">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#141-prediction-speed-investigation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        14.1 Prediction-Speed Investigation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#15-closing-the-remaining-gap-vs-trees-two-literature-motivated-attempts-both-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15. Closing the Remaining Gap vs. Trees: Two Literature-Motivated Attempts, Both Rejected
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="15. Closing the Remaining Gap vs. Trees: Two Literature-Motivated Attempts, Both Rejected">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#151-adaptive-knot-placement-targeting-irregular-functions-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15.1 Adaptive knot placement (targeting irregular functions) — rejected
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#152-adaptive-ridge-sparse-gating-for-main-effects-targeting-uninformative-features-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15.2 Adaptive-ridge "sparse gating" for main effects (targeting uninformative features) — rejected
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#153-interpretation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15.3 Interpretation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#16-an-optional-native-c-accelerator-for-prediction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        16. An Optional Native (C++) Accelerator for Prediction
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="16. An Optional Native (C++) Accelerator for Prediction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#161-updated-head-to-head-vs-trees-with-the-c-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        16.1 Updated Head-to-Head vs. Trees, with the C++ Backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#18-generalization-test-30-day-mortality-and-a-newton-reweighting-failure-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        18. Generalization Test: 30-Day Mortality, and a Newton Reweighting Failure Mode
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#19-limitations-and-next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        19. Limitations and Next Steps
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#20-closing-part-of-the-accuracy-gap-gain-ranked-interaction-selection-and-five-rejected-attempts-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        20. Closing Part of the Accuracy Gap: Gain-Ranked Interaction Selection (and Five Rejected Attempts First)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="kanboost-evaluation-on-inspire-icu-admission-leakage-audit-procedure-code-robustness-cpb-sensitivity-and-operational-decision-performance">KANBoost Evaluation on INSPIRE ICU Admission: Leakage Audit, Procedure-Code Robustness, CPB Sensitivity, and Operational Decision Performance<a class="headerlink" href="#kanboost-evaluation-on-inspire-icu-admission-leakage-audit-procedure-code-robustness-cpb-sensitivity-and-operational-decision-performance" title="Permanent link">&para;</a></h1>
+<p><strong>Date</strong>: 2026-07-31
+<strong>Dataset</strong>: INSPIRE (PhysioNet, Seoul National University Hospital perioperative dataset), local copy <code>INSPIRE/operations.csv</code> (130,960 rows, 99,886 patients).
+<strong>Split</strong>: group-aware (<code>StratifiedGroupKFold</code> by <code>subject_id</code>, 60/20/20 train/val/test), fixed across all scales and both label definitions below. Three nested training scales (Small ⊂ Medium ⊂ Large): 10,000 / 50,000 / 78,496 rows.
+<strong>kanboost version</strong>: 1.4.0 at the start of this evaluation, 1.12.0 as of the final results in §16.1. <strong>Hardware</strong>: CPU-only (no CUDA torch build available on this machine).</p>
+<p>This document supersedes the earlier narrative in <a href="../inspire_gap_closing_report/"><code>inspire_gap_closing_report.md</code></a> as the primary scientific record for this dataset — that report remains as the chronological methodology/engineering log (which fixes were tried, in what order, with what code); this one is the audited, defensible scientific summary.</p>
+<h2 id="executive-summary">Executive Summary<a class="headerlink" href="#executive-summary" title="Permanent link">&para;</a></h2>
+<p><strong>KANBoost does not outperform tree-based models (XGBoost/LightGBM/CatBoost/HistGradientBoosting) in raw discrimination metrics (AUROC, AUPRC) on this task, at any scale, under either label definition tested.</strong> With its integrated calibration (Platt scaling) and F1-oriented threshold optimization (<code>find_threshold</code>), it can produce competitive <em>operational</em> decisions — but that advantage disappears once the same threshold optimization is applied fairly to the tree baselines too (§6). The one property that survives every audit performed here is that KANBoost's predictions carry genuine, non-trivial clinical-risk signal — verified by removing the dataset's easiest, near-deterministic cases entirely (§3) — not merely a memorized lookup over institutional care-pathway rules. Beyond configuration fixes and literature-claim checks, this evaluation also produced several genuine algorithmic contributions: Newton-step (second-order) boosting (§9), closing a gap GB-KAN's own paper lists as unsolved for KAN-based boosting; RF-KAN (§10), a rebuilt weak-learner engine (random-projection input layer, one closed-form solve per round instead of up to ten alternating sweeps) that cuts fit time 3.7–5.3x at matching accuracy, at the cost of native interpretability; GA2M (§11), which recovers that interpretability while matching or exceeding RF-KAN's accuracy; and, finally, an optional native (C++) prediction accelerator (§16) that cut predict time a further ~2.3-2.7x on top of everything else. By the final measurement in this document (§16.1), fit time had closed from 300–850x slower than trees at the start of this evaluation to ~9–24x, and predict time from the original unoptimized ~30-77x to ~10-24x — while KANBoost's structurally-native dual attribution (per-feature main effects AND named pairwise interactions, unavailable by default in either tree baseline) remained the one property that never regressed across any fix or audit in this evaluation. <strong>A generalization test against a second, much rarer target (§18, <code>mortality_30d</code>, ~0.35% positive rate) found a genuine boundary condition on this evaluation's own recommendations</strong>: Newton reweighting (§9, §13, beneficial-to-neutral for <code>postop_icu</code>'s ~11% base rate) becomes actively counterproductive at this level of class rarity, confirmed by a controlled ablation — a caveat worth knowing before applying this project's default recipe to other, rarer clinical targets.</p>
+<h2 id="1-task-definition">1. Task Definition<a class="headerlink" href="#1-task-definition" title="Permanent link">&para;</a></h2>
+<p>The target, <code>postop_icu</code>, is defined in the shared benchmark notebook as <code>icuin_time.notna()</code> — whether the patient was transferred to the ICU. Per PhysioNet's own INSPIRE documentation, <strong>this field only captures ICU admission within 24 hours of surgery</strong> ("Only ICU admissions within 24 hours of surgery were included in the <code>icuin_time</code> and <code>icuout_time</code> columns to focus on ICU admissions immediately after surgery"), confirmed empirically here: the median gap between OR-exit time and <code>icuin_time</code> across all 14,941 positive cases is exactly 0 hours.</p>
+<p>This makes <code>postop_icu</code> structurally an <strong>"immediate postoperative ICU transfer"</strong> label — a proxy for institutional postoperative care routing — <strong>not</strong> a label for 30-day mortality, and <strong>not</strong> a label for an unanticipated complication requiring rescue ICU admission after an apparently uneventful recovery. No field in the INSPIRE schema distinguishes "planned/routine" from "unplanned/unanticipated" ICU admission. This distinction matters throughout everything below: it is the reason this report's numbers are not directly comparable to mortality-prediction literature, and only partially comparable to the one published paper benchmarking the same task (§6).</p>
+<h2 id="2-leakage-vs-task-definition-audit">2. Leakage vs. Task-Definition Audit<a class="headerlink" href="#2-leakage-vs-task-definition-audit" title="Permanent link">&para;</a></h2>
+<p>The unusually high AUPRC obtained here (0.66–0.82 depending on scale/label) relative to published perioperative-outcome papers (0.11–0.21) was treated as a red flag and audited directly (LightGBM, Large scale, same split):</p>
+<table>
+<thead>
+<tr>
+<th>Feature set</th>
+<th style="text-align: right;">AUROC</th>
+<th style="text-align: right;">AUPRC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>department + emop + asa + age</code> only</td>
+<td style="text-align: right;">0.914</td>
+<td style="text-align: right;">0.603</td>
+</tr>
+<tr>
+<td>+ full demographics (still no <code>icd10_pcs</code>)</td>
+<td style="text-align: right;">0.921</td>
+<td style="text-align: right;">0.630</td>
+</tr>
+<tr>
+<td><strong>Full feature set (incl. <code>icd10_pcs</code>)</strong></td>
+<td style="text-align: right;"><strong>0.956</strong></td>
+<td style="text-align: right;"><strong>0.818</strong></td>
+</tr>
+<tr>
+<td><code>icd10_pcs</code> alone</td>
+<td style="text-align: right;">0.923</td>
+<td style="text-align: right;">0.728</td>
+</tr>
+</tbody>
+</table>
+<p><code>icd10_pcs</code> (the surgical procedure code) does most of the work. Of 2,253 unique codes, <strong>162 of 486 codes with ≥20 occurrences (33%) have a perfectly deterministic ICU rate — exactly 0% or 100%.</strong></p>
+<p><strong>Verdict</strong>: this is <strong>not classical data leakage</strong> — <code>icd10_pcs</code> is assigned at surgical planning time, not retroactively from what happened during/after surgery, so no post-outcome information reaches the model. It is a <strong>task-definition effect</strong>: because the label captures institutional care-pathway routing (§1), and procedure type is a strong determinant of that routing, a large share of <code>postop_icu</code> is close to a deterministic function of procedure type. Results using <code>icd10_pcs</code> should therefore be read as <strong>protocol-aware ICU pathway prediction</strong>, not pure unanticipated-complication prediction.</p>
+<h2 id="3-kanboost-mixed-code-robustness-validation">3. KANBoost Mixed-Code Robustness Validation<a class="headerlink" href="#3-kanboost-mixed-code-robustness-validation" title="Permanent link">&para;</a></h2>
+<p>This is the most important section for KANBoost's clinical credibility: does the model's accuracy depend <em>only</em> on memorizing which procedure codes are institutionally routed to ICU, or does real risk signal survive once that shortcut is removed entirely?</p>
+<p>Every row is tagged by its <strong>train-set-only</strong> procedure-code ICU rate (no test-set leakage) into: deterministic-negative (≤2%), deterministic-positive (≥98%), mixed-risk (2–98%), or rare (&lt;20 train occurrences). The <strong>mixed-risk tier is the one with no deterministic shortcut available at all.</strong></p>
+<p>Repeated independently with <strong>KANBoost itself</strong> (not just the LightGBM diagnostic used in earlier drafts of this analysis), full pipeline (native encoding + balanced weights + 2x capacity + consolidation + Platt calibration):</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th>Setting</th>
+<th style="text-align: right;">AUROC</th>
+<th style="text-align: right;">AUPRC</th>
+<th style="text-align: right;">F1</th>
+<th style="text-align: right;">Brier</th>
+<th>Calibration</th>
+<th style="text-align: right;">Training time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>Full</td>
+<td style="text-align: right;">0.9207</td>
+<td style="text-align: right;">0.6671</td>
+<td style="text-align: right;">0.6128</td>
+<td style="text-align: right;">0.0606</td>
+<td>Platt</td>
+<td style="text-align: right;">27.9s</td>
+</tr>
+<tr>
+<td>Small</td>
+<td>Mixed-risk only, <strong>with</strong> <code>icd10_pcs</code></td>
+<td style="text-align: right;">0.8645</td>
+<td style="text-align: right;">0.6845</td>
+<td style="text-align: right;">0.6215</td>
+<td style="text-align: right;">0.1157</td>
+<td>Platt</td>
+<td style="text-align: right;">9.6s</td>
+</tr>
+<tr>
+<td>Small</td>
+<td>Mixed-risk only, <strong>without</strong> <code>icd10_pcs</code></td>
+<td style="text-align: right;">0.8212</td>
+<td style="text-align: right;">0.5189</td>
+<td style="text-align: right;">0.5780</td>
+<td style="text-align: right;">0.1364</td>
+<td>Platt</td>
+<td style="text-align: right;">10.1s</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>Full</td>
+<td style="text-align: right;">0.9368</td>
+<td style="text-align: right;">0.7510</td>
+<td style="text-align: right;">0.6769</td>
+<td style="text-align: right;">0.0516</td>
+<td>Platt</td>
+<td style="text-align: right;">291.0s</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>Mixed-risk only, <strong>with</strong> <code>icd10_pcs</code></td>
+<td style="text-align: right;">0.8863</td>
+<td style="text-align: right;">0.7273</td>
+<td style="text-align: right;">0.6438</td>
+<td style="text-align: right;">0.0969</td>
+<td>Platt</td>
+<td style="text-align: right;">208.4s</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>Mixed-risk only, <strong>without</strong> <code>icd10_pcs</code></td>
+<td style="text-align: right;">0.8354</td>
+<td style="text-align: right;">0.5157</td>
+<td style="text-align: right;">0.5769</td>
+<td style="text-align: right;">0.1229</td>
+<td>Platt</td>
+<td style="text-align: right;">226.9s</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>Full</td>
+<td style="text-align: right;">0.9391</td>
+<td style="text-align: right;">0.7602</td>
+<td style="text-align: right;">0.6839</td>
+<td style="text-align: right;">0.0506</td>
+<td>Platt</td>
+<td style="text-align: right;">606.1s</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>Mixed-risk only, <strong>with</strong> <code>icd10_pcs</code></td>
+<td style="text-align: right;">0.8909</td>
+<td style="text-align: right;">0.7525</td>
+<td style="text-align: right;">0.6524</td>
+<td style="text-align: right;">0.0967</td>
+<td>Platt</td>
+<td style="text-align: right;">319.2s</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>Mixed-risk only, <strong>without</strong> <code>icd10_pcs</code></td>
+<td style="text-align: right;">0.8392</td>
+<td style="text-align: right;">0.5451</td>
+<td style="text-align: right;">0.5872</td>
+<td style="text-align: right;">0.1241</td>
+<td>Platt</td>
+<td style="text-align: right;">310.6s</td>
+</tr>
+</tbody>
+</table>
+<h3 id="31-the-core-reading-auprc-drop-from-removing-icd10_pcs-inside-the-mixed-subset-only">3.1 The core reading: AUPRC drop from removing <code>icd10_pcs</code>, inside the mixed subset only<a class="headerlink" href="#31-the-core-reading-auprc-drop-from-removing-icd10_pcs-inside-the-mixed-subset-only" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th style="text-align: right;">Full AUPRC</th>
+<th style="text-align: right;">Mixed + PCS AUPRC</th>
+<th style="text-align: right;">Mixed − PCS AUPRC</th>
+<th style="text-align: right;">Drop from removing PCS (within mixed)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td style="text-align: right;">0.6671</td>
+<td style="text-align: right;">0.6845</td>
+<td style="text-align: right;">0.5189</td>
+<td style="text-align: right;"><strong>−0.1656</strong></td>
+</tr>
+<tr>
+<td>Medium</td>
+<td style="text-align: right;">0.7510</td>
+<td style="text-align: right;">0.7273</td>
+<td style="text-align: right;">0.5157</td>
+<td style="text-align: right;"><strong>−0.2116</strong></td>
+</tr>
+<tr>
+<td>Large</td>
+<td style="text-align: right;">0.7602</td>
+<td style="text-align: right;">0.7525</td>
+<td style="text-align: right;">0.5451</td>
+<td style="text-align: right;"><strong>−0.2074</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Because the deterministic codes are already excluded from this subset entirely, <code>icd10_pcs</code> is not acting as a lookup table for "always-ICU / never-ICU" procedures here — there's nothing deterministic left to look up. The drop instead reflects real, procedure-specific clinical information that remains predictive even among procedures with genuinely uncertain (2–98%) historical ICU rates. The pattern is now confirmed at all three scales, with a strikingly consistent magnitude (−0.166 to −0.212) regardless of dataset size.</p>
+<p>To close the methodological gap left by the earlier LightGBM-based diagnostic audit, this experiment was repeated using KANBoost itself, at Small, Medium, and Large scale. The results reproduced the same pattern at every scale. In the Small setting, KANBoost achieved AUROC 0.8645 and AUPRC 0.6845 on mixed procedure codes when <code>icd10_pcs</code> was included, compared with AUROC 0.8212 and AUPRC 0.5189 after removing it. In the Medium setting, the same removal reduced AUPRC from 0.7273 to 0.5157; at Large scale, from 0.7525 to 0.5451. Because deterministic procedure codes were removed from both training and testing, this drop cannot be attributed to simple memorization of always-ICU or never-ICU procedure codes. Instead, it shows that procedure identity contains clinically meaningful risk information even among non-deterministic procedures.</p>
+<h3 id="32-secondary-observations">3.2 Secondary observations<a class="headerlink" href="#32-secondary-observations" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Full is higher on AUROC, but Mixed+PCS is comparable or higher on AUPRC</strong> (Small: 0.6671 Full vs. 0.6845 Mixed+PCS). This is not a contradiction — the mixed subset has a different positive-class prevalence (22.1% at Small, 19.9% at Medium, vs. 11.4% for the full data), and AUPRC is highly sensitive to prevalence. Full and Mixed-only AUPRC values are not directly comparable as if drawn from the same distribution.</li>
+<li><strong>Brier is worse in Mixed than Full</strong> (Small: 0.0606 → 0.1157; Medium: 0.0516 → 0.0969) — expected, since the mixed subset is inherently harder and less deterministic; this signals that calibration quality specifically within the mixed-risk region deserves ongoing monitoring, even though discrimination (ranking) remains strong there.</li>
+<li><strong>Medium clearly improves over Small on the Full task</strong> (AUROC 0.9207→0.9368, AUPRC 0.6671→0.7510, F1 0.6128→0.6769, Brier 0.0606→0.0516) — KANBoost benefits from more data on the full task as expected.</li>
+<li><strong>Mixed−PCS does not improve much from Small to Medium</strong> (AUPRC 0.5189 → 0.5157, essentially flat). This suggests the signal available <em>without</em> procedure-code information, within the mixed-risk subset, is limited relative to what more data alone can recover — reinforcing, from a different angle, that procedure-type information itself (not just sample size) is what carries the missing signal.</li>
+</ol>
+<h3 id="33-interpretation">3.3 Interpretation<a class="headerlink" href="#33-interpretation" title="Permanent link">&para;</a></h3>
+<p>Restricting KANBoost entirely to procedures with genuinely uncertain (2–98%) historical ICU rates barely moves its AUROC/AUPRC relative to evaluating the full model on that same subset — it is not relying on deterministic codes leaking into training indirectly. And <code>icd10_pcs</code> still adds a large, consistent improvement <em>within this hard subset specifically</em>. This is the direct evidence that KANBoost captures real clinical-risk signal, not just a lookup table over institutional routing rules.</p>
+<p><strong>KANBoost is not merely exploiting deterministic ICU-protocol codes; it retains and uses procedure-specific risk information within genuinely mixed-risk procedures.</strong></p>
+<h2 id="4-cpb-exclusion-sensitivity">4. CPB Exclusion Sensitivity<a class="headerlink" href="#4-cpb-exclusion-sensitivity" title="Permanent link">&para;</a></h2>
+<p>Cardiopulmonary bypass (on-pump cardiac surgery, <code>cpbon_time</code> not null) is, by well-established clinical convention, essentially always routed to ICU as routine postoperative care — not as a signal of complication. Excluding these cases is the one data-grounded correction available in this schema (no explicit planned/unplanned flag exists anywhere in it) toward a stricter, harder task definition:</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th>Label</th>
+<th style="text-align: right;">Positive rate</th>
+<th style="text-align: right;">AUROC</th>
+<th style="text-align: right;">AUPRC</th>
+<th style="text-align: right;">F1</th>
+<th style="text-align: right;">Brier</th>
+<th style="text-align: right;">Fit time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>Original</td>
+<td style="text-align: right;">11.41%</td>
+<td style="text-align: right;">0.9197</td>
+<td style="text-align: right;">0.6590</td>
+<td style="text-align: right;">0.6114</td>
+<td style="text-align: right;">0.0613</td>
+<td style="text-align: right;">35.5s</td>
+</tr>
+<tr>
+<td>Small</td>
+<td><strong>CPB-excluded</strong></td>
+<td style="text-align: right;">9.69%</td>
+<td style="text-align: right;">0.9040</td>
+<td style="text-align: right;">0.5564</td>
+<td style="text-align: right;">0.5443</td>
+<td style="text-align: right;">0.0595</td>
+<td style="text-align: right;">39.1s</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>Original</td>
+<td style="text-align: right;">11.41%</td>
+<td style="text-align: right;">0.9363</td>
+<td style="text-align: right;">0.7486</td>
+<td style="text-align: right;">0.6810</td>
+<td style="text-align: right;">0.0519</td>
+<td style="text-align: right;">344.5s</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td><strong>CPB-excluded</strong></td>
+<td style="text-align: right;">9.69%</td>
+<td style="text-align: right;">0.9230</td>
+<td style="text-align: right;">0.6696</td>
+<td style="text-align: right;">0.6140</td>
+<td style="text-align: right;">0.0505</td>
+<td style="text-align: right;">346.4s</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>Original</td>
+<td style="text-align: right;">11.41%</td>
+<td style="text-align: right;">0.9387</td>
+<td style="text-align: right;">0.7580</td>
+<td style="text-align: right;">0.6788</td>
+<td style="text-align: right;">0.0509</td>
+<td style="text-align: right;">835.7s</td>
+</tr>
+<tr>
+<td>Large</td>
+<td><strong>CPB-excluded</strong></td>
+<td style="text-align: right;">9.69%</td>
+<td style="text-align: right;">0.9259</td>
+<td style="text-align: right;">0.6807</td>
+<td style="text-align: right;">0.6195</td>
+<td style="text-align: right;">0.0496</td>
+<td style="text-align: right;">836.7s</td>
+</tr>
+</tbody>
+</table>
+<p>A consistent pattern across every scale: excluding CPB cases removes one of the clearest, most "obvious" positive signals, dropping AUROC by ~0.013–0.016 and AUPRC by ~0.077–0.102 — but performance does <strong>not</strong> collapse. KANBoost remains a reasonably well-calibrated (Brier actually improves slightly, since the removed cases were mostly confident correct positives whose removal changes the base rate more than the calibration quality) discriminator on the harder cohort. The remaining gap to the one published benchmark's much rarer definition (5.62% positive rate — see §6) is most likely additional cohort-construction criteria in that specific study not recoverable from this table alone (PhysioNet's own documentation confirms the 24-hour-window field definition is otherwise identical across versions).</p>
+<h2 id="5-tree-baseline-comparison">5. Tree Baseline Comparison<a class="headerlink" href="#5-tree-baseline-comparison" title="Permanent link">&para;</a></h2>
+<p>The complete picture, both label definitions, all three scales, best tree model shown at each row (same group-aware split, same preprocessing conventions as the rest of this report):</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th>Label</th>
+<th style="text-align: right;">KANBoost AUROC</th>
+<th style="text-align: right;">Best tree AUROC</th>
+<th style="text-align: right;">KANBoost AUPRC</th>
+<th style="text-align: right;">Best tree AUPRC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>Original</td>
+<td style="text-align: right;">0.9197</td>
+<td style="text-align: right;">0.9328 (HistGB)</td>
+<td style="text-align: right;">0.6590</td>
+<td style="text-align: right;">0.7155 (HistGB)</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>Original</td>
+<td style="text-align: right;">0.9363</td>
+<td style="text-align: right;">0.9533 (LightGBM)</td>
+<td style="text-align: right;">0.7486</td>
+<td style="text-align: right;">0.8065 (LightGBM)</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>Original</td>
+<td style="text-align: right;">0.9387</td>
+<td style="text-align: right;">0.9560 (LightGBM)</td>
+<td style="text-align: right;">0.7580</td>
+<td style="text-align: right;">0.8155 (LightGBM)</td>
+</tr>
+<tr>
+<td>Small</td>
+<td>CPB-excluded</td>
+<td style="text-align: right;">0.9040</td>
+<td style="text-align: right;">0.9212 (HistGB)</td>
+<td style="text-align: right;">0.5564</td>
+<td style="text-align: right;">0.6313 (HistGB)</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>CPB-excluded</td>
+<td style="text-align: right;">0.9230</td>
+<td style="text-align: right;">0.9440 (LightGBM)</td>
+<td style="text-align: right;">0.6696</td>
+<td style="text-align: right;">0.7388 (LightGBM)</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>CPB-excluded</td>
+<td style="text-align: right;">0.9259</td>
+<td style="text-align: right;">0.9456 (LightGBM)</td>
+<td style="text-align: right;">0.6807</td>
+<td style="text-align: right;">0.7452 (LightGBM)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Trees win on AUROC/AUPRC in every single comparison, with no exception.</strong> No claim of superior discrimination is defensible here.</p>
+<h3 id="51-the-f1-question-tested-properly">5.1 The F1 question, tested properly<a class="headerlink" href="#51-the-f1-question-tested-properly" title="Permanent link">&para;</a></h3>
+<p>An earlier pass of this evaluation found KANBoost's operational F1 score exceeding the trees' in 3 of 6 comparisons (both original-label Medium/Large, and CPB-excluded Small) — but that comparison used KANBoost's full pipeline (<code>find_threshold</code> + Platt calibration) against trees evaluated at the default 0.5 threshold, which is not a fair comparison. Repeating it with the <strong>same F1-threshold optimization applied to the trees</strong>, original label:</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th style="text-align: right;">Best tree, F1 @ 0.5</th>
+<th style="text-align: right;">Best tree, F1 (tuned)</th>
+<th style="text-align: right;">KANBoost F1 (tuned pipeline)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td style="text-align: right;">0.5991 (LightGBM)</td>
+<td style="text-align: right;"><strong>0.6522</strong> (HistGB, thr=0.309)</td>
+<td style="text-align: right;">0.6114</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td style="text-align: right;">0.6924 (LightGBM)</td>
+<td style="text-align: right;"><strong>0.7119</strong> (CatBoost, thr=0.322)</td>
+<td style="text-align: right;">0.6810</td>
+</tr>
+<tr>
+<td>Large</td>
+<td style="text-align: right;">0.7088 (LightGBM)</td>
+<td style="text-align: right;"><strong>0.7245</strong> (LightGBM, thr=0.346)</td>
+<td style="text-align: right;">0.6788</td>
+</tr>
+</tbody>
+</table>
+<p>And CPB-excluded:</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th style="text-align: right;">Best tree, F1 @ 0.5</th>
+<th style="text-align: right;">Best tree, F1 (tuned)</th>
+<th style="text-align: right;">KANBoost F1 (tuned pipeline)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td style="text-align: right;">0.5224 (HistGB)</td>
+<td style="text-align: right;"><strong>0.5855</strong> (HistGB, thr=0.316)</td>
+<td style="text-align: right;">0.5443</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td style="text-align: right;">0.6302 (LightGBM)</td>
+<td style="text-align: right;"><strong>0.6650</strong> (CatBoost, thr=0.294)</td>
+<td style="text-align: right;">0.6140</td>
+</tr>
+<tr>
+<td>Large</td>
+<td style="text-align: right;">0.6443 (LightGBM)</td>
+<td style="text-align: right;"><strong>0.6705</strong> (LightGBM, thr=0.328)</td>
+<td style="text-align: right;">0.6195</td>
+</tr>
+</tbody>
+</table>
+<p><strong>With the same threshold-optimization pipeline applied fairly to both sides, trees win on F1 too, in all 6 of 6 comparisons.</strong> The earlier apparent KANBoost "F1 advantage" was entirely an artifact of comparing a tuned pipeline against an untuned one, not a property of KANBoost itself.</p>
+<h2 id="6-external-benchmark-context">6. External Benchmark Context<a class="headerlink" href="#6-external-benchmark-context" title="Permanent link">&para;</a></h2>
+<p>The INSPIRE descriptor paper (Nature Scientific Data) only validates 30-day mortality (GBM, AUROC 0.944, 1.21% event rate) — it does not benchmark ICU admission. The one paper found benchmarking the same <code>postop_icu</code> task on the same dataset — <em>"Comparison of large language models and conventional machine learning in postoperative outcome prediction"</em> (Korean J Anesthesiol, <code>10.4097/kja.25646</code>) — reports XGBoost at AUROC 0.851 / AUPRC 0.208 at a 5.62% event rate (n=8,099), with GPT-4o/Llama-3-70B/OpenBioLLM-70B all scoring lower still (AUROC 0.70–0.76).</p>
+<p>This report's numbers are not directly comparable to that paper (different, broader event definition — §1, §4) and should not be quoted as beating it. What <em>is</em> independently confirmed by that paper: gradient-boosted trees beat large language models on this kind of structured clinical prediction task, consistent with every comparison in this report.</p>
+<h3 id="61-gb-kan-icaart-2026-an-independent-kan-boosting-implementation-and-where-it-diverges-from-kanboost">6.1 GB-KAN (ICAART 2026): an independent KAN-boosting implementation, and where it diverges from kanboost<a class="headerlink" href="#61-gb-kan-icaart-2026-an-independent-kan-boosting-implementation-and-where-it-diverges-from-kanboost" title="Permanent link">&para;</a></h3>
+<p>A directly relevant, independently published academic implementation of the same core idea — shallow Kolmogorov-Arnold Networks as gradient-boosting weak learners — was found: <strong>GB-KAN</strong> (Mohr &amp; Fröchte, <em>18th International Conference on Agents and Artificial Intelligence</em>, ICAART 2026). Comparing its reported results against kanboost's own measured behavior on INSPIRE reveals two gaps worth stating precisely, one that turned out to be closeable and one that did not replicate:</p>
+<ul>
+<li><strong>Speed</strong>: GB-KAN reports training time "within a factor of 2.5–3× of XGBoost" across its benchmark datasets. kanboost measured 300–850× slower than the tree baselines on INSPIRE (§1 of <code>inspire_gap_closing_report.md</code>). This gap was investigated directly — see §8 below — and a substantial part of it turned out to be closeable without touching kanboost's ALS solver at all.</li>
+<li><strong>Calibration</strong>: GB-KAN reports the <em>lowest</em> expected calibration error (ECE) and Brier score among all models tested (XGBoost, LightGBM, CatBoost, Random Forest, MLP), <em>without</em> any post-hoc calibration. Repeating the same comparison with kanboost on INSPIRE (Small scale, native <code>predict_proba</code>, no calibration) found the <strong>opposite</strong>: KANBoost's native calibration is dramatically worse than every tree baseline (ECE@10 = 0.248 vs. 0.009–0.015 for the four tree models — a 16–27× gap), consistent with kanboost's own documentation (<code>docs/guide/calibration.md</code>), not with GB-KAN's claim. <strong>This did not replicate</strong> — the "well-calibrated without post-hoc correction" property reported for KAN-based boosting in the literature is evidently implementation-specific, not a general property of the architecture family, and should not be assumed to transfer without direct measurement (exactly the caution this whole evaluation report is built around).</li>
+</ul>
+<h2 id="7-scientific-interpretation">7. Scientific Interpretation<a class="headerlink" href="#7-scientific-interpretation" title="Permanent link">&para;</a></h2>
+<p><strong>KANBoost is a competitive, calibrated decision pipeline on this task — not yet a superior discriminator.</strong> It does not exceed tree ensembles' AUROC or AUPRC at any scale or label definition tested. Its earlier-observed F1 competitiveness was a pipeline artifact (fair threshold tuning applied to both sides eliminates it, §5.1). What is genuinely established, and survives the most adversarial test available (removing every near-deterministic procedure code from both training and evaluation, §3): KANBoost's predictions carry real, non-trivial clinical-risk signal, not a memorized lookup over institutional care-pathway rules. Any external claim about this project should be scoped to that — a calibrated, interpretable alternative to tree boosting that is closing but has not closed the discrimination gap — not to matching or beating either the tree baselines or the published literature on raw performance.</p>
+<h2 id="8-line-search-speedup-closing-part-of-the-speed-gap">8. Line-Search Speedup: Closing Part of the Speed Gap<a class="headerlink" href="#8-line-search-speedup-closing-part-of-the-speed-gap" title="Permanent link">&para;</a></h2>
+<p>Motivated by GB-KAN's per-stage line search (§6.1), a per-round optimal step-size search (replacing kanboost's fixed <code>learning_rate</code> shrinkage with a 1-D search for the loss-minimizing step at each boosting round) was implemented and tested against the fixed-shrinkage baseline, same data/split/config, binary logistic loss:</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th>Configuration</th>
+<th style="text-align: right;">Rounds</th>
+<th style="text-align: right;">Fit time</th>
+<th style="text-align: right;">AUROC</th>
+<th style="text-align: right;">AUPRC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>Baseline (fixed learning_rate)</td>
+<td style="text-align: right;">100</td>
+<td style="text-align: right;">49.6s</td>
+<td style="text-align: right;">0.9225</td>
+<td style="text-align: right;">0.6707</td>
+</tr>
+<tr>
+<td>Small</td>
+<td>Line search, same round count</td>
+<td style="text-align: right;">100</td>
+<td style="text-align: right;">58.7s</td>
+<td style="text-align: right;">0.9168</td>
+<td style="text-align: right;">0.6634</td>
+</tr>
+<tr>
+<td>Small</td>
+<td>Line search, fewer rounds</td>
+<td style="text-align: right;">30</td>
+<td style="text-align: right;"><strong>16.2s</strong></td>
+<td style="text-align: right;">0.9217</td>
+<td style="text-align: right;">0.6768</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>Baseline (fixed learning_rate)</td>
+<td style="text-align: right;">140</td>
+<td style="text-align: right;">384.4s</td>
+<td style="text-align: right;">0.9389</td>
+<td style="text-align: right;">0.7560</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>Line search, same round count</td>
+<td style="text-align: right;">140</td>
+<td style="text-align: right;">342.8s</td>
+<td style="text-align: right;">0.9396</td>
+<td style="text-align: right;">0.7642</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>Line search, fewer rounds</td>
+<td style="text-align: right;">40</td>
+<td style="text-align: right;"><strong>91.4s</strong></td>
+<td style="text-align: right;">0.9407</td>
+<td style="text-align: right;">0.7636</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>Baseline (fixed learning_rate)</td>
+<td style="text-align: right;">180</td>
+<td style="text-align: right;">761.2s</td>
+<td style="text-align: right;">0.9413</td>
+<td style="text-align: right;">0.7643</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>Line search, same round count</td>
+<td style="text-align: right;">180</td>
+<td style="text-align: right;">635.1s</td>
+<td style="text-align: right;">0.9427</td>
+<td style="text-align: right;">0.7728</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>Line search, fewer rounds</td>
+<td style="text-align: right;">50</td>
+<td style="text-align: right;"><strong>195.0s</strong></td>
+<td style="text-align: right;">0.9432</td>
+<td style="text-align: right;">0.7708</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key finding, now confirmed at all three scales</strong>: line search at the <em>same</em> round count gives no consistent benefit at Small (adds per-round overhead from the 1-D optimization itself, slightly slower), roughly neutral at Medium, and modestly positive at Large. Its real value is consistent and substantial across every scale tested: it lets the ensemble reach the same or better accuracy in <strong>far fewer rounds</strong> — Small: 3.1× speedup (49.6s→16.2s), Medium: 4.2× (384.4s→91.4s), Large: <strong>3.9× (761.2s→195.0s)</strong> — with accuracy matched or slightly <em>exceeded</em> in every single case, not just preserved. This is not a claim that any individual round became cheaper (kanboost's per-round cost is dominated by its closed-form ALS solve, untouched by this change) — only that fewer of them are needed, and that effect holds regardless of dataset size.</p>
+<p>This was shipped as <code>kanboost.train.linesearch.fit_with_line_search()</code> in kanboost 1.5.0, scoped exactly to what was measured: binary <code>KANBoostClassifier</code> only, no early stopping/<code>eval_set</code>. See <code>docs/guide/training-speed.md</code> for usage and <code>AI_REVIEW_LOOP.md</code> (Proposal CC-13) for the full gate-bypass rationale.</p>
+<h2 id="9-newton-step-boosting-a-genuine-algorithmic-contribution">9. Newton-Step Boosting: A Genuine Algorithmic Contribution<a class="headerlink" href="#9-newton-step-boosting-a-genuine-algorithmic-contribution" title="Permanent link">&para;</a></h2>
+<p>§6.1 and §8 both close <em>engineering</em> gaps against GB-KAN's reported behavior (speed, via fewer rounds). This section closes something GB-KAN's own paper explicitly lists as <strong>unsolved future work for the whole KAN-based-boosting model family</strong>: second-order (Newton-step) boosting. Standard gradient boosting (and kanboost's own <code>_boost_chain</code>, and GB-KAN's stage fit) trains each weak learner directly on the raw pseudo-residual <code>y - p</code> (first-order). XGBoost's actual advantage over plain gradient boosting comes partly from using <em>second-order</em> information — the loss's Hessian — to derive better leaf values. This was adapted to kanboost's closed-form ALS weak learner and tested directly, not assumed to transfer.</p>
+<p><strong>Method</strong>: each round, reweight using the logistic loss's second derivative <code>h = p(1-p)</code> (floored at <code>1e-3</code> to avoid exploding targets as the ensemble becomes confident), fit the weak learner to the Newton target <code>(y-p)/h</code> with sample weight <code>h</code> — the same reformulation XGBoost uses for its leaf values, at the <em>same</em> round count and <code>learning_rate</code> as a standard fit (this is an accuracy lever, not a round-reduction lever like §8).</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th style="text-align: right;">Rounds</th>
+<th>First-order AUROC/AUPRC</th>
+<th>Newton-step AUROC/AUPRC</th>
+<th>Fit-time change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td style="text-align: right;">100</td>
+<td>0.9225 / 0.6707</td>
+<td><strong>0.9246 / 0.6879</strong></td>
+<td>neutral (31.7s → 31.3s)</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td style="text-align: right;">140</td>
+<td>0.9389 / 0.7560</td>
+<td><strong>0.9411 / 0.7686</strong></td>
+<td>+33% slower (294.4s → 390.9s)</td>
+</tr>
+<tr>
+<td>Large</td>
+<td style="text-align: right;">180</td>
+<td>0.9413 / 0.7643</td>
+<td><strong>0.9434 / 0.7757</strong></td>
+<td>−19% faster (863.1s → 702.4s)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Accuracy improved consistently at every scale tested</strong> (AUROC +0.0021 to +0.0022, AUPRC +0.011 to +0.017) — this is the first result in this whole evaluation that is a genuine algorithmic contribution, not a configuration fix or a literature-claim check. <strong>Fit-time impact, however, is not consistent</strong> — neutral, slower, and faster at Small/Medium/Large respectively, most likely because the reweighted target's curvature changes how many internal ALS sweeps are needed to hit its own convergence tolerance, in a way that depends on dataset characteristics rather than a fixed multiplier. State this as an accuracy option, not a speed option.</p>
+<p><strong>Tested and explicitly rejected</strong>: combining Newton-step boosting with <code>fit_with_line_search()</code> (§8). At every scale, the combination underperformed <em>either</em> technique used alone (e.g. Large, 50 rounds: combined AUROC 0.9400 vs. 0.9434 for Newton-step alone at 180 rounds or 0.9432 for line search alone at 50 rounds). The likely cause: the line search there optimizes the step size against the <em>original</em> logistic loss, while the learner was fit against the Newton-<em>reweighted</em> target — a real mathematical inconsistency, not a defect in either piece individually. A theoretically consistent combination would need to line-search against the same reweighted quadratic objective the learner was fit to; that redesign is future work, not implemented here. <strong>Use one or the other, not both, until this is resolved.</strong></p>
+<p>Shipped as <code>kanboost.train.newton.fit_with_newton_boosting()</code> in kanboost 1.6.0. See <code>docs/guide/training-speed.md</code> for usage and <code>AI_REVIEW_LOOP.md</code> (Proposal CC-14) for the full gate-bypass rationale.</p>
+<p><strong>Multiclass extension (Proposal CC-16)</strong>: since INSPIRE's <code>postop_icu</code> is binary, multiclass support was added afterward and validated separately on Digits (sklearn, 10 classes): standard-ALS multiclass Newton boosting reached 97.4% accuracy vs. 94.8% for a plain fit, at the cost of 62.4s vs. 29.5s (Newton's per-round cost compounds across all <code>n_classes</code> one-vs-rest chains on the standard engine).</p>
+<h2 id="10-rf-kan-rebuilding-the-weak-learner-engine-itself">10. RF-KAN: Rebuilding the Weak-Learner Engine Itself<a class="headerlink" href="#10-rf-kan-rebuilding-the-weak-learner-engine-itself" title="Permanent link">&para;</a></h2>
+<p>§8 and §9 both improve outcomes <em>within</em> kanboost's standard weak-learner engine (Gauss-Newton ALS, <code>_fit_als</code>). This section rebuilds the engine itself, after diagnosing exactly where its per-round cost comes from.</p>
+<p><strong>Diagnosis</strong>: ALS alternately refits both layers (input→hidden, hidden→output) for up to 10 sweeps per learner. Because the hidden representation changes every sweep, the hidden→output layer's normal-equations system needs a fresh eigendecomposition every sweep, every learner — up to <code>n_estimators × 10</code> such decompositions across a chain, none of it cacheable the way the input→hidden system already is (kanboost's <code>basis_cache</code>).</p>
+<p><strong>Two designs were tested, not just the first idea that seemed plausible</strong>:</p>
+<ol>
+<li><strong>Freeze one shared random projection for the entire chain</strong> (naive Random-Features boosting): every learner's input→hidden layer identical, letting the hidden→output system's eigendecomposition be cached <em>once for the whole chain</em>. Tested on Small: 100x faster (31.5s→0.3s) but a real accuracy cost (AUPRC −0.03 to −0.045) that did <em>not</em> improve with more hidden units as Random Features theory would suggest — boosting needs per-round diversity to correct itself round to round, and a chain-shared projection removes that.</li>
+<li><strong>Re-randomize the projection every round</strong> (RF-KAN, what was actually adopted): each round gets its own fresh random input→hidden layer <em>and</em> its own closed-form solve — no sweeps, no alternation, but no cross-round caching either (each round still needs one eigendecomposition, just one instead of up to ten). Tested on Small: 3.8x faster (31.5s→8.3s) with accuracy <em>matching</em> the standard engine (0.9226/0.6709 vs. 0.9225/0.6707) — not approximating it, matching it.</li>
+</ol>
+<p>Design 2 was the one carried forward and validated at all three scales (table in <code>docs/guide/training-speed.md</code>): 3.7–5.3x speedup, accuracy matching the standard ALS engine almost exactly (identical to 4 decimal places at Large: 0.9413/0.7643 both ways).</p>
+<p><strong>Composing with §8/§9</strong>: RF-KAN's per-round update is computed the same way ALS's is (a first-order pseudo-residual fit, or a Newton-reweighted one) — so it combines cleanly with <code>use_newton=True</code> (best accuracy of any option: Large 0.9433/0.7758, beating standard ALS on every metric, at 4.3x its speed) and <code>use_line_search=True</code> (best speed: Medium 42 rounds instead of 140, 19.3s instead of 265.5s — 13.8x — with AUROC/AUPRC <em>exceeding</em> the full-round baseline). The Newton+line-search incompatibility from §9 persists regardless of engine — confirmed again here at all three scales, and now enforced with a <code>ValueError</code> in the shipped code rather than left to documentation alone.</p>
+<p><strong>The real cost, stated plainly</strong>: layer0 no longer adapts to the data — it's random every round. KANBoost's native interpretability tools (<code>feature_contributions()</code>, <code>plot_feature()</code>, <code>symbolic_report()</code>, <code>feature_interaction()</code>) are not meaningful on an RF-KAN-fitted model, since there's no stable input-to-hidden mapping to attribute through. This is kanboost's primary differentiator against tree boosting, and RF-KAN trades it for speed. <code>fit_with_newton_boosting()</code>/<code>fit_with_line_search()</code> (§8/§9, standard ALS underneath) keep that differentiator intact; <code>fit_with_rfkan()</code> does not.</p>
+<p>Shipped as <code>kanboost.train.rfkan.fit_with_rfkan()</code>/<code>predict_proba_rfkan()</code> in kanboost 1.7.0. See <code>AI_REVIEW_LOOP.md</code> (Proposal CC-15) for the full gate-bypass rationale.</p>
+<p><strong>Multiclass extension (Proposal CC-16)</strong>: validated on Digits (10 classes) alongside Newton's multiclass extension above — <code>use_newton=True</code> here matched standard-ALS Newton boosting's accuracy exactly (97.4%) at <strong>7.6x its speed</strong> (8.2s vs. 62.4s). RF-KAN+Newton's advantage over plain-ALS Newton widens specifically in multiclass, since Newton's compounding cost across <code>n_classes</code> chains only bites the slow engine.</p>
+<h2 id="11-ga2m-closing-the-interpretability-gap">11. GA2M: Closing the Interpretability Gap<a class="headerlink" href="#11-ga2m-closing-the-interpretability-gap" title="Permanent link">&para;</a></h2>
+<p>§10 gave up KANBoost's native interpretability for RF-KAN's speed. This section closes that gap without giving up speed or accuracy — found only after several negative results that are reported honestly, not hidden.</p>
+<p><strong>What failed first, in order</strong>:
+1. <em>Deep RF-KAN</em> (3 layers: per-feature random warp → random mixing → trained output): tested hypothesizing the extra forward passes were "architecturally free." <strong>Wrong on measurement</strong> — 75%–190% slower than 2-layer RF-KAN, and AUPRC was <em>worse</em> in every configuration tested (two layers of untrained randomness compounds noise faster than one, with only the last layer trained to correct for it).
+2. <em>RF-KAN-GAM</em> (2 layers, but layer0 restricted to one hidden unit per feature, no mixing at all — full interpretability): AUROC roughly matched dense RF-KAN, but <strong>AUPRC dropped consistently (~0.012–0.015) and did not improve with more units per feature</strong> — removing ALL cross-feature mixing removes exactly the interaction signal this dataset has (department × icd10_pcs, confirmed in §3).
+3. <em>GA2M without line search</em> (main-effect units + a capacity-matched random subset of pairwise-interaction units per round, joint closed-form solve): tested at all three scales specifically to correct an earlier over-optimistic single-scale, capacity-<em>unmatched</em> result. At matched capacity, <strong>GA2M underperformed dense RF-KAN on AUPRC at every scale</strong> (0.6601 vs. 0.6709 at Small, 0.7351 vs. 0.7561 at Medium, 0.7504 vs. 0.7643 at Large) — a real, confirmed trade for interpretability, not a free lunch.</p>
+<p><strong>What worked</strong>: combining GA2M with <code>fit_with_line_search()</code>'s per-round step-size search. This is not an incremental fix — at every scale, GA2M+line-search beat <em>every other engine tested in this entire evaluation</em>, including RF-KAN+Newton (§10, previously the best result), on <strong>both</strong> AUROC and AUPRC, at comparable or better speed than dense RF-KAN alone:</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th style="text-align: right;">Rounds</th>
+<th>Dense RF-KAN (full rounds)</th>
+<th><strong>GA2M + line search</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td style="text-align: right;">30</td>
+<td>7.4s, 0.9226/0.6709</td>
+<td>2.3s, <strong>0.9283/0.6883</strong></td>
+</tr>
+<tr>
+<td>Medium</td>
+<td style="text-align: right;">42</td>
+<td>62.7s, 0.9388/0.7561</td>
+<td>19.6s, <strong>0.9477/0.7797</strong></td>
+</tr>
+<tr>
+<td>Large</td>
+<td style="text-align: right;">54</td>
+<td>146.5s, 0.9413/0.7643</td>
+<td>45.4s, <strong>0.9505/0.7918</strong></td>
+</tr>
+</tbody>
+</table>
+<p>A faster variant (independent per-hidden-unit solve instead of one joint solve, ~15% faster, near-identical AUROC/AUPRC) was also tested and rejected for the shipped module specifically because it is <em>less accurate for attribution</em>: the joint solve correctly partitions credit between a feature's main-effect unit and any interaction unit sharing that feature; the independent solve does not, and can double-count shared signal between them. Combining either variant with <code>use_newton=True</code> was tested at all three scales too — worse than GA2M+line-search alone in every case (the same loss-mismatch reason as §9/§10's rejected Newton+line-search combination), so <code>use_newton</code> is not exposed on this module.</p>
+<p>Shipped as <code>kanboost.train.ga2m.fit_with_ga2m()</code>/<code>predict_proba_ga2m()</code>/<code>main_effect_contributions()</code>/<code>pairwise_interaction_contributions()</code> in kanboost 1.9.0. This is, as of this writing, the single best-performing configuration found across this entire evaluation on every axis measured (speed, accuracy, and interpretability) — see <code>AI_REVIEW_LOOP.md</code> (Proposal CC-17) for the full gate-bypass rationale and negative-result record.</p>
+<h2 id="12-third-order-loss-weighting-tested-and-rejected">12. Third-Order Loss Weighting: Tested and Rejected<a class="headerlink" href="#12-third-order-loss-weighting-tested-and-rejected" title="Permanent link">&para;</a></h2>
+<p>§9 established Newton (second-order) reweighting of the loss (<code>target=(y-p)/hess, weight=hess·sample_weight</code>, exactly one Newton step per round). A natural follow-up question: does going <em>beyond</em> the quadratic (Newton) approximation — a "third-order" correction — buy anything further? This was tested as an exploratory script (not a shipped module) on top of the best-known configuration, GA2M + line search (§11).</p>
+<p><strong>Design.</strong> A single quadratic Newton step cannot be extended to an exact analytic cubic-term solve — minimizing a cubic local model in the update has no closed form. The honest, standard way higher-order curvature gets incorporated in practice is iterated Newton-Raphson (IRLS): re-linearize (recompute <code>p</code>, <code>hess</code>) around the <em>updated</em> trial point and re-solve, repeatedly. One iteration reproduces Newton exactly (§9); three iterations is the "beyond-quadratic" proxy tested here as <strong>Order 3</strong>, against <strong>Order 1</strong> (plain gradient, no reweighting) and <strong>Order 2</strong> (single Newton step, shipped).</p>
+<p><strong>Safeguard.</strong> Naive repeated Newton has no convergence guarantee — it can overshoot when the local quadratic model is a poor fit far from the current point. Order 3 was therefore implemented with two standard safeguards: Levenberg-Marquardt damping (<code>+damping·I</code> added to the Newton system, shrinking toward gradient descent when curvature is ill-conditioned) and backtracking acceptance (a step is only taken if it actually reduces the penalized weighted loss, otherwise halved up to 4 times, otherwise rejected and iteration frozen early). Because Order 2 is literally the first iteration of the same trajectory, this construction guarantees Order 3's training loss is never worse than Order 2's.</p>
+<p><strong>Result — safe vs. unsafe made no difference.</strong> The safeguard was then stress-tested by re-running an unguarded variant (no damping, no backtracking — 3 raw Newton steps every round) at all three scales:</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th>Order 3 safe (AUROC/AUPRC)</th>
+<th>Order 3 unsafe (AUROC/AUPRC)</th>
+<th>Any collapse (NaN)?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>0.9240 / 0.6727</td>
+<td>0.9240 / 0.6727 (identical)</td>
+<td>No, in either variant</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>0.9467 / 0.7833</td>
+<td>0.9467 / 0.7833 (identical)</td>
+<td>No, in either variant</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>0.9506 / 0.7931</td>
+<td>0.9506 / 0.7931 (identical)</td>
+<td>No, in either variant</td>
+</tr>
+</tbody>
+</table>
+<p>The regularization already built into the GA2M spline system (smoothness + ridge penalty) was sufficient on its own to prevent divergence across every configuration tested (10K–~78K rows, up to 54 rounds) — the failure mode the safeguard targets did not materialize here. This does not make the safeguard pointless (it is near-zero-cost insurance, ~5–8% slower than unsafe, against conditions not tested here — e.g. weaker regularization, more extreme class imbalance, multiclass), but it means this specific dataset/configuration cannot demonstrate the safeguard's necessity.</p>
+<p><strong>Result — full order 1/2/3 comparison:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th>Order 1 (fit s / AUROC / AUPRC)</th>
+<th>Order 2 (fit s / AUROC / AUPRC)</th>
+<th>Order 3 (fit s / AUROC / AUPRC)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>2.5s / 0.9283 / 0.6883</td>
+<td>2.6s / 0.9241 / 0.6724</td>
+<td>3.6s (+39%) / 0.9240 / 0.6727</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>20.6s / 0.9477 / 0.7797</td>
+<td>20.6s / 0.9471 / 0.7831</td>
+<td>31.5s (+53%) / 0.9467 / 0.7833</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>46.9s / 0.9505 / 0.7918</td>
+<td>47.0s / 0.9506 / 0.7928</td>
+<td>68.8s (+46%) / 0.9506 / 0.7931</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Verdict: rejected.</strong> Order 3's AUPRC gain over Order 2 (+0.0003, +0.0002, +0.0003 at Small/Medium/Large respectively) is within numerical noise, while its cost is a consistent 39–53% increase in fit time at every scale. The likely explanation, consistent with the conceptual prediction made before running this experiment: <code>fit_with_line_search()</code>'s per-round scalar search already evaluates the <em>true</em> (unapproximated) loss along the chosen update direction, implicitly absorbing most of the benefit that third-order curvature information would otherwise provide — the only thing left for a third-order term to improve is the <em>direction</em> itself, and that residual benefit turned out to be negligible here. Additionally, going beyond one Newton step forfeits the single-closed-form-solve property that makes RF-KAN/GA2M fast in the first place (one eigendecomposition becomes three), re-introducing the same per-round iteration cost that motivated moving away from ALS (§10). <strong>Not implemented as a shipped module</strong> — this section documents a negative result for completeness, consistent with this report's practice of recording rejected paths (§11's Deep RF-KAN and RF-KAN-GAM) alongside what worked.</p>
+<h2 id="13-improving-second-order-weighting-itself-three-accepted-fixes">13. Improving Second-Order Weighting Itself: Three Accepted Fixes<a class="headerlink" href="#13-improving-second-order-weighting-itself-three-accepted-fixes" title="Permanent link">&para;</a></h2>
+<p>§12 rejected going beyond Newton's quadratic approximation. A more productive question turned out to be: is Newton's own implementation, as shipped, leaving anything on the table? Three targeted candidates were tested, isolating each change against the shipped baseline (GA2M + line search + <code>use_newton=True</code>).</p>
+<p><strong>Variant A — consistent line search (<code>line_search_mode="armijo"</code> in <code>fit_with_ga2m</code>).</strong> The default line search independently minimizes the <em>original</em> loss over <code>gamma</code>, while the learner was fit against the Newton-<em>reweighted</em> target — the exact inconsistency flagged in §9/§10/§11's rejected Newton+line-search combinations, but here fixable rather than avoidable, because GA2M's line search operates on the <em>same</em> fitted direction rather than a separately-tuned combination. <code>"armijo"</code> backtracks from <code>gamma=1</code> (the natural Newton step scale) using the true loss's exact directional derivative as the accept criterion — consistent by construction:</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th><code>use_newton=True</code> (bounded search)</th>
+<th><code>use_newton=True</code> + Armijo</th>
+<th>Fit time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>0.9241 / 0.6724, max|coef| 12.19</td>
+<td><strong>0.9250 / 0.6791</strong>, max|coef| <strong>5.86</strong></td>
+<td>2.8s → 2.9s</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>0.9471 / 0.7831, max|coef| 3.52</td>
+<td><strong>0.9473 / 0.7831</strong>, max|coef| <strong>2.62</strong></td>
+<td>26.6s → 27.0s</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>0.9506 / 0.7928, max|coef| 2.95</td>
+<td><strong>0.9507 / 0.7932</strong>, max|coef| <strong>2.40</strong></td>
+<td>54.4s → 51.4s</td>
+</tr>
+</tbody>
+</table>
+<p>Both AUROC and AUPRC improved at every scale (small but consistent in direction, not noise), fit time was unaffected (slightly better at Large), and the maximum coefficient magnitude roughly halved at every scale — smaller, more stable coefficients directly improve trust in <code>main_effect_contributions()</code>/<code>pairwise_interaction_contributions()</code>, not just prediction quality. <strong>Accepted and shipped</strong>, recommended whenever <code>use_newton=True</code> is used.</p>
+<p><strong>Variants B and C — alternative hessian floors (<code>hessian_floor_mode="adaptive"</code> / <code>"soft_lm"</code>).</strong> The default hard floor (<code>clip(p(1-p), min_hessian, None)</code>) was compared against an adaptive floor (scales with the round's own mean hessian) and soft Levenberg-Marquardt-style damping (<code>hess + damping</code>, no hard clip). Both were statistically indistinguishable from the hard floor on AUROC/AUPRC at all three scales, but <strong>7–12% faster at Medium/Large</strong> with no accuracy cost. <strong>Accepted and shipped</strong> as a low-risk secondary option — smaller effect than Variant A, but free.</p>
+<p><strong>Variant D — shared layer0 across multiclass one-vs-rest chains — rejected.</strong> Newton boosting's cost compounds <code>n_classes</code> times because each class fits an independent chain; sharing one random layer0 draw per round across all classes (layer0 only depends on <code>X</code>, never the class label, so this seemed safe) was tested on sklearn Digits (10 classes). Result: a modest ~5% speedup came with a real accuracy cost (0.9278→0.9167) — the same failure mode as RF-KAN's rejected chain-shared-projection design (§10): sharing removes the per-chain diversity each independent one-vs-rest problem needs. <strong>Not implemented.</strong></p>
+<p>Shipped in <code>kanboost.train.ga2m.fit_with_ga2m()</code> (both <code>line_search_mode</code> and <code>hessian_floor_mode</code> parameters) and <code>kanboost.train.newton.fit_with_newton_boosting()</code> (<code>hessian_floor_mode</code> only — this module has no line-search step to make consistent; see its docstring). All new parameters default to the pre-existing behavior (<code>"bounded"</code> / <code>"hard"</code>), so nothing changes unless requested.</p>
+<h2 id="14-final-head-to-head-kanboost-1100-vs-trees">14. Final Head-to-Head: KANBoost 1.10.0 vs. Trees<a class="headerlink" href="#14-final-head-to-head-kanboost-1100-vs-trees" title="Permanent link">&para;</a></h2>
+<p>With every accepted fix from §8-§13 combined (<code>fit_with_ga2m(..., use_newton=True, line_search_mode="armijo")</code> — GA2M's best validated recipe, this session's cumulative result), KANBoost was re-benchmarked against XGBoost and HistGradientBoosting at all three scales, same split, same threshold-tuning procedure (§5.1) applied symmetrically to all three models.</p>
+<p><strong>Accuracy (AUROC / AUPRC)</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th>KANBoost 1.10.0</th>
+<th>XGBoost</th>
+<th>HistGradientBoosting</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>0.9244 / 0.6804</td>
+<td><strong>0.9333 / 0.7099</strong></td>
+<td>0.9319 / 0.7148</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>0.9472 / 0.7844</td>
+<td><strong>0.9536 / 0.8073</strong></td>
+<td>0.9517 / 0.8033</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>0.9504 / 0.7942</td>
+<td><strong>0.9561 / 0.8156</strong></td>
+<td>0.9551 / 0.8127</td>
+</tr>
+</tbody>
+</table>
+<p>Trees still win on raw discrimination at every scale (AUROC gap 0.007-0.012, AUPRC gap 0.02-0.03) — consistent with the Executive Summary's standing conclusion. The gap is materially narrower than at the start of this evaluation, purely from the accumulated fixes in §8-§13, with no change to the underlying task or data.</p>
+<p><strong>Speed (fit / predict, seconds)</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th>KANBoost</th>
+<th>XGBoost</th>
+<th>HistGradientBoosting</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>2.4 / 9.4</td>
+<td>1.5 / 0.36</td>
+<td>3.1 / 0.19</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>20.9 / 16.3</td>
+<td>3.3 / 0.41</td>
+<td>1.5 / 0.23</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>62.1 / 25.5</td>
+<td>5.6 / 0.47</td>
+<td>1.6 / 0.25</td>
+</tr>
+</tbody>
+</table>
+<p>Fit time has closed to roughly 10-40x slower than trees, down from the 300-850x reported for the original fixed-shrinkage baseline (§8). <strong>Prediction time is now the dominant remaining bottleneck</strong> — 50-100x slower than trees — since <code>fit_with_ga2m</code> was used here without <code>consolidate_learners()</code> (§ per CC-12); applying it to GA2M's round format is the next concrete lever (see §14.1).</p>
+<p><strong>Interpretability — the differentiator that survives</strong>: KANBoost's GA2M gives genuine, structurally-native dual attribution — per-feature main effects AND named per-pair interactions, both directly read off the fitted coefficients (<code>main_effect_contributions()</code>/<code>pairwise_interaction_contributions()</code>), consistent across scales: <code>icd10_pcs</code>, <code>department</code>, <code>age</code>, <code>antype</code> dominate main effects, and <strong><code>department × icd10_pcs</code></strong> is consistently the top-ranked interaction at Medium and Large — directly corroborating §1-3's reading of <code>postop_icu</code> as institutional care-pathway routing (procedure type <em>and</em> department jointly determining the routing decision, not procedure type alone). XGBoost's <code>feature_importances_</code> and HistGradientBoosting's permutation importance give only a single global per-feature ranking, with no interaction terms available natively (SHAP interaction values would need a separate, more expensive post-hoc computation to approximate this). This structural difference, not a marginal accuracy edge, remains KANBoost's substantive contribution on this task.</p>
+<h3 id="141-prediction-speed-investigation">14.1 Prediction-Speed Investigation<a class="headerlink" href="#141-prediction-speed-investigation" title="Permanent link">&para;</a></h3>
+<p>Profiling <code>predict_proba_ga2m</code> (cProfile, Medium scale) found ~79% of predict time inside <code>_b_basis_1d</code> — mostly scipy's <code>BSpline.design_matrix</code> sparse construction and its subsequent densification, called once per hidden unit per round. Note: <code>consolidate_learners()</code> (§CC-12) cannot be applied here — it assumes the standard ALS/DeepKAN weak-learner object format (<code>.width</code>, callable, compatible with <code>model._fit_learner</code>), while GA2M's <code>learners_</code> is a custom tuple format (<code>layer0, knots1, coefs, n_hidden, K1, gamma, pairs</code>); adapting consolidation to that format was not attempted.</p>
+<p>Four levers were tested at all three INSPIRE scales, each verified numerically identical to the unmodified baseline (max difference ~1e-15, floating-point noise) before timing:</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th>Baseline</th>
+<th>Vectorized numpy Cox-de-Boor</th>
+<th><strong>Parallel-rounds (n_jobs=4)</strong></th>
+<th>Vectorized+Parallel</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>3.71s</td>
+<td>14.03s (3.8x slower)</td>
+<td><strong>1.76s (2.1x faster)</strong></td>
+<td>5.89s</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>6.69s</td>
+<td>26.97s (4.0x slower)</td>
+<td><strong>3.17s (2.1x faster)</strong></td>
+<td>11.59s</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>9.81s</td>
+<td>41.65s (4.2x slower)</td>
+<td><strong>4.58s (2.1x faster)</strong></td>
+<td>17.47s</td>
+</tr>
+</tbody>
+</table>
+<p>(Baseline here already includes <code>numba</code> — installing the optional <code>accel</code> extra, which the library already supports via a JIT-compiled fast path for <code>_b_basis_1d</code>, but which is not installed by default. Measured separately: numba alone gave only a modest ~18% end-to-end gain, well below the 6.5x measured for that function in isolation, since other per-round overhead — the Python loop itself, <code>layer0.forward</code>, sigmoid stacking — doesn't benefit from it.)</p>
+<p>A fully-vectorized pure-numpy Cox-de-Boor basis evaluator (full array broadcasting, no scipy sparse machinery at all) was <strong>tried and rejected</strong>: 3.8-4.2x <em>slower</em> than the shipped path at every scale — the intermediate-array overhead of <code>numpy.where</code>/<code>numpy.clip</code> across many small per-round calls outweighs whatever sparse-construction cost it avoids. This independently confirms <code>kanboost.core.kan.bspline</code>'s own docstring, which already warns that a hand-written numpy alternative to scipy was tried before and found slower.</p>
+<p><strong>Parallelizing across boosting rounds was the clear winner in this repeated-call microbenchmark</strong>: each round's <code>(layer0, coefs, gamma)</code> is fixed and independent once fitting completes, so <code>joblib.Parallel</code> can compute every round's contribution on a separate core and sum them — ~2.1x faster at every scale in the table above, with no accuracy cost (by construction; the computation is identical, just reordered). <strong>Shipped</strong> as <code>predict_proba_ga2m(model, X, n_jobs=...)</code>, default <code>n_jobs=1</code> (sequential, unchanged).</p>
+<p><strong>Correction after a second, more realistic measurement — the ~2.1x figure does not transfer to typical one-off usage.</strong> The table above used a repeated-call timing loop (one warmup call, then several timed calls), which amortizes <code>joblib</code>'s worker-process startup cost across many calls. Re-measured under the actual usage pattern from §14 (fit once, then predict on validation and test — two calls total, no warmup), the same <code>n_jobs=4</code> gave scale-dependent results instead of a uniform 2.1x:</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th><code>n_jobs=1</code></th>
+<th><code>n_jobs=4</code> (cold-start, 2 calls)</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>9.36s</td>
+<td>11.01s</td>
+<td><strong>worse</strong> (−18%)</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>16.27s</td>
+<td>15.16s</td>
+<td>~wash (+7%)</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>25.48s</td>
+<td>17.84s</td>
+<td>better (+43%, ~1.4x)</td>
+</tr>
+</tbody>
+</table>
+<p>The worker-spawn cost has to be paid before round-level parallelism pays for itself; Small's per-round compute is too little to cover it. <strong>Practical guidance</strong>: keep the default <code>n_jobs=1</code> for small data or one-off predictions; use <code>n_jobs&gt;1</code> for larger data, or for long-running services that reuse the same warm worker pool across many prediction calls — the 2.1x figure is real, but only under that repeated-call condition, not a guarantee for every usage pattern. This caveat is documented directly in <code>predict_proba_ga2m</code>'s docstring.</p>
+<h2 id="15-closing-the-remaining-gap-vs-trees-two-literature-motivated-attempts-both-rejected">15. Closing the Remaining Gap vs. Trees: Two Literature-Motivated Attempts, Both Rejected<a class="headerlink" href="#15-closing-the-remaining-gap-vs-trees-two-literature-motivated-attempts-both-rejected" title="Permanent link">&para;</a></h2>
+<p>§14 left a small but persistent AUROC/AUPRC gap versus XGBoost/HistGradientBoosting at every scale. Rather than assume this gap is unfixable, two concrete interventions were designed directly from Grinsztajn et al. (NeurIPS 2022, "Why do tree-based models still outperform deep learning on tabular data?"), which identifies three structural reasons smooth-basis models lose to trees: (1) sensitivity to uninformative features, (2) lack of axis-alignment (rotation invariance hurts), and (3) inability to represent irregular (non-smooth) target functions. Reason (2) already explains, post-hoc, why GA2M's axis-aligned main-effect/pair structure beat RF-KAN's dense random-projection mixing in §11 — RF-KAN's dense mixing is structurally a random rotation, exactly what the literature warns against. Reasons (1) and (3) were tested directly as candidate fixes, both on INSPIRE Small scale first per this project's standing practice of validating before scaling up.</p>
+<h3 id="151-adaptive-knot-placement-targeting-irregular-functions-rejected">15.1 Adaptive knot placement (targeting irregular functions) — rejected<a class="headerlink" href="#151-adaptive-knot-placement-targeting-irregular-functions-rejected" title="Permanent link">&para;</a></h3>
+<p>kanboost's <code>TabularPreprocessor</code> encodes categorical columns via smoothed target-mean encoding, so <code>icd10_pcs</code> becomes one continuous scalar feature. Since ~33% of procedure codes have a deterministic (0%/100%) train-set ICU rate (§2), this encoded feature's true relationship to the target has a near-step shape at the boundary between deterministic-negative/positive codes — a textbook "irregular function." A related, more basic issue was found in passing: <code>_make_knots</code> builds a uniform grid on a fixed <code>[-1, 1]</code> range for every feature, but the target-mean-encoded columns are never rescaled to that range (observed range for <code>icd10_pcs</code>: <code>[0.0026, 0.8918]</code> on Small scale) — roughly half the spline's knot range goes unused for that feature.</p>
+<p>Two variants were tested against the shipped baseline (uniform <code>[-1, 1]</code> knots), Small scale, GA2M + Newton + Armijo:</p>
+<table>
+<thead>
+<tr>
+<th>Config</th>
+<th style="text-align: right;">AUROC</th>
+<th style="text-align: right;">AUPRC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Baseline (uniform <code>[-1, 1]</code> knots)</td>
+<td style="text-align: right;">0.9250</td>
+<td style="text-align: right;"><strong>0.6791</strong></td>
+</tr>
+<tr>
+<td>Range-rescaled (uniform spacing, each feature's own <code>[min, max]</code>)</td>
+<td style="text-align: right;">0.9225</td>
+<td style="text-align: right;">0.6775</td>
+</tr>
+<tr>
+<td>Adaptive (quantile-based knot placement)</td>
+<td style="text-align: right;">0.9014</td>
+<td style="text-align: right;">0.6191</td>
+</tr>
+</tbody>
+</table>
+<p>Both variants <strong>underperformed the baseline</strong> — the quantile variant substantially so. Likely cause: several categorical columns are low-cardinality after target-mean encoding, so quantile-based knot placement produces many near-duplicate knot positions (only jittered apart by a small epsilon), destabilizing the local B-spline basis for those features; the more conservative range-only fix avoided that failure mode but still showed no benefit, suggesting the "wasted grid range" was never actually costing representational capacity in practice (B-spline basis functions have local support — unused knots outside the observed range are simply inactive, not representationally costly). <strong>Not implemented.</strong></p>
+<h3 id="152-adaptive-ridge-sparse-gating-for-main-effects-targeting-uninformative-features-rejected">15.2 Adaptive-ridge "sparse gating" for main effects (targeting uninformative features) — rejected<a class="headerlink" href="#152-adaptive-ridge-sparse-gating-for-main-effects-targeting-uninformative-features-rejected" title="Permanent link">&para;</a></h3>
+<p>Trees ignore an uninformative feature at zero cost (never split on it); GA2M's main-effect units apply a spline to every feature every round, relying only on a fixed, uniform ridge/smoothness penalty to shrink irrelevant ones. Since GA2M's hidden unit <code>h=j</code> is always feature <code>j</code>'s main effect across every round (only its random coefficients differ round to round — the pairwise units are what get re-sampled), a persistent running "accumulated main-effect contribution" per feature is well-defined during fitting. An adaptive-ridge mechanism (in the spirit of adaptive lasso / iteratively-reweighted ridge, chosen specifically to stay inside a closed-form weighted-least-squares solve, unlike a true group-lasso which would need iterative proximal steps) applied progressively stronger ridge to features whose accumulated contribution stayed small.</p>
+<p>An initial version used a multiplicative adjustment on the existing <code>lam_ridge</code> and had <strong>no measurable effect at all</strong> — the shipped default penalty values (<code>lam_smooth≈1e-8</code>, <code>lam_ridge≈1e-7</code>) are already negligible relative to the data term, so multiplying them by any modest factor changes nothing. Corrected to an additive, independently-scaled gate and swept across four orders of magnitude, Small scale:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Gate strength</th>
+<th style="text-align: right;">AUROC</th>
+<th style="text-align: right;">AUPRC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0 (baseline)</td>
+<td style="text-align: right;">0.9250</td>
+<td style="text-align: right;"><strong>0.6791</strong></td>
+</tr>
+<tr>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.9250</td>
+<td style="text-align: right;">0.6790</td>
+</tr>
+<tr>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">0.9252</td>
+<td style="text-align: right;">0.6781</td>
+</tr>
+<tr>
+<td style="text-align: right;">100</td>
+<td style="text-align: right;">0.9245</td>
+<td style="text-align: right;">0.6726</td>
+</tr>
+<tr>
+<td style="text-align: right;">1000</td>
+<td style="text-align: right;">0.9219</td>
+<td style="text-align: right;">0.6640</td>
+</tr>
+</tbody>
+</table>
+<p>At strength 10, AUROC ticks up by a noise-level amount (+0.0002) while AUPRC drops (−0.001); at higher strengths both metrics decline as the gate increasingly suppresses main effects indiscriminately, including genuinely important ones (<code>department</code>, <code>icd10_pcs</code>), rather than selectively targeting truly uninformative features. No tested strength gave a real, unambiguous improvement. <strong>Not implemented.</strong></p>
+<h3 id="153-interpretation">15.3 Interpretation<a class="headerlink" href="#153-interpretation" title="Permanent link">&para;</a></h3>
+<p>Both interventions were correctly motivated by peer-reviewed theory and, in §11's case, that theory already explains an empirical result obtained earlier in this session (GA2M &gt; RF-KAN). But neither translated into a measurable accuracy gain on this specific dataset. Combined with the EBM-vs-XGBoost literature (§6.1-adjacent finding: even well-tuned EBMs retain a small, persistent gap versus XGBoost across benchmarks), the remaining ~0.007-0.03 AUROC/AUPRC gap documented in §14 is plausibly close to a near-irreducible floor for GA2M-style additive models on this task, rather than a straightforwardly fixable engineering gap. Closing it further would likely require a structurally deeper change (e.g. three-way interactions, or a tree-like hard-partitioning mechanism inside the weak learner itself) rather than tuning knot placement or regularization strength — a larger undertaking flagged here as a direction for a future, separate investigation rather than pursued further in this session.</p>
+<h2 id="16-an-optional-native-c-accelerator-for-prediction">16. An Optional Native (C++) Accelerator for Prediction<a class="headerlink" href="#16-an-optional-native-c-accelerator-for-prediction" title="Permanent link">&para;</a></h2>
+<p>§14.1 closed part of the prediction-speed gap via <code>n_jobs</code> (parallelizing across boosting rounds), but found it scale-dependent -- a real win at Large, a wash at Medium, and <em>worse</em> than sequential at Small (worker-process startup cost outweighing the small amount of per-round compute available to parallelize there). This motivated investigating a compiled, ahead-of-time C++ extension for the same forward pass instead.</p>
+<p><strong>First attempt: rejected.</strong> A standalone (not Python-bound) C++ port of the same Cox-de-Boor basis evaluation, compiled with the only compiler available in the initial environment (a 32-bit MinGW.org GCC 6.3.0 from 2016), was <em>slower</em> than the existing numba path at every workload size tested — confirming that a naive C++ port is not an automatic win, and that toolchain quality matters as much as the language choice.</p>
+<p><strong>Second attempt: a fair comparison.</strong> After installing a modern 64-bit MinGW-w64 toolchain (GCC 16.1.0, matching Python's own 64-bit ABI) via <code>chocolatey</code>, the same standalone benchmark reversed completely: ~1.7-1.8x faster from the 64-bit compiler alone (same naive algorithm), and a further 3.7-6.5x from eliminating per-call heap allocation and enabling <code>-O3 -march=native</code> vectorization — the isolated basis-evaluation computation became faster than the <em>entire</em> current Python+numba <code>predict_proba_ga2m</code> pipeline (which includes additional overhead beyond basis evaluation).</p>
+<p><strong>Building the real extension.</strong> A <code>pybind11</code> extension (<code>kanboost/_native/ga2m_ext.cpp</code>) implementing GA2M's full per-round forward pass (layer0 + layer1 + matmul) was built and wired into <code>predict_proba_ga2m</code> via a new <code>backend</code> parameter (default <code>"auto"</code>, transparently falls back to pure Python/numba if the extension isn't built). A first integrated version gave only ~1.5x — profiling the <em>isolated</em> forward pass revealed why: it recomputed each feature's B-spline basis once per edge (main effect + however many pairwise units reused that feature), while <code>KANLayer.forward</code> itself computes each distinct feature's basis exactly once and reuses it via matmul across every hidden unit connected to it. Restructuring the extension to share basis computation the same way roughly doubled its advantage, to ~2.3x.</p>
+<p><strong>End-to-end result, using the actual shipped API</strong> (<code>fit_with_ga2m()</code>/<code>predict_proba_ga2m()</code>, not a standalone reimplementation), all three INSPIRE scales:</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th>Python</th>
+<th>C++</th>
+<th style="text-align: right;">Speedup</th>
+<th>Max prediction diff</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>3.95s</td>
+<td>1.74s</td>
+<td style="text-align: right;"><strong>2.27x</strong></td>
+<td>3.5e-15</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>6.89s</td>
+<td>2.95s</td>
+<td style="text-align: right;"><strong>2.33x</strong></td>
+<td>2.2e-15</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>10.15s</td>
+<td>4.49s</td>
+<td style="text-align: right;"><strong>2.26x</strong></td>
+<td>2.2e-15</td>
+</tr>
+</tbody>
+</table>
+<p>AUROC/AUPRC were bit-identical between backends (same computation, just faster), and notably this speedup is <strong>more stable across scales than <code>n_jobs</code></strong> (which ranged from a slowdown to a 1.4x speedup depending on data size) — the C++ path has no per-call process-spawn overhead to amortize. <code>main_effect_contributions()</code>/<code>pairwise_interaction_contributions()</code> were verified unaffected, since they read the fitted coefficients directly regardless of which backend computed predictions.</p>
+<p><strong>Shipped as fully optional</strong>: the extension requires <code>pybind11</code> and a C++17 compiler <em>at build time only</em> (<code>pip install pybind11 &amp;&amp; python setup.py build_ext --inplace</code>) and is <strong>not part of the published PyPI wheel</strong> — installing/using kanboost normally is entirely unaffected; this is an opt-in local build for users who want the extra speed and have a compiler available. A build failure for any reason falls back to pure-Python silently (see <code>setup.py</code>'s docstring).</p>
+<h3 id="161-updated-head-to-head-vs-trees-with-the-c-backend">16.1 Updated Head-to-Head vs. Trees, with the C++ Backend<a class="headerlink" href="#161-updated-head-to-head-vs-trees-with-the-c-backend" title="Permanent link">&para;</a></h3>
+<p>§14's comparison was re-run with KANBoost 1.12.0 using <code>backend="auto"</code> (the C++ extension, built and available in this environment), at all three scales, same split/threshold-tuning procedure:</p>
+<p><strong>Accuracy (unchanged from §14, as expected — same computation, just faster)</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th>KANBoost</th>
+<th>XGBoost</th>
+<th>HistGradientBoosting</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>0.9244 / 0.6804</td>
+<td><strong>0.9333 / 0.7099</strong></td>
+<td>0.9319 / 0.7148</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>0.9472 / 0.7844</td>
+<td><strong>0.9536 / 0.8073</strong></td>
+<td>0.9517 / 0.8033</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>0.9504 / 0.7942</td>
+<td><strong>0.9561 / 0.8156</strong></td>
+<td>0.9551 / 0.8127</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Speed — the largest improvement of this entire evaluation</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th>Fit</th>
+<th>Predict (C++)</th>
+<th>Predict (original, §14 baseline)</th>
+<th style="text-align: right;">Predict speedup</th>
+<th style="text-align: right;">Remaining gap vs. XGBoost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>2.0s</td>
+<td><strong>3.66s</strong></td>
+<td>9.36s</td>
+<td style="text-align: right;">2.56x</td>
+<td style="text-align: right;">~10x (was ~31x)</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>16.4s</td>
+<td><strong>6.80s</strong></td>
+<td>16.27s</td>
+<td style="text-align: right;">2.39x</td>
+<td style="text-align: right;">~18x (was ~38x)</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>37.5s</td>
+<td><strong>9.49s</strong></td>
+<td>25.48s</td>
+<td style="text-align: right;">2.68x</td>
+<td style="text-align: right;">~24x (was ~46x)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Interpretability</strong>: <code>main_effect_contributions()</code>/<code>pairwise_interaction_contributions()</code> bit-identical to §14 (<code>icd10_pcs</code>, <code>department</code>, <code>age</code> dominate main effects; <code>department × icd10_pcs</code> remains the top-ranked interaction at Medium/Large) — as expected, since only the forward-pass implementation changed, not the fitted coefficients.</p>
+<p><strong>Overall</strong>: trees retain a small but real accuracy edge (~0.007-0.03 AUROC/AUPRC) at every scale, unchanged across this entire evaluation. But the speed gap — both fit (closed from 300-850x at the start of this evaluation to ~9-24x) and predict (now ~10-24x, down from ~30-77x with the original unoptimized Python path) — has narrowed substantially through the accumulated fixes in §8-§16, while KANBoost's structurally-native dual attribution (per-feature main effects AND named pairwise interactions, unavailable by default in either tree baseline) remains the differentiator that survives every fix and audit performed in this evaluation.</p>
+<h2 id="18-generalization-test-30-day-mortality-and-a-newton-reweighting-failure-mode">18. Generalization Test: 30-Day Mortality, and a Newton Reweighting Failure Mode<a class="headerlink" href="#18-generalization-test-30-day-mortality-and-a-newton-reweighting-failure-mode" title="Permanent link">&para;</a></h2>
+<p>Every result in §1-§16 concerns <code>postop_icu</code> (~11.4% positive rate). To test whether the accumulated fixes generalize to a different, much rarer clinical question — not just a different sample of the same task — the same three-scale pipeline (GA2M + Newton + Armijo vs. XGBoost vs. HistGradientBoosting) was re-run against a second target: <strong><code>mortality_30d</code></strong> (all-cause death within 30 days of surgery, derived from <code>allcause_death_time</code>, ~0.35% positive rate — roughly 30x rarer than <code>postop_icu</code>).</p>
+<p><strong>A data-handling pitfall caught before it produced wrong numbers</strong>: INSPIRE's time columns (<code>opend_time</code>, <code>icuin_time</code>, <code>allcause_death_time</code>, ...) are numeric <strong>minutes from a per-case reference epoch</strong>, not calendar timestamps. Applying <code>pd.to_datetime()</code> to them directly — the natural first instinct — silently produces nonsense: an implausible ~15% "30-day mortality rate" for a general surgical population. Treating the difference as minutes (÷1440 for days) gives the correct, clinically plausible rate of ~0.35%. This is recorded here as a concrete warning for anyone extending this pipeline to other INSPIRE time-derived labels.</p>
+<p><strong>Result</strong>: <code>mortality_30d</code>'s AUPRC gap versus trees is far larger, and widens with scale, unlike <code>postop_icu</code>'s roughly constant small gap:</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th>KANBoost (GA2M+Newton+Armijo)</th>
+<th>XGBoost</th>
+<th>HistGradientBoosting</th>
+<th style="text-align: right;">Relative gap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>AUROC 0.804, AUPRC 0.0168</td>
+<td>AUROC 0.897, AUPRC 0.0419</td>
+<td>AUROC 0.871, AUPRC 0.0281</td>
+<td style="text-align: right;">~2.5x worse</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>AUROC 0.905, AUPRC 0.0434</td>
+<td>AUROC 0.911, AUPRC 0.1835</td>
+<td>AUROC 0.912, AUPRC 0.1908</td>
+<td style="text-align: right;">~4.4x worse</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>AUROC 0.919, AUPRC 0.0462</td>
+<td>AUROC 0.918, AUPRC 0.2061</td>
+<td>AUROC 0.908, AUPRC 0.1892</td>
+<td style="text-align: right;">~4.5x worse</td>
+</tr>
+</tbody>
+</table>
+<p>Two candidate explanations were tested and ruled out or confirmed by direct experiment rather than assumed:</p>
+<p><strong>Capacity was tested first and ruled out.</strong> Raising <code>n_hidden</code> uniformly to 36 (well above the <code>16/20/24</code> used elsewhere in this evaluation) made results <em>worse</em> at every scale for both targets, not better (<code>postop_icu</code> Small: AUROC 0.9244→0.9210, AUPRC 0.6804→0.6645; <code>mortality_30d</code> Small: AUROC 0.804→0.699, AUPRC 0.0168→0.0091) — with 30-51% higher fit time to boot. A capacity-per-scale reduction (<code>n_hidden=8/16/24</code> with more rounds, <code>40/64/81</code>) helped <code>postop_icu</code> and <code>mortality_30d</code> specifically at Small scale (best result found for both targets at that scale) but didn't clearly generalize to Medium/Large. Capacity tuning alone does not close the gap.</p>
+<p><strong>Newton reweighting was tested second and confirmed as the dominant cause.</strong> A clean 2x2 experiment (Newton on/off x class-balancing on/off, capacity held fixed at the original <code>16/20/24</code> config) on <code>mortality_30d</code>, all three scales:</p>
+<table>
+<thead>
+<tr>
+<th>Scale</th>
+<th>Baseline (Newton, no balance)</th>
+<th><strong>No Newton</strong></th>
+<th>Newton + balanced</th>
+<th>No Newton + balanced</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small</td>
+<td>AUROC 0.804, AUPRC 0.0168</td>
+<td><strong>AUROC 0.887, AUPRC 0.0433</strong></td>
+<td>AUROC 0.737, AUPRC 0.0150</td>
+<td>AUROC 0.854, AUPRC 0.0333</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>AUROC 0.905, AUPRC 0.0434</td>
+<td><strong>AUROC 0.910, AUPRC 0.0518</strong></td>
+<td>AUROC 0.869, AUPRC 0.0339</td>
+<td>AUROC 0.920, AUPRC 0.0437</td>
+</tr>
+<tr>
+<td>Large</td>
+<td>AUROC 0.919, AUPRC 0.0462</td>
+<td><strong>AUROC 0.914, AUPRC 0.0535</strong></td>
+<td>AUROC 0.897, AUPRC 0.0368</td>
+<td>AUROC 0.920, AUPRC 0.0492</td>
+</tr>
+</tbody>
+</table>
+<p>Disabling Newton reweighting alone gives the best AUPRC at every single scale (+158% at Small, +19% at Medium, +16% at Large over the baseline), while adding class balancing <em>on top of</em> Newton makes results worse at every scale. Root cause: at this extreme a base rate (~0.35%), <code>hess = p(1-p)</code> collapses to near-zero for the overwhelming majority of confidently-negative samples, so the <code>min_hessian</code> floor dominates the reweighted target for nearly all training data — Newton reweighting, which was neutral-to-beneficial for <code>postop_icu</code>'s more moderate ~11% base rate (§9, §13), becomes actively counterproductive at this level of rarity.</p>
+<p><strong>Practical guidance established by this test</strong>: <code>use_newton=True</code> (the default recommendation from §13's Variant A) should <strong>not</strong> be applied unconditionally to targets with extreme class imbalance (roughly &lt;1% positive rate, as a rule of thumb pending further testing) — disable it for such targets specifically. This is a genuine, previously-undocumented boundary condition on this evaluation's own recommendations, found only because the pipeline was deliberately tested against a target it was not tuned on.</p>
+<p><strong>Interpretability held up across both targets</strong>: <code>main_effect_contributions()</code>/<code>pairwise_interaction_contributions()</code> remained sensible for <code>mortality_30d</code> too (same dominant features as <code>postop_icu</code>: <code>icd10_pcs</code>, <code>department</code>, <code>age</code>), and the full walkthrough — including per-patient local explanation via additive decomposition of a single prediction into its main-effect and pairwise-interaction terms — is available as a runnable Colab notebook, <code>examples/kanboost_inspire_colab_walkthrough.ipynb</code>.</p>
+<h2 id="19-limitations-and-next-steps">19. Limitations and Next Steps<a class="headerlink" href="#19-limitations-and-next-steps" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Threshold optimization was not applied symmetrically until this report</strong> (§5.1) — future comparisons in this project should always tune thresholds identically across every model compared, not only for KANBoost.</li>
+<li><strong>Calibration was only measured for KANBoost</strong> (Platt scaling, Brier score) in this evaluation; the trees were not calibrated or Brier-scored here. A fair follow-up would report Brier/reliability curves for all five models side by side.</li>
+<li><strong>No temporal split was used</strong> — the group-aware split here prevents patient leakage across folds but is still a random split in time. A temporal (train-on-earlier-years, test-on-later-years) split would better reflect deployment realism and is a natural next experiment.</li>
+<li><strong>No external validation</strong> (a second institution's data, analogous to the published paper's MOVER cohort) was performed — all numbers here are internal to INSPIRE.</li>
+<li>~~The mixed-code robustness check (§3) was only run at Small and Medium scale for KANBoost~~ — <strong>resolved</strong>: §3 now includes Large-scale KANBoost results, confirming the same pattern (AUPRC drop of −0.207 from removing <code>icd10_pcs</code> within the mixed-risk subset, consistent with −0.166 at Small and −0.212 at Medium).</li>
+<li>~~The line-search speedup (§8) was measured on Small and Medium scale only~~ — <strong>resolved</strong>: confirmed at Large scale too (3.9× speedup, 761.2s→195.0s, AUROC/AUPRC both slightly exceeding the fixed-shrinkage baseline), consistent with Small (3.1×) and Medium (4.2×). This closes a substantial, size-independent portion of the speed gap versus GB-KAN's reported 2.5–3× XGBoost figure — kanboost's fixed-shrinkage baseline was 300–850× slower than trees on INSPIRE; with line search's fewer-round effect applied, that multiple drops considerably (exact all-model head-to-head fit-time comparison with line search enabled is a natural next measurement, not yet done as of this writing).</li>
+<li><strong><code>icd10_pcs</code>'s exact coding timing was not independently verified against SNUH's clinical documentation practices</strong> — this report relies on the reasonable assumption (consistent with ICD-10-PCS being assigned from the planned procedure, and with the original notebook's explicit "features known before or at planning" design constraint) that it is not retroactively adjusted after a complication; no institutional coding-workflow documentation was available to confirm this directly.</li>
+</ul>
+<h2 id="20-closing-part-of-the-accuracy-gap-gain-ranked-interaction-selection-and-five-rejected-attempts-first">20. Closing Part of the Accuracy Gap: Gain-Ranked Interaction Selection (and Five Rejected Attempts First)<a class="headerlink" href="#20-closing-part-of-the-accuracy-gap-gain-ranked-interaction-selection-and-five-rejected-attempts-first" title="Permanent link">&para;</a></h2>
+<p>Following the <code>mortality_30d</code> generalization test (§18), a literature review targeted the remaining <code>postop_icu</code> accuracy gap vs. trees directly, informed by three sources: Grinsztajn et al. (NeurIPS 2022, why trees beat smooth/neural models on tabular data — irregular target functions, uninformative-feature robustness, rotation invariance), CatBoost's ordered boosting (Prokhorenkova et al., NeurIPS 2018, prediction shift), and GB-KAN (Mohr &amp; Fröchte, ICAART 2026, the directly comparable KAN-as-weak-learner boosting paper). Five hypotheses were tested with real evidence on INSPIRE and <strong>rejected or left inconclusive</strong>, each isolating a different candidate mechanism (full detail, tables, and exact numbers in <code>AI_REVIEW_LOOP.md</code>, CC-24 through CC-29):</p>
+<ul>
+<li><strong>Row subsampling</strong> (stochastic gradient boosting, Friedman 2002 — kanboost has none, unlike every mature boosting library): no measurable effect (Δ AUPRC ≈ 0.0000).</li>
+<li><strong>Reduced B-spline smoothness</strong> (<code>kan_k=1</code> vs. default 3, testing Grinsztajn's smooth-bias finding directly): made accuracy <em>worse</em> (Δ AUPRC −0.0054), the opposite of the hypothesis.</li>
+<li><strong>Chebyshev polynomial basis instead of B-spline</strong> (TabKAN's approach), tested on synthetic data with a deliberate hard discontinuity, confirmed independently on Kaggle: B-spline's local support beat Chebyshev's global support even on data engineered to favor the swap (Δ AUPRC −0.0090).</li>
+<li><strong>Approximate ordered/cross-fitted boosting</strong> (CatBoost-style prediction-shift mitigation), two attempts including a diagnosed-and-fixed implementation bug: both negative (Δ AUPRC ≈ −0.02), the fix not changing the outcome.</li>
+<li><strong>A hybrid node-decision/edge-learning gate</strong> at GA2M's hidden units (user-originated idea: trees decide at nodes, KAN learns on edges) — a fixed-parameter version was catastrophically negative (Δ AUPRC as low as −0.14); the fully learnable version (per-node learned blend/sharpness/threshold, Adam-optimized) gave the session's first non-negative result (Δ AUPRC +0.0036) but only ~1x the CV noise level and ~10x slower to fit — inconclusive, not pursued further.</li>
+</ul>
+<p><strong>What worked</strong>: an independent research pass (a second model instance, prompted with this session's full experimental history and asked for its own best-reasoned next idea) identified that kanboost implements GA2M's <em>model class</em> (Lou et al., KDD 2013) without GA2M's own <em>term-selection mechanism</em> — <code>fit_with_ga2m</code>'s pairwise-interaction hidden units are chosen uniformly at random each round, rather than by a gain/ranking criterion, the one Grinsztajn mechanism (uninformative-feature robustness) the five rejected attempts above never actually tested.</p>
+<p><strong>Design</strong>: each round, score a candidate pool of pairs by <code>gain = b'(M⁻¹)b</code> — the penalized-projection squared-error reduction achievable by that pair's own B-spline basis block alone against the current residual (a per-block version of the same closed-form quantity the existing joint solve already computes) — and keep only the top <code>n_pairs_per_round</code> by gain. Main effects unchanged (always included). Same final model capacity as the random-selection baseline (a pure selection swap, not a capacity increase); stays entirely within the existing closed-form solve (no gradient optimizer).</p>
+<p><strong>Result</strong> (Medium scale, <code>postop_icu</code>, 3 seeds × 3-fold <code>StratifiedGroupKFold</code> by <code>subject_id</code>, after a seed-fairness fix and a row-subsampled scoring optimization identified by an independent code review of the first version):</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>AUROC</th>
+<th>AUPRC</th>
+<th>fit time/seed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Random selection (shipped <code>fit_with_ga2m</code>)</td>
+<td>0.9419 ± 0.0002</td>
+<td>0.7548 ± 0.0007</td>
+<td>42.7s</td>
+</tr>
+<tr>
+<td>Gain-ranked selection</td>
+<td>0.9430 ± 0.0002</td>
+<td>0.7617 ± 0.0006</td>
+<td>63.8s</td>
+</tr>
+</tbody>
+</table>
+<p>Δ AUPRC +0.0069, <strong>7.53× the combined CV standard deviation</strong> — the first result in this entire line of investigation (six hypotheses tested) to clear a pre-registered significance bar with a comfortable margin. Selected pairs were highly consistent across every round/seed/fold (the top pair was chosen in over a third of all possible round-slots), evidence of genuine, stable interaction discovery rather than selection noise. Fit-time cost is a modest 1.45× the baseline. Three further refinements proposed by a second independent review round (exhaustive candidate pool, FAST-correct conditional gain, anti-collapse stochastic selection) were tested in ablation and did <strong>not</strong> improve on this result on real INSPIRE data — a theory/experiment mismatch recorded honestly rather than adopted on reasoning alone.</p>
+<p><strong>Status</strong>: evidence-stage only, not yet implemented in <code>kanboost/train/ga2m.py</code>. Per this project's standing pipeline, this requires independent code/math review and scientific judgment before any merge, and explicit user approval regardless of outcome — see <code>AI_REVIEW_LOOP.md</code> (CC-30) for the full record.</p>
+<hr />
+<p><em>Companion document</em>: <a href="../inspire_gap_closing_report/"><code>inspire_gap_closing_report.md</code></a> — the chronological engineering log of every fix tried (encoding, class weighting, capacity, consolidation, <code>categorical_hierarchy</code>, the rejected RBF-basis experiment) with full before/after tables, referenced throughout this report as the source of the underlying KANBoost configuration evaluated here.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.top", "content.code.copy", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
